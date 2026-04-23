@@ -897,6 +897,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'End Quiz'**
   String get endQuiz;
+
+  /// No description provided for @deleteAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Account'**
+  String get deleteAccount;
+
+  /// No description provided for @deleteAccountConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Account?'**
+  String get deleteAccountConfirmTitle;
+
+  /// No description provided for @deleteAccountConfirmDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'This action is permanent. All your quizzes and history will be deleted.'**
+  String get deleteAccountConfirmDesc;
+
+  /// No description provided for @notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification'**
+  String get notification;
+
+  /// No description provided for @verificationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification Required'**
+  String get verificationRequired;
+
+  /// No description provided for @verificationSentDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'A confirmation link has been sent to {email}. Your email will be updated once you click the link.'**
+  String verificationSentDesc(Object email);
+
+  /// No description provided for @leaveBlankToKeepCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave blank to keep current password'**
+  String get leaveBlankToKeepCurrent;
+
+  /// No description provided for @correctCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Correct'**
+  String correctCount(Object count);
+
+  /// No description provided for @gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get gallery;
+
+  /// No description provided for @camera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get camera;
 }
 
 class _AppLocalizationsDelegate

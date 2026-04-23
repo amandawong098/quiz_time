@@ -130,5 +130,15 @@
   "generate": "生成",
   "quizGeneratedSuccessfully": "测验生成成功！",
   "all": "全部",
-  "endQuiz": "结束测验"
+  "endQuiz": "结束测验",
+  "deleteAccount": "删除账号",
+  "deleteAccountConfirmTitle": "删除账号？",
+  "deleteAccountConfirmDesc": "此操作是永久性的。您的所有测验和历史记录都将被删除。",
+  "notification": "通知",
+  "verificationRequired": "需要验证",
+  "verificationSentDesc": "验证链接已发送至 {email}。点击链接后，您的电子邮件将被更新。",
+  "leaveBlankToKeepCurrent": "留空以保留当前密码",
+  "correctCount": "{count} 正确",
+  "gallery": "相册",
+  "camera": "相机"
 }

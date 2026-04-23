@@ -38,6 +38,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _showImagePickerOptions() async {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -46,7 +47,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
+              title: Text(l10n.gallery),
               onTap: () {
                 Navigator.pop(context);
                 _pickAndUploadAvatar(ImageSource.gallery);
@@ -54,7 +55,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
+              title: Text(l10n.camera),
               onTap: () {
                 Navigator.pop(context);
                 _pickAndUploadAvatar(ImageSource.camera);
@@ -102,7 +103,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Notification'),
+        title: Text(AppLocalizations.of(ctx)!.notification),
         content: Text(message),
         actions: [
           TextButton(
@@ -135,9 +136,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           await showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Verification Required'),
+              title: Text(AppLocalizations.of(ctx)!.verificationRequired),
               content: Text(
-                'A confirmation link has been sent to $newEmail. Your email will be updated once you click the link.',
+                AppLocalizations.of(ctx)!.verificationSentDesc(newEmail),
               ),
               actions: [
                 TextButton(
@@ -251,7 +252,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               decoration: InputDecoration(
                 labelText: l10n.changePassword,
                 prefixIcon: const Icon(Icons.lock_outline),
-                helperText: 'Leave blank to keep current password',
+                helperText: l10n.leaveBlankToKeepCurrent,
               ),
               obscureText: true,
             ),

@@ -422,4 +422,38 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get endQuiz => '结束测验';
+
+  @override
+  String get deleteAccount => '删除账号';
+
+  @override
+  String get deleteAccountConfirmTitle => '删除账号？';
+
+  @override
+  String get deleteAccountConfirmDesc => '此操作是永久性的。您的所有测验和历史记录都将被删除。';
+
+  @override
+  String get notification => '通知';
+
+  @override
+  String get verificationRequired => '需要验证';
+
+  @override
+  String verificationSentDesc(Object email) {
+    return '验证链接已发送至 $email。点击链接后，您的电子邮件将被更新。';
+  }
+
+  @override
+  String get leaveBlankToKeepCurrent => '留空以保留当前密码';
+
+  @override
+  String correctCount(Object count) {
+    return '$count 正确';
+  }
+
+  @override
+  String get gallery => '相册';
+
+  @override
+  String get camera => '相机';
 }

@@ -130,5 +130,15 @@
   "generate": "Jana",
   "quizGeneratedSuccessfully": "Kuiz berjaya dijana!",
   "all": "Semua",
-  "endQuiz": "Tamatkan Kuiz"
+  "endQuiz": "Tamatkan Kuiz",
+  "deleteAccount": "Padam Akaun",
+  "deleteAccountConfirmTitle": "Padam Akaun?",
+  "deleteAccountConfirmDesc": "Tindakan ini adalah kekal. Semua kuiz dan sejarah anda akan dipadamkan.",
+  "notification": "Notifikasi",
+  "verificationRequired": "Pengesahan Diperlukan",
+  "verificationSentDesc": "Pautan pengesahan telah dihantar ke {email}. E-mel anda akan dikemas kini sebaik sahaja anda klik pautan tersebut.",
+  "leaveBlankToKeepCurrent": "Biarkan kosong untuk mengekalkan kata laluan semasa",
+  "correctCount": "{count} Betul",
+  "gallery": "Galeri",
+  "camera": "Kamera"
 }

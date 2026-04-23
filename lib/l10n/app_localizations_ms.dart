@@ -433,4 +433,40 @@ class AppLocalizationsMs extends AppLocalizations {
 
   @override
   String get endQuiz => 'Tamatkan Kuiz';
+
+  @override
+  String get deleteAccount => 'Padam Akaun';
+
+  @override
+  String get deleteAccountConfirmTitle => 'Padam Akaun?';
+
+  @override
+  String get deleteAccountConfirmDesc =>
+      'Tindakan ini adalah kekal. Semua kuiz dan sejarah anda akan dipadamkan.';
+
+  @override
+  String get notification => 'Notifikasi';
+
+  @override
+  String get verificationRequired => 'Pengesahan Diperlukan';
+
+  @override
+  String verificationSentDesc(Object email) {
+    return 'Pautan pengesahan telah dihantar ke $email. E-mel anda akan dikemas kini sebaik sahaja anda klik pautan tersebut.';
+  }
+
+  @override
+  String get leaveBlankToKeepCurrent =>
+      'Biarkan kosong untuk mengekalkan kata laluan semasa';
+
+  @override
+  String correctCount(Object count) {
+    return '$count Betul';
+  }
+
+  @override
+  String get gallery => 'Galeri';
+
+  @override
+  String get camera => 'Kamera';
 }

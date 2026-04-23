@@ -51,7 +51,7 @@ class QuizFilterBar extends StatelessWidget {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: selectedGrade,
+                initialValue: selectedGrade,
                 decoration: InputDecoration(labelText: l10n.gradeLabel),
                 items: [
                   DropdownMenuItem(value: null, child: Text(l10n.allGrades)),
@@ -68,7 +68,7 @@ class QuizFilterBar extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: selectedSubject,
+                initialValue: selectedSubject,
                 decoration: InputDecoration(labelText: l10n.subjectLabel),
                 items: [
                   DropdownMenuItem(value: null, child: Text(l10n.allSubjects)),

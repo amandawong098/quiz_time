@@ -178,7 +178,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
 
       final quizData = Quiz(
         id: widget.quiz?.id ?? '',
-        creatorId: '', 
+        creatorId: '',
         title: _titleController.text.trim(),
         description: _descController.text.trim(),
         grade: _selectedGrade ?? 'Grade 1',
@@ -290,7 +290,11 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                                   ? NetworkImage(_imageUrl!)
                                   : null),
                         child: !hasImage
-                            ? const Icon(Icons.quiz, size: 60, color: Colors.grey)
+                            ? const Icon(
+                                Icons.quiz,
+                                size: 60,
+                                color: Colors.grey,
+                              )
                             : null,
                       ),
                       Positioned(
@@ -339,7 +343,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(labelText: l10n.gradeLabel),
-                  value: _selectedGrade,
+                  initialValue: _selectedGrade,
                   items: _grades.map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
@@ -353,7 +357,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(labelText: l10n.subjectLabel),
-                  value: _selectedSubject,
+                  initialValue: _selectedSubject,
                   items: _subjects.map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,

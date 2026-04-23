@@ -148,5 +148,25 @@
   "save": "Save",
   "updateSuccessful": "Update successful!",
   "all": "All",
-  "endQuiz": "End Quiz"
+  "endQuiz": "End Quiz",
+  "deleteAccount": "Delete Account",
+  "deleteAccountConfirmTitle": "Delete Account?",
+  "deleteAccountConfirmDesc": "This action is permanent. All your quizzes and history will be deleted.",
+  "notification": "Notification",
+  "verificationRequired": "Verification Required",
+  "verificationSentDesc": "A confirmation link has been sent to {email}. Your email will be updated once you click the link.",
+  "@verificationSentDesc": {
+    "placeholders": {
+      "email": {}
+    }
+  },
+  "leaveBlankToKeepCurrent": "Leave blank to keep current password",
+  "correctCount": "{count} Correct",
+  "@correctCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "gallery": "Gallery",
+  "camera": "Camera"
 }

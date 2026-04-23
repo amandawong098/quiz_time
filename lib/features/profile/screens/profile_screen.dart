@@ -139,10 +139,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Account?'),
-        content: const Text(
-          'This action is permanent. All your quizzes and history will be deleted.',
-        ),
+        title: Text(l10n.deleteAccountConfirmTitle),
+        content: Text(l10n.deleteAccountConfirmDesc),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -150,7 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -344,7 +342,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       elevation: 0,
                       color: Theme.of(
                         context,
-                      ).colorScheme.surfaceVariant.withOpacity(0.3),
+                      ).colorScheme.surfaceVariant.withValues(alpha: 0.3),
                       child: ListTile(
                         leading: const Icon(Icons.language),
                         title: Text(
@@ -386,9 +384,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.delete_forever,
                         color: Colors.white,
                       ),
-                      label: const Text(
-                        'Delete Account',
-                        style: TextStyle(color: Colors.white),
+                      label: Text(
+                        l10n.deleteAccount,
+                        style: const TextStyle(color: Colors.white),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
@@ -422,7 +420,10 @@ class _StatBox extends StatelessWidget {
               child: Center(
                 child: Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

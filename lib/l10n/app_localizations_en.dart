@@ -432,4 +432,39 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get endQuiz => 'End Quiz';
+
+  @override
+  String get deleteAccount => 'Delete Account';
+
+  @override
+  String get deleteAccountConfirmTitle => 'Delete Account?';
+
+  @override
+  String get deleteAccountConfirmDesc =>
+      'This action is permanent. All your quizzes and history will be deleted.';
+
+  @override
+  String get notification => 'Notification';
+
+  @override
+  String get verificationRequired => 'Verification Required';
+
+  @override
+  String verificationSentDesc(Object email) {
+    return 'A confirmation link has been sent to $email. Your email will be updated once you click the link.';
+  }
+
+  @override
+  String get leaveBlankToKeepCurrent => 'Leave blank to keep current password';
+
+  @override
+  String correctCount(Object count) {
+    return '$count Correct';
+  }
+
+  @override
+  String get gallery => 'Gallery';
+
+  @override
+  String get camera => 'Camera';
 }

@@ -169,7 +169,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 ),
                               ),
                               subtitle: Text(
-                                '${date.day}/${date.month}/${date.year} • ${attempt['correct_answers']} Correct',
+                                '${date.day}/${date.month}/${date.year} • ${l10n.correctCount(attempt['correct_answers'])}',
                               ),
                               trailing: SizedBox(
                                 width: 40,
