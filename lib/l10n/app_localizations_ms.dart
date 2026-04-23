@@ -408,25 +408,25 @@ class AppLocalizationsMs extends AppLocalizations {
   String get quizGeneratedSuccessfully => 'Kuiz berjaya dijana!';
 
   @override
-  String get editProfile => 'Edit Profile';
+  String get editProfile => 'Sunting Profil';
 
   @override
-  String get displayName => 'Display Name';
+  String get displayName => 'Nama Paparan';
 
   @override
-  String get email => 'Email';
+  String get email => 'E-mel';
 
   @override
-  String get password => 'Password';
+  String get password => 'Kata Laluan';
 
   @override
-  String get changePassword => 'Change Password (optional)';
+  String get changePassword => 'Tukar Kata Laluan (pilihan)';
 
   @override
-  String get save => 'Save';
+  String get save => 'Simpan';
 
   @override
-  String get updateSuccessful => 'Update successful!';
+  String get updateSuccessful => 'Kemas kini berjaya!';
 
   @override
   String get all => 'Semua';

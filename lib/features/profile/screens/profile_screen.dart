@@ -367,6 +367,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 48),
                     ElevatedButton.icon(
                       onPressed: () async {
+                        context.read<LocaleProvider>().clearLocale();
                         await context.read<AuthRepository>().signOut();
                         if (context.mounted) context.go('/login');
                       },

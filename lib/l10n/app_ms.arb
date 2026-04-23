@@ -140,5 +140,12 @@
   "leaveBlankToKeepCurrent": "Biarkan kosong untuk mengekalkan kata laluan semasa",
   "correctCount": "{count} Betul",
   "gallery": "Galeri",
-  "camera": "Kamera"
+  "camera": "Kamera",
+  "editProfile": "Sunting Profil",
+  "displayName": "Nama Paparan",
+  "email": "E-mel",
+  "password": "Kata Laluan",
+  "changePassword": "Tukar Kata Laluan (pilihan)",
+  "save": "Simpan",
+  "updateSuccessful": "Kemas kini berjaya!"
 }

@@ -140,5 +140,12 @@
   "leaveBlankToKeepCurrent": "留空以保留当前密码",
   "correctCount": "{count} 正确",
   "gallery": "相册",
-  "camera": "相机"
+  "camera": "相机",
+  "editProfile": "编辑个人资料",
+  "displayName": "显示名称",
+  "email": "电子邮件",
+  "password": "密码",
+  "changePassword": "更改密码（可选）",
+  "save": "保存",
+  "updateSuccessful": "更新成功！"
 }

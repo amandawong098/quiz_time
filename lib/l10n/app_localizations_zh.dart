@@ -397,25 +397,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quizGeneratedSuccessfully => '测验生成成功！';
 
   @override
-  String get editProfile => 'Edit Profile';
+  String get editProfile => '编辑个人资料';
 
   @override
-  String get displayName => 'Display Name';
+  String get displayName => '显示名称';
 
   @override
-  String get email => 'Email';
+  String get email => '电子邮件';
 
   @override
-  String get password => 'Password';
+  String get password => '密码';
 
   @override
-  String get changePassword => 'Change Password (optional)';
+  String get changePassword => '更改密码（可选）';
 
   @override
-  String get save => 'Save';
+  String get save => '保存';
 
   @override
-  String get updateSuccessful => 'Update successful!';
+  String get updateSuccessful => '更新成功！';
 
   @override
   String get all => '全部';

@@ -30,4 +30,11 @@ class LocaleProvider extends ChangeNotifier {
       await prefs.setString('languageCode', locale.languageCode);
     }
   }
+
+  void clearLocale() async {
+    _locale = null;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('languageCode');
+  }
 }
