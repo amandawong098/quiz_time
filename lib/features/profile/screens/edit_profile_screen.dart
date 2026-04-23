@@ -129,6 +129,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ? null
             : _passwordController.text,
         avatarUrl: _avatarUrl,
+        updateAvatar: true,
       );
 
       if (mounted) {

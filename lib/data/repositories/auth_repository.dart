@@ -54,10 +54,11 @@ class AuthRepository extends ChangeNotifier {
     String? email,
     String? password,
     String? avatarUrl,
+    bool updateAvatar = false,
   }) async {
     final Map<String, dynamic> data = {};
     if (name != null) data['name'] = name;
-    if (avatarUrl != null) data['avatar_url'] = avatarUrl;
+    if (updateAvatar) data['avatar_url'] = avatarUrl;
 
     final UserAttributes attributes = UserAttributes(
       email: email,
