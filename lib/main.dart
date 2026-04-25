@@ -10,8 +10,17 @@ import 'core/services/gemini_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:quiz_time/l10n/app_localizations.dart';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    // Silently ignore if .env is not found (e.g. for users who clone the repo)
+    // The GeminiService will fall back to SharedPreferences.
+  }
 
   await Supabase.initialize(
     url: 'https://tseptwtbdkdaikmpzmkl.supabase.co',

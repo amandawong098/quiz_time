@@ -29,9 +29,9 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
   int _correctCount = 0;
   int _wrongCount = 0;
-  List<int> _timeTakenPerQuestion = [];
+  final List<int> _timeTakenPerQuestion = [];
   int _currentQuestionStartTime = 0;
-  List<Map<String, dynamic>> _userAnswers = [];
+  final List<Map<String, dynamic>> _userAnswers = [];
 
   @override
   void initState() {
@@ -55,9 +55,13 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.errorOccurred(e.toString()))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.errorOccurred(e.toString()),
+            ),
+          ),
+        );
       }
     }
   }
@@ -181,9 +185,13 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.failedToSave(e.toString()))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.failedToSave(e.toString()),
+            ),
+          ),
+        );
         context.pop();
       }
     }
@@ -216,11 +224,11 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        
+
         // Pause timer while dialog is open
         final wasPaused = _isPaused;
         setState(() => _isPaused = true);
-        
+
         final shouldPop = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -233,12 +241,15 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(l10n.yes, style: const TextStyle(color: Colors.red)),
+                child: Text(
+                  l10n.yes,
+                  style: const TextStyle(color: Colors.red),
+                ),
               ),
             ],
           ),
         );
-        
+
         if (shouldPop == true) {
           if (mounted) context.pop();
         } else {
@@ -268,11 +279,18 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.pause_circle_outline, size: 80, color: Colors.grey),
+                      const Icon(
+                        Icons.pause_circle_outline,
+                        size: 80,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         l10n.pausedTitle,
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 32),
                       ElevatedButton.icon(
@@ -283,7 +301,10 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                       const SizedBox(height: 16),
                       TextButton.icon(
                         icon: const Icon(Icons.stop, color: Colors.red),
-                        label: Text(l10n.endQuiz, style: const TextStyle(color: Colors.red)),
+                        label: Text(
+                          l10n.endQuiz,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                         onPressed: () async {
                           final confirm = await showDialog<bool>(
                             context: context,
@@ -291,10 +312,16 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                               title: Text(l10n.endQuiz),
                               content: Text(l10n.exitQuizConfirmDesc),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.no)),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text(l10n.no),
+                                ),
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, true),
-                                  child: Text(l10n.yes, style: const TextStyle(color: Colors.red)),
+                                  child: Text(
+                                    l10n.yes,
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
                                 ),
                               ],
                             ),
@@ -317,66 +344,66 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                         return LinearProgressIndicator(value: value);
                       },
                     ),
-            const SizedBox(height: 8),
-            Text(
-              '00:${_remainingSeconds.toString().padLeft(2, '0')}',
-              textAlign: TextAlign.right,
-            ),
-            const SizedBox(height: 32),
-            Text(
-              question.questionText,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 48),
-            if (_isAnswerChecked && _selectedOptionId == null)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    l10n.timeout,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
+                    const SizedBox(height: 8),
+                    Text(
+                      '00:${_remainingSeconds.toString().padLeft(2, '0')}',
+                      textAlign: TextAlign.right,
                     ),
-                  ),
-                ),
-              )
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: question.options.length,
-                  itemBuilder: (context, index) {
-                    final option = question.options[index];
+                    const SizedBox(height: 32),
+                    Text(
+                      question.questionText,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 48),
+                    if (_isAnswerChecked && _selectedOptionId == null)
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            l10n.timeout,
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: question.options.length,
+                          itemBuilder: (context, index) {
+                            final option = question.options[index];
 
-                    return Card(
-                      color: _isAnswerChecked
-                          ? (option.isCorrect
-                                ? Colors.green.shade200
-                                : (option.id == _selectedOptionId
-                                      ? Colors.red.shade200
-                                      : null))
-                          : null,
-                      child: RadioListTile<String>(
-                        title: Text(option.optionText),
-                        value: option.id,
-                        groupValue: _selectedOptionId,
-                        onChanged: _isAnswerChecked
-                            ? null
-                            : (val) {
-                                setState(() => _selectedOptionId = val);
-                                _checkAnswer();
-                              },
+                            return Card(
+                              color: _isAnswerChecked
+                                  ? (option.isCorrect
+                                        ? Colors.green.shade200
+                                        : (option.id == _selectedOptionId
+                                              ? Colors.red.shade200
+                                              : null))
+                                  : null,
+                              child: RadioListTile<String>(
+                                title: Text(option.optionText),
+                                value: option.id,
+                                groupValue: _selectedOptionId,
+                                onChanged: _isAnswerChecked
+                                    ? null
+                                    : (val) {
+                                        setState(() => _selectedOptionId = val);
+                                        _checkAnswer();
+                                      },
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    );
-                  },
+                  ],
                 ),
-              ),
-          ],
         ),
       ),
-    ));
+    );
   }
 }

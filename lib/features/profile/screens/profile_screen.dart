@@ -340,9 +340,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const Divider(),
                     Card(
                       elevation: 0,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceVariant.withValues(alpha: 0.3),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.3),
                       child: ListTile(
                         leading: const Icon(Icons.language),
                         title: Text(

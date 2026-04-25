@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../core/services/gemini_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quiz_time/l10n/app_localizations.dart';
 
 class CreateQuizScreen extends StatefulWidget {
@@ -152,10 +153,57 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
       await _proceedToQuestions();
     } catch (e) {
       setState(() => _isGenerating = false);
-      if (mounted) {
+      if (e.toString().contains('MISSING_API_KEY')) {
+        if (mounted) {
+          _promptForApiKey(l10n);
+        }
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.errorOccurred(e.toString()))),
         );
+      }
+    }
+  }
+
+  Future<void> _promptForApiKey(AppLocalizations l10n) async {
+    final keyController = TextEditingController();
+    
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.apiKeyRequired),
+        content: TextField(
+          controller: keyController,
+          decoration: InputDecoration(
+            labelText: 'API Key',
+            hintText: l10n.enterApiKey,
+          ),
+          obscureText: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, keyController.text.trim()),
+            child: Text(l10n.save),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_gemini_api_key', result);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.apiKeySaved)),
+        );
+        // Retry generation automatically
+        _handleAiGenerationAndSave();
       }
     }
   }

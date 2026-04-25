@@ -1,9 +1,21 @@
 import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GeminiService {
-  static const String _apiKey =
-      'AQ.Ab8RN6JCSWHVBZ1HkuhwYVmBcuX64-nNnGvU-ZMIGBXZawalPA';
+  Future<String> _getApiKey() async {
+    // First try to get from .env (for the repository owner / deployed app)
+    String key = dotenv.env['GEMINI_API_KEY'] ?? '';
+    
+    // If not in .env, try to get from SharedPreferences (for other users cloning the repo)
+    if (key.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      key = prefs.getString('user_gemini_api_key') ?? '';
+    }
+    
+    return key;
+  }
 
   Future<Map<String, dynamic>> generateQuiz({
     required String title,
@@ -12,7 +24,10 @@ class GeminiService {
     String? grade,
     int? numQuestions,
   }) async {
-    final apiKey = _apiKey;
+    final apiKey = await _getApiKey();
+    if (apiKey.isEmpty) {
+      throw Exception('MISSING_API_KEY');
+    }
 
     final model = GenerativeModel(
       model: 'gemini-3-flash-preview',
