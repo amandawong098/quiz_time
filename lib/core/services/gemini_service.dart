@@ -3,7 +3,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 class GeminiService {
   static const String _apiKey =
-      'AQ.Ab8RN6JCSWHVBZ1HkuhwYVmBcuX64-nNnGvU-ZMIGBXZawalPA';
+      'AIzaSyBPKMmPuK0QbbsaTf1cBGLqKMrJe92gqxY';
 
   Future<Map<String, dynamic>> generateQuiz({
     required String title,
