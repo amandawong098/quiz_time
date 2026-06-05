@@ -5,9 +5,6 @@ import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
 
-import 'package:quiz_time/l10n/app_localizations.dart';
-import '../../../core/utils/l10n_utils.dart';
-
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
 
@@ -24,16 +21,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   List<String> _grades = [];
   List<String> _subjects = [];
   bool _isLoading = true;
-  Locale? _currentLocale;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final locale = Localizations.localeOf(context);
-    if (_currentLocale != locale) {
-      _currentLocale = locale;
-      _loadQuizzes();
-    }
+  void initState() {
+    super.initState();
+    _loadQuizzes();
   }
 
   Future<void> _loadQuizzes() async {
@@ -63,9 +55,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.errorOccurred(e.toString()),
-            ),
+            content: Text('Error: ${e.toString()}'),
           ),
         );
       }
@@ -74,10 +64,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.discover)),
+      appBar: AppBar(title: const Text('Discover')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -124,10 +112,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     : _quizzes.isEmpty
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
+                            children: const [
                               Padding(
-                                padding: const EdgeInsets.only(top: 100),
-                                child: Center(child: Text(l10n.noQuizzesFound)),
+                                padding: EdgeInsets.only(top: 100),
+                                child: Center(child: Text('No quizzes found.')),
                               ),
                             ],
                           )
@@ -155,7 +143,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${L10nUtils.getLocalizedGrade(quiz.grade, l10n)} • ${L10nUtils.getLocalizedSubject(quiz.subject, l10n)}',
+                                    '${quiz.grade ?? ''} • ${quiz.subject ?? ''}',
                                   ),
                                   onTap: () {
                                     context.push('/quiz/${quiz.id}');

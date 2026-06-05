@@ -6,7 +6,11 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/discover/screens/discover_screen.dart';
 import '../../features/library/screens/my_quizzes_screen.dart';
-import '../../features/history/screens/history_screen.dart';
+import '../../features/lessons/screens/lessons_dummy_screen.dart';
+import '../../features/leaderboard/screens/leaderboard_dummy_screen.dart';
+import '../../features/discussions/screens/discussions_dummy_screen.dart';
+import '../../features/discussions/screens/create_topic_screen.dart';
+import '../../features/discussions/screens/discussion_details_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/quiz/screens/quiz_details_screen.dart';
 import '../../features/quiz/screens/take_quiz_screen.dart';
@@ -14,13 +18,14 @@ import '../../features/quiz/screens/quiz_review_screen.dart';
 import '../../features/library/screens/create_quiz_screen.dart';
 import '../../features/library/screens/create_question_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
+import '../../features/profile/screens/my_discussions_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/',
+  initialLocation: '/lessons',
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
     final isGoingToLogin = state.uri.toString() == '/login';
@@ -29,7 +34,7 @@ final GoRouter appRouter = GoRouter(
       return '/login';
     }
     if (session != null && isGoingToLogin) {
-      return '/';
+      return '/lessons';
     }
     return null;
   },
@@ -45,8 +50,20 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) => const MyQuizzesScreen(),
         ),
         GoRoute(
-          path: '/history',
-          builder: (context, state) => const HistoryScreen(),
+          path: '/my-discussions',
+          builder: (context, state) => const MyDiscussionsScreen(),
+        ),
+        GoRoute(
+          path: '/lessons',
+          builder: (context, state) => const LessonsDummyScreen(),
+        ),
+        GoRoute(
+          path: '/discussions',
+          builder: (context, state) => const DiscussionsDummyScreen(),
+        ),
+        GoRoute(
+          path: '/leaderboard',
+          builder: (context, state) => const LeaderboardDummyScreen(),
         ),
         GoRoute(
           path: '/me',
@@ -97,6 +114,18 @@ final GoRouter appRouter = GoRouter(
           initialQuestionsData: extra['generatedQuestions'],
         );
       },
+    ),
+    GoRoute(
+      path: '/create-topic',
+      builder: (context, state) {
+        final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
+        return CreateTopicScreen(topic: extra?['topic']);
+      },
+    ),
+    GoRoute(
+      path: '/discussion/:id',
+      builder: (context, state) =>
+          DiscussionDetailsScreen(topicId: state.pathParameters['id']!),
     ),
   ],
 );

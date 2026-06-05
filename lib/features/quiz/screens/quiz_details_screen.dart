@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
-import 'package:quiz_time/l10n/app_localizations.dart';
-import '../../../core/utils/l10n_utils.dart';
 
 class QuizDetailsScreen extends StatefulWidget {
   final String quizId;
@@ -20,16 +17,11 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   Quiz? _quiz;
   List<Question> _questions = [];
   List<QuizAttempt> _attempts = [];
-  Locale? _currentLocale;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final locale = Localizations.localeOf(context);
-    if (_currentLocale != locale) {
-      _currentLocale = locale;
-      _loadData();
-    }
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
   Future<void> _loadData() async {
@@ -50,105 +42,27 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.errorOccurred(e.toString()),
-            ),
+            content: Text('Error: ${e.toString()}'),
           ),
         );
       }
     }
   }
 
-  Widget _buildPerformanceChart() {
-    if (_attempts.isEmpty) return const SizedBox.shrink();
 
-    List<FlSpot> spots = [];
-    for (int i = 0; i < _attempts.length; i++) {
-      double accuracy =
-          (_attempts[i].correctAnswers / _attempts[i].totalQuestions) * 100;
-      spots.add(FlSpot((i + 1).toDouble(), accuracy));
-    }
 
-    return SizedBox(
-      height: 250,
-      child: Padding(
-        padding: const EdgeInsets.only(right: 16.0, top: 16.0),
-        child: LineChart(
-          LineChartData(
-            minY: 0,
-            maxY: 100,
-            minX: 1,
-            maxX: _attempts.length.toDouble() < 5
-                ? 5
-                : _attempts.length.toDouble(),
-            lineBarsData: [
-              LineChartBarData(
-                spots: spots,
-                isCurved: true,
-                color: Colors.deepPurple,
-                barWidth: 3,
-                dotData: const FlDotData(show: true),
-                belowBarData: BarAreaData(show: false),
-              ),
-            ],
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 40,
-                  getTitlesWidget: (value, meta) => Text(
-                    '${value.toInt()}%',
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
-                  ),
-                ),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  interval: 1,
-                  getTitlesWidget: (value, meta) => Text(
-                    '#${value.toInt()}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
-                  ),
-                ),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-            ),
-            gridData: FlGridData(
-              show: true,
-              drawVerticalLine: false,
-              getDrawingHorizontalLine: (value) => FlLine(
-                color: Colors.grey.withValues(alpha: 0.1),
-                strokeWidth: 1,
-              ),
-            ),
-            borderData: FlBorderData(
-              show: true,
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailedAnalysis(QuizAttempt attempt, AppLocalizations l10n) {
+  Widget _buildDetailedAnalysis(QuizAttempt attempt) {
     if (attempt.userAnswers.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 32),
-        Align(
+        const Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            l10n.detailedAnalysis,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            'Detailed Analysis',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 16),
@@ -167,7 +81,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    '${l10n.questions} ${index + 1}',
+                    'Questions ${index + 1}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -179,11 +93,11 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                     ),
                   ),
                   if (selectedOptionId == null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8.0),
                       child: Text(
-                        l10n.unattemptedTimeout,
-                        style: const TextStyle(
+                        'Unattempted (Timeout)',
+                        style: TextStyle(
                           color: Colors.grey,
                           fontStyle: FontStyle.italic,
                         ),
@@ -236,19 +150,17 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (_quiz == null) {
-      return Scaffold(body: Center(child: Text(l10n.noQuizzesFound)));
+      return const Scaffold(body: Center(child: Text('No quizzes found.')));
     }
 
     final lastAttempt = _attempts.isNotEmpty ? _attempts.last : null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.quizDetails)),
+      appBar: AppBar(title: const Text('Quiz Details')),
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: SingleChildScrollView(
@@ -288,25 +200,21 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                   runSpacing: 8,
                   children: [
                     Chip(
-                      label: Text(
-                        L10nUtils.getLocalizedGrade(_quiz!.grade, l10n),
-                      ),
+                      label: Text(_quiz!.grade ?? ''),
                     ),
                     Chip(
-                      label: Text(
-                        L10nUtils.getLocalizedSubject(_quiz!.subject, l10n),
-                      ),
+                      label: Text(_quiz!.subject ?? ''),
                     ),
-                    Chip(label: Text('${_questions.length} ${l10n.questions}')),
+                    Chip(label: Text('${_questions.length} Questions')),
                   ],
                 ),
                 if (lastAttempt != null) ...[
                   const SizedBox(height: 32),
-                  Align(
+                  const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      l10n.lastAttemptSummary,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      'Last Attempt Summary',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -314,31 +222,21 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _SummaryBox(
-                        title: l10n.correct,
+                        title: 'Correct',
                         value: lastAttempt.correctAnswers.toString(),
                       ),
                       _SummaryBox(
-                        title: l10n.wrong,
+                        title: 'Wrong',
                         value: lastAttempt.wrongAnswers.toString(),
                       ),
                       _SummaryBox(
-                        title: l10n.avgTime,
+                        title: 'Avg Time',
                         value:
                             '${lastAttempt.avgTimePerQuestion?.toStringAsFixed(1) ?? 0}s',
                       ),
                     ],
                   ),
-                  const SizedBox(height: 32),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      l10n.performanceGrowth,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildPerformanceChart(),
-                  _buildDetailedAnalysis(lastAttempt, l10n),
+                  _buildDetailedAnalysis(lastAttempt),
                 ],
                 const SizedBox(height: 32),
                 Center(
@@ -347,7 +245,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                       context.push('/quiz/${widget.quizId}/take');
                     },
                     child: Text(
-                      lastAttempt == null ? l10n.startQuiz : l10n.playAgain,
+                      lastAttempt == null ? 'Start Quiz' : 'Play Again!',
                     ),
                   ),
                 ),

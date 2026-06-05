@@ -5,8 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 
-import 'package:quiz_time/l10n/app_localizations.dart';
-
 class TakeQuizScreen extends StatefulWidget {
   final String quizId;
   const TakeQuizScreen({super.key, required this.quizId});
@@ -57,7 +55,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.errorOccurred(e.toString()))));
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
       }
     }
   }
@@ -183,7 +181,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.failedToSave(e.toString()))));
+        ).showSnackBar(SnackBar(content: Text('Failed to save: ${e.toString()}')));
         context.pop();
       }
     }
@@ -197,15 +195,13 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (_questions.isEmpty) {
       return Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text(l10n.noQuizzesFound)),
+        body: const Center(child: Text('No quizzes found.')),
       );
     }
 
@@ -224,16 +220,16 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
         final shouldPop = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(l10n.exitQuizConfirmTitle),
-            content: Text(l10n.exitQuizConfirmDesc),
+            title: const Text('Exit Quiz?'),
+            content: const Text('Are you sure you want to exit? Your progress will be lost.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text(l10n.no),
+                child: const Text('No'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(l10n.yes, style: const TextStyle(color: Colors.red)),
+                child: const Text('Yes', style: TextStyle(color: Colors.red)),
               ),
             ],
           ),
@@ -249,7 +245,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l10n.questionXofY(_currentIndex + 1, _questions.length)),
+          title: Text('Question ${_currentIndex + 1} of ${_questions.length}'),
           actions: [
             IconButton(
               icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
@@ -270,31 +266,31 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                     children: [
                       const Icon(Icons.pause_circle_outline, size: 80, color: Colors.grey),
                       const SizedBox(height: 16),
-                      Text(
-                        l10n.pausedTitle,
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      const Text(
+                        'Paused',
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 32),
                       ElevatedButton.icon(
                         icon: const Icon(Icons.play_arrow),
-                        label: Text(l10n.resume),
+                        label: const Text('Resume'),
                         onPressed: () => setState(() => _isPaused = false),
                       ),
                       const SizedBox(height: 16),
                       TextButton.icon(
                         icon: const Icon(Icons.stop, color: Colors.red),
-                        label: Text(l10n.endQuiz, style: const TextStyle(color: Colors.red)),
+                        label: const Text('End Quiz', style: TextStyle(color: Colors.red)),
                         onPressed: () async {
                           final confirm = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
-                              title: Text(l10n.endQuiz),
-                              content: Text(l10n.exitQuizConfirmDesc),
+                              title: const Text('End Quiz'),
+                              content: const Text('Are you sure you want to exit? Your progress will be lost.'),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.no)),
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, true),
-                                  child: Text(l10n.yes, style: const TextStyle(color: Colors.red)),
+                                  child: const Text('Yes', style: TextStyle(color: Colors.red)),
                                 ),
                               ],
                             ),
@@ -332,11 +328,11 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
             ),
             const SizedBox(height: 48),
             if (_isAnswerChecked && _selectedOptionId == null)
-              Expanded(
+              const Expanded(
                 child: Center(
                   child: Text(
-                    l10n.timeout,
-                    style: const TextStyle(
+                    'Timeout!',
+                    style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey,

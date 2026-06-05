@@ -4,9 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
-import '../../../core/utils/l10n_utils.dart';
-
-import 'package:quiz_time/l10n/app_localizations.dart';
 
 class MyQuizzesScreen extends StatefulWidget {
   const MyQuizzesScreen({super.key});
@@ -25,16 +22,11 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
   List<String> _subjects = [];
   bool _isLoading = true;
   String _visibilityFilter = 'All'; // All, Public, Private
-  Locale? _currentLocale;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final locale = Localizations.localeOf(context);
-    if (_currentLocale != locale) {
-      _currentLocale = locale;
-      _loadMyQuizzes();
-    }
+  void initState() {
+    super.initState();
+    _loadMyQuizzes();
   }
 
   Future<void> _loadMyQuizzes() async {
@@ -66,18 +58,16 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.errorOccurred(e.toString()))));
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.myQuizzes),
+        title: const Text('My Quizzes'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -128,7 +118,7 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
             Row(
               children: [
                 FilterChip(
-                  label: Text(l10n.all),
+                  label: const Text('All'),
                   selected: _visibilityFilter == 'All',
                   onSelected: (selected) {
                     if (selected) {
@@ -139,7 +129,7 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: Text(l10n.public),
+                  label: const Text('Public'),
                   selected: _visibilityFilter == 'Public',
                   onSelected: (selected) {
                     if (selected) {
@@ -150,7 +140,7 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: Text(l10n.private),
+                  label: const Text('Private'),
                   selected: _visibilityFilter == 'Private',
                   onSelected: (selected) {
                     if (selected) {
@@ -170,10 +160,10 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                     : _myQuizzes.isEmpty
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
+                            children: const [
                               Padding(
-                                padding: const EdgeInsets.only(top: 100),
-                                child: Center(child: Text(l10n.noQuizzesFound)),
+                                padding: EdgeInsets.only(top: 100),
+                                child: Center(child: Text('No quizzes found.')),
                               ),
                             ],
                           )
@@ -202,7 +192,7 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${L10nUtils.getLocalizedGrade(quiz.grade, l10n)} • ${L10nUtils.getLocalizedSubject(quiz.subject, l10n)} • ${quiz.isPublic ? l10n.public : l10n.private}',
+                                    '${quiz.grade ?? ''} • ${quiz.subject ?? ''} • ${quiz.isPublic ? 'Public' : 'Private'}',
                                   ),
                                   trailing: IconButton(
                                     icon: const Icon(
@@ -214,9 +204,9 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                                         context: context,
                                         builder:
                                             (ctx) => AlertDialog(
-                                              title: Text(l10n.deleteQuiz),
-                                              content: Text(
-                                                l10n.areYouSureYouWantToDeleteThisQuiz,
+                                              title: const Text('Delete Quiz'),
+                                              content: const Text(
+                                                'Are you sure you want to delete this quiz?',
                                               ),
                                               actions: [
                                                 TextButton(
@@ -225,7 +215,7 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                                                         ctx,
                                                         false,
                                                       ),
-                                                  child: Text(l10n.cancel),
+                                                  child: const Text('Cancel'),
                                                 ),
                                                 TextButton(
                                                   onPressed:
@@ -233,9 +223,9 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                                                         ctx,
                                                         true,
                                                       ),
-                                                  child: Text(
-                                                    l10n.delete,
-                                                    style: const TextStyle(
+                                                  child: const Text(
+                                                    'Delete',
+                                                    style: TextStyle(
                                                       color: Colors.red,
                                                     ),
                                                   ),

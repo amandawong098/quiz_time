@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
-import 'package:quiz_time/l10n/app_localizations.dart';
 
 class _QuestionFormData {
   final GlobalKey<FormState> formKey;
@@ -36,11 +35,10 @@ class _QuestionFormData {
     if (questionTextController.text.trim().isEmpty) return false;
     if (durationController.text.trim().isEmpty) return false;
 
-    final l10n = AppLocalizations.of(context)!;
     if (optionControllers.length < 2) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(l10n.atLeastTwoOptions)));
+      ).showSnackBar(const SnackBar(content: Text('At least two options are required per question')));
       return false;
     }
 
@@ -59,7 +57,7 @@ class _QuestionFormData {
     if (outOptions.length < 2) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(l10n.atLeastTwoNonEmptyOptions)));
+      ).showSnackBar(const SnackBar(content: Text('At least two non-empty options are required per question')));
       return false;
     }
     return true;
@@ -230,11 +228,11 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
     });
   }
 
-  void _deleteQuestion(int index, AppLocalizations l10n) {
+  void _deleteQuestion(int index) {
     if (_forms.length == 1) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(l10n.cannotDeleteLastQuestion)));
+      ).showSnackBar(const SnackBar(content: Text('Cannot delete the last question. Modify it instead.')));
       return;
     }
     setState(() {
@@ -252,9 +250,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       if (!f.validateAndSave(context, opts)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.fixErrorsInQuestion(i + 1),
-            ),
+            content: Text('Please fix errors in Question ${i + 1}'),
           ),
         );
         return;
@@ -276,8 +272,8 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
 
     if (questionsToSave.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.addAtLeastOneQuestion),
+        const SnackBar(
+          content: Text('Please add at least one question'),
         ),
       );
       return;
@@ -297,8 +293,8 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.quizSavedSuccessfully),
+          const SnackBar(
+            content: Text('Quiz saved successfully!'),
           ),
         );
         context.pop();
@@ -308,9 +304,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.failedToSave(e.toString()),
-            ),
+            content: Text('Failed to save: ${e.toString()}'),
           ),
         );
       }
@@ -320,7 +314,6 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
   Widget _buildQuestionCard(
     _QuestionFormData formData,
     int index,
-    AppLocalizations l10n,
   ) {
     return Card(
       elevation: 2,
@@ -340,7 +333,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${l10n.questions} ${index + 1}',
+                    'Questions ${index + 1}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
@@ -348,7 +341,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteQuestion(index, l10n),
+                    onPressed: () => _deleteQuestion(index),
                     tooltip: 'Delete Question',
                   ),
                 ],
@@ -359,16 +352,16 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: formData.durationController,
-                      decoration: InputDecoration(
-                        labelText: l10n.durationSeconds,
+                      decoration: const InputDecoration(
+                        labelText: 'Duration (seconds)',
                       ),
                       keyboardType: TextInputType.number,
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) {
-                          return l10n.required;
+                          return 'Required';
                         }
                         if (int.tryParse(val.trim()) == null) {
-                          return l10n.mustBeANumber;
+                          return 'Must be a number';
                         }
                         return null;
                       },
@@ -379,24 +372,24 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: formData.questionTextController,
-                decoration: InputDecoration(labelText: l10n.questionTitle),
+                decoration: const InputDecoration(labelText: 'Question Title'),
                 maxLines: 3,
                 validator: (val) => val == null || val.trim().isEmpty
-                    ? l10n.questionCannotBeEmpty
+                    ? 'Question cannot be empty'
                     : null,
               ),
               const SizedBox(height: 32),
-              Text(
-                l10n.options,
-                style: const TextStyle(
+              const Text(
+                'Options',
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                l10n.selectRadioButtonToMarkCorrect,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              const Text(
+                'Select the radio button to mark the correct answer.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 16),
               ...List.generate(formData.optionControllers.length, (optIndex) {
@@ -413,7 +406,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                       child: TextFormField(
                         controller: formData.optionControllers[optIndex],
                         decoration: InputDecoration(
-                          labelText: l10n.optionNumber(optIndex + 1),
+                          labelText: 'Option ${optIndex + 1}',
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.close),
                             onPressed: () {
@@ -432,7 +425,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                           ),
                         ),
                         validator: (val) => val == null || val.trim().isEmpty
-                            ? l10n.optionCannotBeEmpty
+                            ? 'Option cannot be empty'
                             : null,
                       ),
                     ),
@@ -449,7 +442,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                     });
                   },
                   icon: const Icon(Icons.add),
-                  label: Text(l10n.addOption),
+                  label: const Text('Add Option'),
                 ),
               ),
             ],
@@ -461,8 +454,6 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -475,18 +466,18 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
         final shouldPop = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(l10n.discardChangesConfirmTitle),
-            content: Text(l10n.discardChangesConfirmDesc),
+            title: const Text('Discard Changes?'),
+            content: const Text('Are you sure you want to discard your changes?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text(l10n.cancel),
+                child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  l10n.discard,
-                  style: const TextStyle(color: Colors.red),
+                child: const Text(
+                  'Discard',
+                  style: TextStyle(color: Colors.red),
                 ),
               ),
             ],
@@ -499,7 +490,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l10n.editQuestions),
+          title: const Text('Edit Questions'),
           actions: [
             _isSaving
                 ? const Center(
@@ -517,9 +508,9 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                   )
                 : TextButton(
                     onPressed: _saveAllToDatabase,
-                    child: Text(
-                      l10n.saveQuiz,
-                      style: const TextStyle(
+                    child: const Text(
+                      'Save Quiz',
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
@@ -536,7 +527,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                   key: ObjectKey(_forms[index]),
                   child: Column(
                     children: [
-                      _buildQuestionCard(_forms[index], index, l10n),
+                      _buildQuestionCard(_forms[index], index),
                       const SizedBox(height: 8),
                       IconButton(
                         onPressed: () => _insertNewQuestion(index + 1),

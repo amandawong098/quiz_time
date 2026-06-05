@@ -6,8 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
-import '../../../core/services/gemini_service.dart';
-import 'package:quiz_time/l10n/app_localizations.dart';
 
 class CreateQuizScreen extends StatefulWidget {
   final Quiz? quiz;
@@ -26,7 +24,6 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
   String? _selectedSubject;
   bool _isPublic = false;
   bool _isLoading = true;
-  bool _isGenerating = false;
 
   File? _imageFile;
   String? _imageUrl;
@@ -88,9 +85,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.errorPickingImage(e.toString()),
-          ),
+          content: Text('Error picking image: ${e.toString()}'),
         ),
       );
     }
@@ -100,13 +95,12 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        final l10n = AppLocalizations.of(context)!;
         return SafeArea(
           child: Wrap(
             children: [
               ListTile(
                 leading: const Icon(Icons.photo_library),
-                title: Text(l10n.gallery),
+                title: const Text('Gallery'),
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickImage(ImageSource.gallery);
@@ -114,7 +108,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.camera_alt),
-                title: Text(l10n.camera),
+                title: const Text('Camera'),
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickImage(ImageSource.camera);
@@ -127,38 +121,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
     );
   }
 
-  Future<void> _handleAiGenerationAndSave() async {
-    if (!_formKey.currentState!.validate()) return;
 
-    final title = _titleController.text.trim();
-    final l10n = AppLocalizations.of(context)!;
-
-    setState(() => _isGenerating = true);
-    try {
-      final gemini = context.read<GeminiService>();
-      final result = await gemini.generateQuiz(
-        title: title,
-        description: _descController.text.trim(),
-        grade: _selectedGrade,
-        subject: _selectedSubject,
-        numQuestions: 10,
-      );
-
-      _generatedQuestions = result['questions'];
-      if (result['description'] != null) {
-        _descController.text = result['description'];
-      }
-
-      await _proceedToQuestions();
-    } catch (e) {
-      setState(() => _isGenerating = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.errorOccurred(e.toString()))),
-        );
-      }
-    }
-  }
 
   Future<void> _proceedToQuestions() async {
     if (!_formKey.currentState!.validate()) return;
@@ -212,14 +175,11 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.errorOccurred(e.toString()),
-            ),
+            content: Text('Error: ${e.toString()}'),
           ),
         );
         setState(() {
           _isLoading = false;
-          _isGenerating = false;
         });
       }
     }
@@ -227,8 +187,6 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     if (_isLoading && _grades.isEmpty) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -243,18 +201,18 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
         final shouldPop = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(l10n.discardChangesConfirmTitle),
-            content: Text(l10n.discardChangesConfirmDesc),
+            title: const Text('Discard Changes?'),
+            content: const Text('Are you sure you want to discard your changes?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text(l10n.cancel),
+                child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  l10n.discard,
-                  style: const TextStyle(color: Colors.red),
+                child: const Text(
+                  'Discard',
+                  style: TextStyle(color: Colors.red),
                 ),
               ),
             ],
@@ -267,7 +225,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.quiz == null ? l10n.createQuiz : l10n.editQuiz),
+          title: Text(widget.quiz == null ? 'Create Quiz' : 'Edit Quiz'),
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -330,20 +288,20 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: _titleController,
-                  decoration: InputDecoration(labelText: l10n.quizTitle),
+                  decoration: const InputDecoration(labelText: 'Quiz Title'),
                   validator: (val) => val == null || val.trim().isEmpty
-                      ? l10n.pleaseEnterATitle
+                      ? 'Please enter a title'
                       : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _descController,
-                  decoration: InputDecoration(labelText: l10n.quizDescription),
+                  decoration: const InputDecoration(labelText: 'Quiz Description'),
                   maxLines: 3,
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  decoration: InputDecoration(labelText: l10n.gradeLabel),
+                  decoration: const InputDecoration(labelText: 'Grade'),
                   initialValue: _selectedGrade,
                   items: _grades.map((String value) {
                     return DropdownMenuItem<String>(
@@ -357,7 +315,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  decoration: InputDecoration(labelText: l10n.subjectLabel),
+                  decoration: const InputDecoration(labelText: 'Subject'),
                   initialValue: _selectedSubject,
                   items: _subjects.map((String value) {
                     return DropdownMenuItem<String>(
@@ -371,39 +329,18 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                 ),
                 const SizedBox(height: 16),
                 SwitchListTile(
-                  title: Text(l10n.makeThisQuizPublic),
+                  title: const Text('Make this quiz public'),
                   value: _isPublic,
                   onChanged: (val) => setState(() => _isPublic = val),
                 ),
                 const SizedBox(height: 32),
-                if (_isLoading || _isGenerating)
+                if (_isLoading)
                   const Center(child: CircularProgressIndicator())
                 else ...[
                   ElevatedButton.icon(
-                    onPressed: _handleAiGenerationAndSave,
-                    icon: const Icon(
-                      Icons.auto_awesome,
-                      color: Colors.deepPurple,
-                    ),
-                    label: Text(
-                      l10n.generateWithAI,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple.shade50,
-                      elevation: 0,
-                      side: BorderSide(color: Colors.deepPurple.shade100),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
                     onPressed: _proceedToQuestions,
                     icon: const Icon(Icons.save),
-                    label: Text(l10n.saveAndContinueToQuestions),
+                    label: const Text('Save & Continue to Questions'),
                   ),
                   if (widget.quiz != null) ...[
                     const SizedBox(height: 12),
@@ -412,7 +349,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                         context.push('/quiz/${widget.quiz!.id}');
                       },
                       icon: const Icon(Icons.play_arrow),
-                      label: Text(l10n.startQuiz),
+                      label: const Text('Start Quiz'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,

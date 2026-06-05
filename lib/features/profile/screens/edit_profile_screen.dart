@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/auth_repository.dart';
-import 'package:quiz_time/l10n/app_localizations.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -38,7 +37,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _showImagePickerOptions() async {
-    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -47,7 +45,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library),
-              title: Text(l10n.gallery),
+              title: const Text('Gallery'),
               onTap: () {
                 Navigator.pop(context);
                 _pickAndUploadAvatar(ImageSource.gallery);
@@ -55,7 +53,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.camera_alt),
-              title: Text(l10n.camera),
+              title: const Text('Camera'),
               onTap: () {
                 Navigator.pop(context);
                 _pickAndUploadAvatar(ImageSource.camera);
@@ -103,7 +101,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(AppLocalizations.of(ctx)!.notification),
+        title: const Text('Notification'),
         content: Text(message),
         actions: [
           TextButton(
@@ -137,9 +135,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           await showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: Text(AppLocalizations.of(ctx)!.verificationRequired),
+              title: const Text('Verification Required'),
               content: Text(
-                AppLocalizations.of(ctx)!.verificationSentDesc(newEmail),
+                'A confirmation link has been sent to $newEmail. Your email will be updated once you click the link.',
               ),
               actions: [
                 TextButton(
@@ -160,11 +158,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.editProfile),
+        title: const Text('Edit Profile'),
         actions: [
           if (_isSaving)
             const Center(
@@ -180,9 +176,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           else
             TextButton(
               onPressed: _saveChanges,
-              child: Text(
-                l10n.save,
-                style: const TextStyle(
+              child: const Text(
+                'Save',
+                style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -233,27 +229,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 32),
             TextField(
               controller: _nameController,
-              decoration: InputDecoration(
-                labelText: l10n.displayName,
-                prefixIcon: const Icon(Icons.person_outline),
+              decoration: const InputDecoration(
+                labelText: 'Display Name',
+                prefixIcon: Icon(Icons.person_outline),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _emailController,
-              decoration: InputDecoration(
-                labelText: l10n.email,
-                prefixIcon: const Icon(Icons.email_outlined),
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
               ),
               keyboardType: TextInputType.emailAddress,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
-              decoration: InputDecoration(
-                labelText: l10n.changePassword,
-                prefixIcon: const Icon(Icons.lock_outline),
-                helperText: l10n.leaveBlankToKeepCurrent,
+              decoration: const InputDecoration(
+                labelText: 'Change Password (optional)',
+                prefixIcon: Icon(Icons.lock_outline),
+                helperText: 'Leave blank to keep current password',
               ),
               obscureText: true,
             ),

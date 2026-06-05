@@ -212,3 +212,87 @@ CREATE POLICY "Public Read Quiz Images" ON storage.objects FOR SELECT USING (buc
 CREATE POLICY "Auth Insert Quiz Images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'quiz_images' AND auth.role() = 'authenticated');
 CREATE POLICY "Auth Update Quiz Images" ON storage.objects FOR UPDATE USING (bucket_id = 'quiz_images' AND auth.role() = 'authenticated');
 CREATE POLICY "Auth Delete Quiz Images" ON storage.objects FOR DELETE USING (bucket_id = 'quiz_images' AND auth.role() = 'authenticated');
+
+-- =======================================================
+-- 7. DISCUSSIONS SCHEMA WITH VOTING SYSTEM & THREADED COMMENTS
+-- =======================================================
+
+CREATE TABLE IF NOT EXISTS public.discussion_topics (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    author_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tag TEXT DEFAULT 'General',
+    attachments JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS public.discussion_replies (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    topic_id UUID REFERENCES public.discussion_topics ON DELETE CASCADE NOT NULL,
+    author_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    content TEXT NOT NULL,
+    attachments JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    parent_id UUID REFERENCES public.discussion_replies(id) ON DELETE CASCADE,
+    reply_to_id UUID REFERENCES public.discussion_replies(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS public.topic_votes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    topic_id UUID REFERENCES public.discussion_topics ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    vote_type INTEGER NOT NULL, -- 1 for upvote, -1 for downvote
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (topic_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.reply_votes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    reply_id UUID REFERENCES public.discussion_replies ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    vote_type INTEGER NOT NULL, -- 1 for upvote, -1 for downvote
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (reply_id, user_id)
+);
+
+-- Enable RLS for Security
+ALTER TABLE public.discussion_topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.discussion_replies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.topic_votes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reply_votes ENABLE ROW LEVEL SECURITY;
+
+-- Policies for Discussion Topics
+CREATE POLICY "Public read topics" ON public.discussion_topics FOR SELECT USING (true);
+CREATE POLICY "Insert own topics" ON public.discussion_topics FOR INSERT WITH CHECK (auth.uid() = author_id);
+CREATE POLICY "Update own topics" ON public.discussion_topics FOR UPDATE USING (auth.uid() = author_id);
+CREATE POLICY "Delete own topics" ON public.discussion_topics FOR DELETE USING (auth.uid() = author_id);
+
+-- Policies for Discussion Replies
+CREATE POLICY "Public read replies" ON public.discussion_replies FOR SELECT USING (true);
+CREATE POLICY "Insert own replies" ON public.discussion_replies FOR INSERT WITH CHECK (auth.uid() = author_id);
+CREATE POLICY "Update own replies" ON public.discussion_replies FOR UPDATE USING (auth.uid() = author_id);
+CREATE POLICY "Delete own replies" ON public.discussion_replies FOR DELETE USING (auth.uid() = author_id);
+
+-- Policies for Topic Votes
+CREATE POLICY "Public read topic votes" ON public.topic_votes FOR SELECT USING (true);
+CREATE POLICY "Insert own topic votes" ON public.topic_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Update own topic votes" ON public.topic_votes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Delete own topic votes" ON public.topic_votes FOR DELETE USING (auth.uid() = user_id);
+
+-- Policies for Reply Votes
+CREATE POLICY "Public read reply votes" ON public.reply_votes FOR SELECT USING (true);
+CREATE POLICY "Insert own reply votes" ON public.reply_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Update own reply votes" ON public.reply_votes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Delete own reply votes" ON public.reply_votes FOR DELETE USING (auth.uid() = user_id);
+
+-- Discussion Storage Bucket for attachments (Public)
+INSERT INTO storage.buckets (id, name, public) VALUES ('discussion_attachments', 'discussion_attachments', true) ON CONFLICT (id) DO NOTHING;
+
+-- Storage Policies for 'discussion_attachments'
+CREATE POLICY "Public Read Discussion Attachments" ON storage.objects FOR SELECT USING (bucket_id = 'discussion_attachments');
+CREATE POLICY "Auth Insert Discussion Attachments" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'discussion_attachments' AND auth.role() = 'authenticated');
+CREATE POLICY "Auth Delete Discussion Attachments" ON storage.objects FOR DELETE USING (bucket_id = 'discussion_attachments' AND auth.role() = 'authenticated');
+

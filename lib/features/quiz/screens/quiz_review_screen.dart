@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
-import 'package:quiz_time/l10n/app_localizations.dart';
 
 class QuizReviewScreen extends StatefulWidget {
   final String quizId;
@@ -22,7 +20,6 @@ class QuizReviewScreen extends StatefulWidget {
 class _QuizReviewScreenState extends State<QuizReviewScreen> {
   bool _isLoading = true;
   QuizAttempt? _attempt;
-  List<QuizAttempt> _allAttempts = [];
 
   @override
   void initState() {
@@ -37,7 +34,6 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
 
       if (mounted) {
         setState(() {
-          _allAttempts = attempts;
           try {
             _attempt = attempts.firstWhere((a) => a.id == widget.attemptId);
           } catch (e) {
@@ -53,86 +49,9 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
     }
   }
 
-  Widget _buildPerformanceChart() {
-    if (_allAttempts.isEmpty) return const SizedBox.shrink();
 
-    List<FlSpot> spots = [];
-    for (int i = 0; i < _allAttempts.length; i++) {
-      double accuracy =
-          (_allAttempts[i].correctAnswers / _allAttempts[i].totalQuestions) *
-          100;
-      spots.add(FlSpot((i + 1).toDouble(), accuracy));
-    }
 
-    return SizedBox(
-      height: 250,
-      child: Padding(
-        padding: const EdgeInsets.only(right: 16.0, top: 16.0),
-        child: LineChart(
-          LineChartData(
-            minY: 0,
-            maxY: 100,
-            minX: 1,
-            maxX: _allAttempts.length.toDouble() < 5
-                ? 5
-                : _allAttempts.length.toDouble(),
-            lineBarsData: [
-              LineChartBarData(
-                spots: spots,
-                isCurved: true,
-                color: Colors.deepPurple,
-                barWidth: 3,
-                dotData: const FlDotData(show: true),
-                belowBarData: BarAreaData(show: false),
-              ),
-            ],
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 40,
-                  getTitlesWidget: (value, meta) => Text(
-                    '${value.toInt()}%',
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
-                  ),
-                ),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  interval: 1,
-                  getTitlesWidget: (value, meta) => Text(
-                    '#${value.toInt()}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
-                  ),
-                ),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-            ),
-            gridData: FlGridData(
-              show: true,
-              drawVerticalLine: false,
-              getDrawingHorizontalLine: (value) => FlLine(
-                color: Colors.grey.withValues(alpha: 0.1),
-                strokeWidth: 1,
-              ),
-            ),
-            borderData: FlBorderData(
-              show: true,
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailedAnalysis(AppLocalizations l10n) {
+  Widget _buildDetailedAnalysis() {
     if (_attempt == null || _attempt!.userAnswers.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -140,11 +59,11 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
+        const Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            l10n.detailedAnalysis,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            'Detailed Analysis',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 16),
@@ -163,7 +82,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    '${l10n.questions} ${index + 1}',
+                    'Questions ${index + 1}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -175,11 +94,11 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                     ),
                   ),
                   if (selectedOptionId == null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8.0),
                       child: Text(
-                        l10n.unattemptedTimeout,
-                        style: const TextStyle(
+                        'Unattempted (Timeout)',
+                        style: TextStyle(
                           color: Colors.grey,
                           fontStyle: FontStyle.italic,
                         ),
@@ -232,15 +151,13 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (_attempt == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text(l10n.attemptNotFound)),
+        body: const Center(child: Text('Attempt not found')),
       );
     }
 
@@ -255,7 +172,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.review),
+        title: const Text('Review'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -292,8 +209,8 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
             const SizedBox(height: 16),
             Text(
               _attempt!.score < 40
-                  ? l10n.tryAgain
-                  : (_attempt!.score < 80 ? l10n.goodJob : l10n.outstanding),
+                  ? 'Try Again!'
+                  : (_attempt!.score < 80 ? 'Good Job!' : 'Outstanding!'),
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 32),
@@ -301,38 +218,28 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _SummaryBox(
-                  title: l10n.correct,
+                  title: 'Correct',
                   value: _attempt!.correctAnswers.toString(),
                 ),
                 _SummaryBox(
-                  title: l10n.wrong,
+                  title: 'Wrong',
                   value: _attempt!.wrongAnswers.toString(),
                 ),
                 _SummaryBox(
-                  title: l10n.avgTime,
+                  title: 'Avg Time',
                   value:
                       '${_attempt!.avgTimePerQuestion?.toStringAsFixed(1) ?? 0}s',
                 ),
               ],
             ),
-            const SizedBox(height: 32),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                l10n.performanceGrowth,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildPerformanceChart(),
-            const SizedBox(height: 32),
-            _buildDetailedAnalysis(l10n),
+
+            _buildDetailedAnalysis(),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: () {
                 context.pushReplacement('/quiz/${widget.quizId}/take');
               },
-              child: Text(l10n.playAgain),
+              child: const Text('Play Again!'),
             ),
             const SizedBox(height: 48),
           ],

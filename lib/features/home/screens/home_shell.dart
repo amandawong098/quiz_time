@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:quiz_time/l10n/app_localizations.dart';
 
 class HomeShell extends StatelessWidget {
   final Widget child;
@@ -9,41 +8,95 @@ class HomeShell extends StatelessWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
-    if (location.startsWith('/my-quizzes')) {
-      return 1;
+    if (location.startsWith('/lessons')) {
+      return 0;
     }
-    if (location.startsWith('/history')) {
+    if (location.startsWith('/leaderboard')) {
       return 2;
     }
-    if (location.startsWith('/me')) {
+    if (location.startsWith('/discussions')) {
       return 3;
     }
-    return 0; // default to discover
+    if (location.startsWith('/me') ||
+        location.startsWith('/my-discussions') ||
+        location.startsWith('/my-quizzes')) {
+      return 4;
+    }
+    return 1; // default to quizzes (DiscoverScreen)
   }
 
   void _onItemTapped(int index, BuildContext context) {
     switch (index) {
       case 0:
-        context.go('/');
+        context.go('/lessons');
         break;
       case 1:
-        context.go('/my-quizzes');
+        context.go('/');
         break;
       case 2:
-        context.go('/history');
+        context.go('/leaderboard');
         break;
       case 3:
+        context.go('/discussions');
+        break;
+      case 4:
         context.go('/me');
         break;
     }
   }
 
+  void _showComingSoonSnackBar(BuildContext context, String featureName) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        content: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white),
+            const SizedBox(width: 10),
+            Text('$featureName feature is coming soon!'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget? _buildFloatingActionButton(BuildContext context, int selectedIndex) {
+    final String location = GoRouterState.of(context).uri.path;
+
+    // Hide FAB on Leaderboard and main Profile screen
+    if (location.startsWith('/leaderboard') || location == '/me') {
+      return null;
+    }
+
+    return FloatingActionButton(
+      onPressed: () {
+        if (location.startsWith('/lessons')) {
+          _showComingSoonSnackBar(context, 'Create Lessons');
+        } else if (location.startsWith('/discussions') ||
+            location.startsWith('/my-discussions')) {
+          context.push('/create-topic');
+        } else {
+          // Default to create quiz (for / or /my-quizzes)
+          context.push('/create-quiz');
+        }
+      },
+      backgroundColor: Colors.deepPurple,
+      foregroundColor: Colors.white,
+      child: const Icon(Icons.add),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final int selectedIndex = _calculateSelectedIndex(context);
 
     return Scaffold(
       body: child,
+      floatingActionButton: _buildFloatingActionButton(context, selectedIndex),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
@@ -55,28 +108,32 @@ class HomeShell extends StatelessWidget {
           ],
         ),
         child: BottomNavigationBar(
-          currentIndex: _calculateSelectedIndex(context),
+          currentIndex: selectedIndex,
           onTap: (index) => _onItemTapped(index, context),
           type: BottomNavigationBarType.fixed,
-          elevation: 0, // Disable default elevation since we have custom shadow
+          elevation: 0,
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-          items: [
+          items: const [
             BottomNavigationBarItem(
-              icon: const Icon(Icons.search),
-              label: l10n.discover,
+              icon: Icon(Icons.menu_book_rounded),
+              label: 'Lessons',
             ),
             BottomNavigationBarItem(
-              icon: const Icon(Icons.book),
-              label: l10n.myQuizzes,
+              icon: Icon(Icons.assignment_turned_in_rounded),
+              label: 'Quizzes',
             ),
             BottomNavigationBarItem(
-              icon: const Icon(Icons.history),
-              label: l10n.history,
+              icon: Icon(Icons.leaderboard),
+              label: 'Leaderboard',
             ),
             BottomNavigationBarItem(
-              icon: const Icon(Icons.person),
-              label: l10n.me,
+              icon: Icon(Icons.forum_rounded),
+              label: 'Discussions',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),
