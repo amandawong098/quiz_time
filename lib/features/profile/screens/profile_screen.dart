@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/friendship_repository.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/notification_badge.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -121,13 +123,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = context.watch<AuthRepository>().currentUser;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        actions: const [NotificationIconBadge()],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
+          : RefreshIndicator(
+              onRefresh: () async {
+                await context.read<FriendshipRepository>().refreshProfileAndNotifications();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 16),
@@ -228,6 +237,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const Divider(),
                   const SizedBox(height: 24),
                   const Text(
+                    'Manage Your Network',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildManageOptionItem(
+                    context: context,
+                    icon: Icons.group_rounded,
+                    title: 'My Friends',
+                    isDummy: false,
+                    onTap: () => context.push('/me/friends'),
+                  ),
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 24),
+                  const Text(
                     'Manage Your Account',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
@@ -275,6 +302,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+          ),
     );
   }
 }

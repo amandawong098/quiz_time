@@ -296,3 +296,56 @@ CREATE POLICY "Public Read Discussion Attachments" ON storage.objects FOR SELECT
 CREATE POLICY "Auth Insert Discussion Attachments" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'discussion_attachments' AND auth.role() = 'authenticated');
 CREATE POLICY "Auth Delete Discussion Attachments" ON storage.objects FOR DELETE USING (bucket_id = 'discussion_attachments' AND auth.role() = 'authenticated');
 
+-- =======================================================
+-- 8. FRIENDSHIP & NOTIFICATION SCHEMA
+-- =======================================================
+
+CREATE TABLE IF NOT EXISTS public.friendships (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    sender_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    receiver_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'accepted')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (sender_id, receiver_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view friendships involving them" ON public.friendships 
+    FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+CREATE POLICY "Users can insert friendships where they are the sender" ON public.friendships 
+    FOR INSERT WITH CHECK (auth.uid() = sender_id);
+
+CREATE POLICY "Users can update friendships involving them" ON public.friendships 
+    FOR UPDATE USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+CREATE POLICY "Users can delete friendships involving them" ON public.friendships 
+    FOR DELETE USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+CREATE POLICY "Users can view own notifications" ON public.notifications 
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own notifications" ON public.notifications 
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own notifications" ON public.notifications 
+    FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Authenticated users can insert notifications" ON public.notifications
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- Enable Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+

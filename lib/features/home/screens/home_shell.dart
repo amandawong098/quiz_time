@@ -67,8 +67,8 @@ class HomeShell extends StatelessWidget {
   Widget? _buildFloatingActionButton(BuildContext context, int selectedIndex) {
     final String location = GoRouterState.of(context).uri.path;
 
-    // Hide FAB on Leaderboard and main Profile screen
-    if (location.startsWith('/leaderboard') || location == '/me') {
+    // Hide FAB on Leaderboard and all Profile screens/sub-routes
+    if (location.startsWith('/leaderboard') || location.startsWith('/me')) {
       return null;
     }
 

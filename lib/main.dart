@@ -10,11 +10,13 @@ import 'core/router/app_router.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/quiz_repository.dart';
 import 'data/repositories/discussion_repository.dart';
+import 'data/repositories/friendship_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final ImagePickerPlatform imagePickerImplementation = ImagePickerPlatform.instance;
+  final ImagePickerPlatform imagePickerImplementation =
+      ImagePickerPlatform.instance;
   if (imagePickerImplementation is ImagePickerAndroid) {
     imagePickerImplementation.useAndroidPhotoPicker = true;
   }
@@ -30,6 +32,9 @@ Future<void> main() async {
         ChangeNotifierProvider<AuthRepository>(create: (_) => AuthRepository()),
         Provider<QuizRepository>(create: (_) => QuizRepository()),
         Provider<DiscussionRepository>(create: (_) => DiscussionRepository()),
+        ChangeNotifierProvider<FriendshipRepository>(
+          create: (_) => FriendshipRepository(),
+        ),
       ],
       child: const LearnByteApp(),
     ),

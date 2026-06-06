@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/notification_badge.dart';
 
 class LessonsDummyScreen extends StatelessWidget {
   const LessonsDummyScreen({super.key});
@@ -36,6 +37,7 @@ class LessonsDummyScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Lessons'),
         elevation: 0,
+        actions: const [NotificationIconBadge()],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),

@@ -9,6 +9,8 @@ class TakeQuizScreen extends StatefulWidget {
   final String quizId;
   const TakeQuizScreen({super.key, required this.quizId});
 
+  static bool isActive = false;
+
   @override
   State<TakeQuizScreen> createState() => _TakeQuizScreenState();
 }
@@ -34,6 +36,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   @override
   void initState() {
     super.initState();
+    TakeQuizScreen.isActive = true;
     _loadQuiz();
   }
 
@@ -189,6 +192,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
   @override
   void dispose() {
+    TakeQuizScreen.isActive = false;
     _timer?.cancel();
     super.dispose();
   }

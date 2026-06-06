@@ -200,10 +200,10 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                   runSpacing: 8,
                   children: [
                     Chip(
-                      label: Text(_quiz!.grade ?? ''),
+                      label: Text(_quiz!.grade),
                     ),
                     Chip(
-                      label: Text(_quiz!.subject ?? ''),
+                      label: Text(_quiz!.subject),
                     ),
                     Chip(label: Text('${_questions.length} Questions')),
                   ],

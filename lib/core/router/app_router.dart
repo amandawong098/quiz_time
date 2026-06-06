@@ -19,12 +19,13 @@ import '../../features/library/screens/create_quiz_screen.dart';
 import '../../features/library/screens/create_question_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/profile/screens/my_discussions_screen.dart';
+import '../../features/profile/screens/friends_screen.dart';
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter appRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/lessons',
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
@@ -72,6 +73,10 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: 'edit',
               builder: (context, state) => const EditProfileScreen(),
+            ),
+            GoRoute(
+              path: 'friends',
+              builder: (context, state) => const FriendsScreen(),
             ),
           ],
         ),

@@ -68,14 +68,6 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Quizzes'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              context.push('/create-quiz').then((_) => _loadMyQuizzes());
-            },
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -192,7 +184,7 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${quiz.grade ?? ''} • ${quiz.subject ?? ''} • ${quiz.isPublic ? 'Public' : 'Private'}',
+                                    '${quiz.grade} • ${quiz.subject} • ${quiz.isPublic ? 'Public' : 'Private'}',
                                   ),
                                   trailing: IconButton(
                                     icon: const Icon(

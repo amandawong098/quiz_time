@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
+import '../../../core/widgets/notification_badge.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -65,7 +66,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Discover')),
+      appBar: AppBar(
+        title: const Text('Discover'),
+        actions: const [NotificationIconBadge()],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -143,7 +147,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${quiz.grade ?? ''} • ${quiz.subject ?? ''}',
+                                    '${quiz.grade} • ${quiz.subject}',
                                   ),
                                   onTap: () {
                                     context.push('/quiz/${quiz.id}');

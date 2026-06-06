@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/models/discussion_models.dart';
 
@@ -159,6 +160,7 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
       appBar: AppBar(
         title: const Text('Discussions'),
         elevation: 0,
+        actions: const [NotificationIconBadge()],
       ),
       body: RefreshIndicator(
         onRefresh: _loadTopics,
