@@ -9,15 +9,17 @@ class _QuestionFormData {
   final TextEditingController questionTextController;
   final TextEditingController durationController;
   final List<TextEditingController> optionControllers;
-  int correctOptionIndex;
+  bool isMultipleChoice;
+  Set<int> correctOptionIndices;
 
   _QuestionFormData({
     required this.formKey,
     required this.questionTextController,
     required this.durationController,
     required this.optionControllers,
-    this.correctOptionIndex = 0,
-  });
+    this.isMultipleChoice = false,
+    Set<int>? correctOptionIndices,
+  }) : correctOptionIndices = correctOptionIndices ?? {0};
 
   void dispose() {
     questionTextController.dispose();
@@ -42,6 +44,13 @@ class _QuestionFormData {
       return false;
     }
 
+    if (correctOptionIndices.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('At least one correct answer must be selected per question')));
+      return false;
+    }
+
     for (int i = 0; i < optionControllers.length; i++) {
       if (optionControllers[i].text.trim().isEmpty) continue;
       outOptions.add(
@@ -49,7 +58,7 @@ class _QuestionFormData {
           id: '',
           questionId: '',
           optionText: optionControllers[i].text.trim(),
-          isCorrect: i == correctOptionIndex,
+          isCorrect: correctOptionIndices.contains(i),
         ),
       );
     }
@@ -182,7 +191,15 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
   }
 
   _QuestionFormData _createFormFromQuestion(Question q) {
-    int correctIdx = q.options.indexWhere((o) => o.isCorrect);
+    final correctIndices = <int>{};
+    for (int i = 0; i < q.options.length; i++) {
+      if (q.options[i].isCorrect) {
+        correctIndices.add(i);
+      }
+    }
+    if (correctIndices.isEmpty) {
+      correctIndices.add(0);
+    }
     return _QuestionFormData(
       formKey: GlobalKey<FormState>(),
       questionTextController: TextEditingController(text: q.questionText),
@@ -192,13 +209,22 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       optionControllers: q.options
           .map((o) => TextEditingController(text: o.optionText))
           .toList(),
-      correctOptionIndex: correctIdx == -1 ? 0 : correctIdx,
+      isMultipleChoice: correctIndices.length > 1,
+      correctOptionIndices: correctIndices,
     );
   }
 
   _QuestionFormData _createFormFromGeneratedData(Map<String, dynamic> qData) {
     final optionsData = qData['options'] as List;
-    int correctIdx = optionsData.indexWhere((o) => o['isCorrect'] == true);
+    final correctIndices = <int>{};
+    for (int i = 0; i < optionsData.length; i++) {
+      if (optionsData[i]['isCorrect'] == true) {
+        correctIndices.add(i);
+      }
+    }
+    if (correctIndices.isEmpty) {
+      correctIndices.add(0);
+    }
     return _QuestionFormData(
       formKey: GlobalKey<FormState>(),
       questionTextController: TextEditingController(text: qData['text'] ?? ''),
@@ -208,7 +234,8 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       optionControllers: optionsData
           .map((o) => TextEditingController(text: o['text'] ?? ''))
           .toList(),
-      correctOptionIndex: correctIdx == -1 ? 0 : correctIdx,
+      isMultipleChoice: correctIndices.length > 1,
+      correctOptionIndices: correctIndices,
     );
   }
 
@@ -218,7 +245,8 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       questionTextController: TextEditingController(),
       durationController: TextEditingController(text: '30'),
       optionControllers: [TextEditingController(), TextEditingController()],
-      correctOptionIndex: 0,
+      isMultipleChoice: false,
+      correctOptionIndices: {0},
     );
   }
 
@@ -387,21 +415,43 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Select the radio button to mark the correct answer.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+              Text(
+                formData.isMultipleChoice
+                    ? 'Select all checkboxes corresponding to correct answers.'
+                    : 'Select the radio button to mark the correct answer.',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 16),
               ...List.generate(formData.optionControllers.length, (optIndex) {
                 return Row(
                   children: [
-                    Radio<int>(
-                      value: optIndex,
-                      groupValue: formData.correctOptionIndex,
-                      onChanged: (val) {
-                        setState(() => formData.correctOptionIndex = val!);
-                      },
-                    ),
+                    if (formData.isMultipleChoice)
+                      Checkbox(
+                        value: formData.correctOptionIndices.contains(optIndex),
+                        activeColor: Colors.deepPurple,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              formData.correctOptionIndices.add(optIndex);
+                            } else {
+                              formData.correctOptionIndices.remove(optIndex);
+                            }
+                          });
+                        },
+                      )
+                    else
+                      Radio<int>(
+                        value: optIndex,
+                        groupValue: formData.correctOptionIndices.isNotEmpty
+                            ? formData.correctOptionIndices.first
+                            : -1,
+                        activeColor: Colors.deepPurple,
+                        onChanged: (val) {
+                          setState(() {
+                            formData.correctOptionIndices = {val!};
+                          });
+                        },
+                      ),
                     Expanded(
                       child: TextFormField(
                         controller: formData.optionControllers[optIndex],
@@ -412,13 +462,22 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                             onPressed: () {
                               if (formData.optionControllers.length > 2) {
                                 setState(() {
-                                  formData.optionControllers[optIndex]
-                                      .dispose();
+                                  formData.optionControllers[optIndex].dispose();
                                   formData.optionControllers.removeAt(optIndex);
-                                  if (formData.correctOptionIndex >= optIndex &&
-                                      formData.correctOptionIndex > 0) {
-                                    formData.correctOptionIndex--;
+                                  
+                                  // Update correct indices set
+                                  final newIndices = <int>{};
+                                  for (var idx in formData.correctOptionIndices) {
+                                    if (idx < optIndex) {
+                                      newIndices.add(idx);
+                                    } else if (idx > optIndex) {
+                                      newIndices.add(idx - 1);
+                                    }
                                   }
+                                  if (newIndices.isEmpty) {
+                                    newIndices.add(0);
+                                  }
+                                  formData.correctOptionIndices = newIndices;
                                 });
                               }
                             },
@@ -432,6 +491,31 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                   ],
                 );
               }),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text('Multiple Choice (Checkbox)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Switch(
+                    value: formData.isMultipleChoice,
+                    activeThumbColor: Colors.deepPurple,
+                    onChanged: (val) {
+                      setState(() {
+                        formData.isMultipleChoice = val;
+                        if (!val) {
+                          // Enforce single selection: keep only the first correct option (or default to 0)
+                          if (formData.correctOptionIndices.isNotEmpty) {
+                            final first = formData.correctOptionIndices.first;
+                            formData.correctOptionIndices = {first};
+                          } else {
+                            formData.correctOptionIndices = {0};
+                          }
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               Align(
                 alignment: Alignment.centerLeft,

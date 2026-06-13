@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../widgets/multiplayer_invite_dialog.dart';
 
 class QuizDetailsScreen extends StatefulWidget {
   final String quizId;
@@ -16,7 +17,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   bool _isLoading = true;
   Quiz? _quiz;
   List<Question> _questions = [];
-  List<QuizAttempt> _attempts = [];
+  bool _shuffleQuestions = false;
 
   @override
   void initState() {
@@ -28,12 +29,10 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
     try {
       final repo = context.read<QuizRepository>();
       final data = await repo.getQuizDetails(widget.quizId);
-      final attempts = await repo.getQuizAttempts(widget.quizId);
       if (mounted) {
         setState(() {
           _quiz = data['quiz'] as Quiz;
           _questions = data['questions'] as List<Question>;
-          _attempts = attempts;
           _isLoading = false;
         });
       }
@@ -51,102 +50,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
 
 
 
-  Widget _buildDetailedAnalysis(QuizAttempt attempt) {
-    if (attempt.userAnswers.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 32),
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Detailed Analysis',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 16),
-        ...List.generate(attempt.userAnswers.length, (index) {
-          final answerData = attempt.userAnswers[index];
-          final questionText = answerData['question_text'] ?? 'Question';
-          final selectedOptionId = answerData['selected_option_id'];
-          final List options = answerData['options'] ?? [];
-
-          return Card(
-            color: selectedOptionId == null ? Colors.grey.shade200 : null,
-            margin: const EdgeInsets.only(bottom: 16),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Questions ${index + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    questionText,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (selectedOptionId == null)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        'Unattempted (Timeout)',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  ...options.map((opt) {
-                    final isCorrect = opt['is_correct'] == true;
-                    final isSelected = opt['id'] == selectedOptionId;
-
-                    Color? bgColor;
-                    if (isCorrect) {
-                      bgColor = selectedOptionId == null
-                          ? Colors.grey.shade400
-                          : Colors.green.shade300;
-                    } else if (isSelected) {
-                      bgColor = Colors.red.shade300;
-                    }
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color:
-                            bgColor ??
-                            (Theme.of(context).brightness == Brightness.dark
-                                ? Colors.grey.shade800
-                                : Colors.grey.shade100),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Text(
-                        opt['text'] ?? '',
-                        style: TextStyle(
-                          fontWeight: (isCorrect || isSelected)
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -157,10 +61,20 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
       return const Scaffold(body: Center(child: Text('No quizzes found.')));
     }
 
-    final lastAttempt = _attempts.isNotEmpty ? _attempts.last : null;
+
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Quiz Details')),
+      appBar: AppBar(
+        title: const Text('Quiz Details'),
+        leading: Navigator.of(context).canPop()
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  context.go('/');
+                },
+              ),
+      ),
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: SingleChildScrollView(
@@ -208,46 +122,90 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                     Chip(label: Text('${_questions.length} Questions')),
                   ],
                 ),
-                if (lastAttempt != null) ...[
-                  const SizedBox(height: 32),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Last Attempt Summary',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                const SizedBox(height: 32),
+                 Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Shuffle Questions', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        Switch(
+                          value: _shuffleQuestions,
+                          activeThumbColor: Colors.deepPurple,
+                          onChanged: (val) {
+                            setState(() {
+                              _shuffleQuestions = val;
+                            });
+                          },
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _SummaryBox(
-                        title: 'Correct',
-                        value: lastAttempt.correctAnswers.toString(),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: 280,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.person),
+                        label: const Text('Play Solo Mode'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          context.push('/quiz/${widget.quizId}/take?shuffle=$_shuffleQuestions');
+                        },
                       ),
-                      _SummaryBox(
-                        title: 'Wrong',
-                        value: lastAttempt.wrongAnswers.toString(),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_quiz!.isPublic == false) ...[
+                      SizedBox(
+                        width: 280,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.people_outline),
+                          label: const Text('Multiplayer Mode (Disabled)'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey.shade300,
+                            foregroundColor: Colors.grey.shade600,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: null, // Disabled
+                        ),
                       ),
-                      _SummaryBox(
-                        title: 'Avg Time',
-                        value:
-                            '${lastAttempt.avgTimePerQuestion?.toStringAsFixed(1) ?? 0}s',
+                      const SizedBox(height: 8),
+                      Text(
+                        'Multiplayer mode is turned off for private quizzes.',
+                        style: TextStyle(color: Colors.red.shade400, fontSize: 12, fontStyle: FontStyle.italic),
+                      ),
+                    ] else ...[
+                      SizedBox(
+                        width: 280,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.people),
+                          label: const Text('Play Multiplayer Mode'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => MultiplayerInviteDialog(
+                                quizId: widget.quizId,
+                                quizTitle: _quiz!.title,
+                                shuffle: _shuffleQuestions,
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ],
-                  ),
-                  _buildDetailedAnalysis(lastAttempt),
-                ],
-                const SizedBox(height: 32),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      context.push('/quiz/${widget.quizId}/take');
-                    },
-                    child: Text(
-                      lastAttempt == null ? 'Start Quiz' : 'Play Again!',
-                    ),
-                  ),
+                  ],
                 ),
                 const SizedBox(height: 48),
               ],
@@ -259,25 +217,4 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   }
 }
 
-class _SummaryBox extends StatelessWidget {
-  final String title;
-  final String value;
 
-  const _SummaryBox({required this.title, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(value, style: Theme.of(context).textTheme.headlineSmall),
-          ],
-        ),
-      ),
-    );
-  }
-}

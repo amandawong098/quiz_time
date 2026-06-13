@@ -10,7 +10,8 @@ class FriendsScreen extends StatefulWidget {
   State<FriendsScreen> createState() => _FriendsScreenState();
 }
 
-class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProviderStateMixin {
+class _FriendsScreenState extends State<FriendsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _isLoading = true;
   bool _isActionInProgress = false;
@@ -62,12 +63,15 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _performAction(Future<void> Function() action, String successMessage) async {
+  Future<void> _performAction(
+    Future<void> Function() action,
+    String successMessage,
+  ) async {
     setState(() => _isActionInProgress = true);
     try {
       await action();
@@ -97,7 +101,11 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.deepPurple,
+            ),
           ),
         ),
         ListView.builder(
@@ -114,12 +122,22 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
               ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+                  backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                      ? NetworkImage(user.avatarUrl!)
+                      : null,
                   backgroundColor: Colors.deepPurple.shade100,
-                  child: user.avatarUrl == null ? const Icon(Icons.person, color: Colors.deepPurple) : null,
+                  child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                      ? const Icon(Icons.person, color: Colors.deepPurple)
+                      : null,
                 ),
-                title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(user.email, style: const TextStyle(fontSize: 12)),
+                title: Text(
+                  user.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  user.email,
+                  style: const TextStyle(fontSize: 12),
+                ),
                 trailing: actionBuilder(user),
               ),
             );
@@ -138,12 +156,18 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
               physics: const AlwaysScrollableScrollPhysics(),
               children: const [
                 Padding(
-                  padding: EdgeInsets.symmetric(vertical: 64.0, horizontal: 16.0),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 64.0,
+                    horizontal: 16.0,
+                  ),
                   child: Center(
                     child: Text(
                       'You haven\'t added any friends yet.\nGo to "Discover" tab to add new connections!',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ),
@@ -163,14 +187,27 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                   ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundImage: friend.avatarUrl != null ? NetworkImage(friend.avatarUrl!) : null,
+                      backgroundImage: (friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty)
+                          ? NetworkImage(friend.avatarUrl!)
+                          : null,
                       backgroundColor: Colors.deepPurple.shade100,
-                      child: friend.avatarUrl == null ? const Icon(Icons.person, color: Colors.deepPurple) : null,
+                      child: (friend.avatarUrl == null || friend.avatarUrl!.isEmpty)
+                          ? const Icon(Icons.person, color: Colors.deepPurple)
+                          : null,
                     ),
-                    title: Text(friend.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(friend.email, style: const TextStyle(fontSize: 12)),
+                    title: Text(
+                      friend.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      friend.email,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                     trailing: IconButton(
-                      icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent),
+                      icon: const Icon(
+                        Icons.person_remove_rounded,
+                        color: Colors.redAccent,
+                      ),
                       onPressed: () async {
                         final confirm = await showDialog<bool>(
                           context: context,
@@ -186,7 +223,10 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                               ),
                               TextButton(
                                 onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Unfriend', style: TextStyle(color: Colors.red)),
+                                child: const Text(
+                                  'Unfriend',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ),
                             ],
                           ),
@@ -194,7 +234,9 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
 
                         if (confirm == true && mounted) {
                           _performAction(
-                            () => context.read<FriendshipRepository>().unfriend(friend.id),
+                            () => context.read<FriendshipRepository>().unfriend(
+                              friend.id,
+                            ),
                             'Unfriended ${friend.name}.',
                           );
                         }
@@ -215,11 +257,17 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
               physics: const AlwaysScrollableScrollPhysics(),
               children: const [
                 Padding(
-                  padding: EdgeInsets.symmetric(vertical: 64.0, horizontal: 16.0),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 64.0,
+                    horizontal: 16.0,
+                  ),
                   child: Center(
                     child: Text(
                       'No new profiles found to discover.',
-                      style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ),
@@ -239,24 +287,41 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                   ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+                      backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                          ? NetworkImage(user.avatarUrl!)
+                          : null,
                       backgroundColor: Colors.deepPurple.shade100,
-                      child: user.avatarUrl == null ? const Icon(Icons.person, color: Colors.deepPurple) : null,
+                      child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                          ? const Icon(Icons.person, color: Colors.deepPurple)
+                          : null,
                     ),
-                    title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(user.email, style: const TextStyle(fontSize: 12)),
+                    title: Text(
+                      user.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      user.email,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                     trailing: ElevatedButton.icon(
                       icon: const Icon(Icons.person_add_rounded, size: 16),
                       label: const Text('Add'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.deepPurple,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
                       onPressed: () {
                         _performAction(
-                          () => context.read<FriendshipRepository>().sendFriendRequest(user.id),
+                          () => context
+                              .read<FriendshipRepository>()
+                              .sendFriendRequest(user.id),
                           'Friend request sent to ${user.name}.',
                         );
                       },
@@ -271,9 +336,7 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Friends'),
-      ),
+      appBar: AppBar(title: const Text('My Friends')),
       body: Stack(
         children: [
           _isLoading
@@ -289,88 +352,116 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                           child: NestedScrollView(
                             physics: const AlwaysScrollableScrollPhysics(),
                             headerSliverBuilder: (context, innerBoxIsScrolled) {
-                            return [
-                              SliverToBoxAdapter(
-                                child: Column(
-                                  children: [
-                                    _buildRequestList(
-                                      list: _incomingRequests,
-                                      title: 'Incoming Requests',
-                                      emptyText: 'No incoming friend requests.',
-                                      actionBuilder: (user) => Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.check_circle, color: Colors.green, size: 28),
-                                            onPressed: () {
-                                              _performAction(
-                                                () => context.read<FriendshipRepository>().acceptFriendRequest(user.id),
-                                                'Request accepted!',
-                                              );
-                                            },
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.cancel_rounded, color: Colors.redAccent, size: 28),
-                                            onPressed: () {
-                                              _performAction(
-                                                () => context.read<FriendshipRepository>().declineFriendRequest(user.id),
-                                                'Request declined.',
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    _buildRequestList(
-                                      list: _sentRequests,
-                                      title: 'Requests Sent',
-                                      emptyText: 'No pending requests sent.',
-                                      actionBuilder: (user) => OutlinedButton(
-                                        style: OutlinedButton.styleFrom(
-                                          side: const BorderSide(color: Colors.redAccent),
-                                          foregroundColor: Colors.redAccent,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              return [
+                                SliverToBoxAdapter(
+                                  child: Column(
+                                    children: [
+                                      _buildRequestList(
+                                        list: _incomingRequests,
+                                        title: 'Incoming Requests',
+                                        emptyText:
+                                            'No incoming friend requests.',
+                                        actionBuilder: (user) => Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.check_circle,
+                                                color: Colors.green,
+                                                size: 28,
+                                              ),
+                                              onPressed: () {
+                                                _performAction(
+                                                  () => context
+                                                      .read<
+                                                        FriendshipRepository
+                                                      >()
+                                                      .acceptFriendRequest(
+                                                        user.id,
+                                                      ),
+                                                  'Request accepted!',
+                                                );
+                                              },
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.cancel_rounded,
+                                                color: Colors.redAccent,
+                                                size: 28,
+                                              ),
+                                              onPressed: () {
+                                                _performAction(
+                                                  () => context
+                                                      .read<
+                                                        FriendshipRepository
+                                                      >()
+                                                      .declineFriendRequest(
+                                                        user.id,
+                                                      ),
+                                                  'Request declined.',
+                                                );
+                                              },
+                                            ),
+                                          ],
                                         ),
-                                        onPressed: () {
-                                          _performAction(
-                                            () => context.read<FriendshipRepository>().cancelFriendRequest(user.id),
-                                            'Request cancelled.',
-                                          );
-                                        },
-                                        child: const Text('Cancel'),
                                       ),
-                                    ),
-                                  ],
+                                      _buildRequestList(
+                                        list: _sentRequests,
+                                        title: 'Requests Sent',
+                                        emptyText: 'No pending requests sent.',
+                                        actionBuilder: (user) => OutlinedButton(
+                                          style: OutlinedButton.styleFrom(
+                                            side: const BorderSide(
+                                              color: Colors.redAccent,
+                                            ),
+                                            foregroundColor: Colors.redAccent,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          onPressed: () {
+                                            _performAction(
+                                              () => context
+                                                  .read<FriendshipRepository>()
+                                                  .cancelFriendRequest(user.id),
+                                              'Request cancelled.',
+                                            );
+                                          },
+                                          child: const Text('Cancel'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ];
-                          },
-                          body: Column(
-                            children: [
-                              TabBar(
-                                controller: _tabController,
-                                indicatorColor: Colors.deepPurple,
-                                labelColor: Colors.deepPurple,
-                                unselectedLabelColor: Colors.grey,
-                                tabs: const [
-                                  Tab(text: 'My Friends'),
-                                  Tab(text: 'Discover New Friends'),
-                                ],
-                              ),
-                              Expanded(
-                                child: TabBarView(
+                              ];
+                            },
+                            body: Column(
+                              children: [
+                                TabBar(
                                   controller: _tabController,
-                                  children: [
-                                    _buildFriendsTab(),
-                                    _buildDiscoverTab(),
+                                  indicatorColor: Colors.deepPurple,
+                                  labelColor: Colors.deepPurple,
+                                  unselectedLabelColor: Colors.grey,
+                                  tabs: const [
+                                    Tab(text: 'My Friends'),
+                                    Tab(text: 'Discover New Friends'),
                                   ],
                                 ),
-                              ),
-                            ],
+                                Expanded(
+                                  child: TabBarView(
+                                    controller: _tabController,
+                                    children: [
+                                      _buildFriendsTab(),
+                                      _buildDiscoverTab(),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
                     ],
                   ),
                 ),

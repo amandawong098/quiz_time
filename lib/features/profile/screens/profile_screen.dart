@@ -220,6 +220,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 12),
                   _buildManageOptionItem(
                     context: context,
+                    icon: Icons.style_rounded,
+                    title: 'My Flashcards',
+                    isDummy: true,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildManageOptionItem(
+                    context: context,
                     icon: Icons.assignment_turned_in_rounded,
                     title: 'My Quizzes',
                     isDummy: false,

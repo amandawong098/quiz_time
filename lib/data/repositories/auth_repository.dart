@@ -67,6 +67,20 @@ class AuthRepository extends ChangeNotifier {
     );
 
     await _supabase.auth.updateUser(attributes);
+
+    // Sync to public.profiles table
+    final Map<String, dynamic> profileUpdates = {};
+    if (name != null) profileUpdates['name'] = name;
+    if (email != null) profileUpdates['email'] = email;
+    if (updateAvatar) profileUpdates['avatar_url'] = avatarUrl;
+    profileUpdates['updated_at'] = DateTime.now().toIso8601String();
+
+    if (profileUpdates.isNotEmpty) {
+      await _supabase
+          .from('profiles')
+          .update(profileUpdates)
+          .eq('id', _supabase.auth.currentUser!.id);
+    }
   }
 
   Future<void> deleteAccount() async {

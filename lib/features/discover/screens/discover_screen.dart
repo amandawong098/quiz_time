@@ -67,7 +67,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Discover'),
+        title: const Text('Quizzes'),
         actions: const [NotificationIconBadge()],
       ),
       body: Padding(

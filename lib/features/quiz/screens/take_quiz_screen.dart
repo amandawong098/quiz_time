@@ -2,12 +2,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../data/repositories/friendship_repository.dart';
 
 class TakeQuizScreen extends StatefulWidget {
   final String quizId;
-  const TakeQuizScreen({super.key, required this.quizId});
+  final String? challengeId;
+  final bool shuffle;
+  const TakeQuizScreen({
+    super.key,
+    required this.quizId,
+    this.challengeId,
+    this.shuffle = false,
+  });
 
   static bool isActive = false;
 
@@ -24,7 +33,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   Timer? _timer;
   bool _isPaused = false;
 
-  String? _selectedOptionId;
+  Set<String> _selectedOptionIds = {};
   bool _isAnswerChecked = false;
 
   int _correctCount = 0;
@@ -37,6 +46,9 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   void initState() {
     super.initState();
     TakeQuizScreen.isActive = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<FriendshipRepository>().setUserPlaying(true);
+    });
     _loadQuiz();
   }
 
@@ -44,9 +56,24 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     try {
       final repo = context.read<QuizRepository>();
       final data = await repo.getQuizDetails(widget.quizId);
+
+      bool isShuffle = false;
+      if (widget.challengeId != null) {
+        final client = Supabase.instance.client;
+        final challenge = await client
+            .from('quiz_challenges')
+            .select('shuffle')
+            .eq('id', widget.challengeId!)
+            .single();
+        isShuffle = challenge['shuffle'] as bool? ?? false;
+      }
+
       if (mounted) {
         setState(() {
           _questions = data['questions'] as List<Question>;
+          if (isShuffle || widget.shuffle) {
+            _questions.shuffle();
+          }
           _isLoading = false;
         });
         if (_questions.isNotEmpty) {
@@ -64,7 +91,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   }
 
   void _startQuestion() {
-    _selectedOptionId = null;
+    _selectedOptionIds.clear();
     _isAnswerChecked = false;
     _remainingSeconds = _questions[_currentIndex].durationSeconds;
     _currentQuestionStartTime = DateTime.now().millisecondsSinceEpoch;
@@ -102,11 +129,16 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
       final currentQ = _questions[_currentIndex];
       bool isCorrect = false;
-      if (_selectedOptionId != null) {
-        final opt = currentQ.options.firstWhere(
-          (o) => o.id == _selectedOptionId,
-        );
-        isCorrect = opt.isCorrect;
+
+      final correctOptionIds = currentQ.options
+          .where((o) => o.isCorrect)
+          .map((o) => o.id)
+          .toSet();
+
+      if (correctOptionIds.isNotEmpty) {
+        isCorrect =
+            _selectedOptionIds.length == correctOptionIds.length &&
+            _selectedOptionIds.every((id) => correctOptionIds.contains(id));
       }
 
       if (isCorrect) {
@@ -117,7 +149,10 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
       _userAnswers.add({
         'question_text': currentQ.questionText,
-        'selected_option_id': _selectedOptionId,
+        'selected_option_ids': _selectedOptionIds.toList(),
+        'selected_option_id': _selectedOptionIds.isNotEmpty
+            ? _selectedOptionIds.first
+            : null,
         'options': currentQ.options
             .map(
               (o) => {
@@ -147,7 +182,9 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     }
   }
 
-  Future<void> _finishQuiz() async {
+  Future<void> _finishQuiz({bool isQuit = false}) async {
+    _timer?.cancel();
+
     double avgTime = 0;
     if (_timeTakenPerQuestion.isNotEmpty) {
       avgTime =
@@ -156,14 +193,16 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
           1000.0;
     }
 
-    int score = (_correctCount * 100) ~/ _questions.length;
+    final totalQuestions = _questions.isEmpty ? 1 : _questions.length;
+    int score = isQuit ? 0 : (_correctCount * 100) ~/ totalQuestions;
+    double accuracy = isQuit ? 0.0 : (_correctCount / totalQuestions) * 100.0;
 
     final attempt = QuizAttempt(
       id: '', // Will be assigned by DB
       userId: '', // Repository handles this
       quizId: widget.quizId,
       score: score,
-      totalQuestions: _questions.length,
+      totalQuestions: totalQuestions,
       correctAnswers: _correctCount,
       wrongAnswers: _wrongCount,
       avgTimePerQuestion: avgTime,
@@ -174,17 +213,35 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     try {
       final repo = context.read<QuizRepository>();
       final attemptId = await repo.saveQuizAttempt(attempt);
+
+      if (widget.challengeId != null) {
+        final client = Supabase.instance.client;
+        final userId = client.auth.currentUser?.id;
+        if (userId != null) {
+          await client
+              .from('quiz_challenge_players')
+              .update({
+                'score': score,
+                'accuracy': accuracy,
+                'completed_at': DateTime.now().toIso8601String(),
+                'is_quit': isQuit,
+              })
+              .eq('challenge_id', widget.challengeId!)
+              .eq('user_id', userId);
+        }
+      }
+
       if (mounted) {
-        context.pushReplacement(
-          '/quiz/${widget.quizId}/review',
-          extra: {'attemptId': attemptId},
-        );
+        final reviewPath = widget.challengeId != null
+            ? '/quiz/${widget.quizId}/review?challengeId=${widget.challengeId}'
+            : '/quiz/${widget.quizId}/review';
+        context.pushReplacement(reviewPath, extra: {'attemptId': attemptId});
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save: ${e.toString()}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: ${e.toString()}')),
+        );
         context.pop();
       }
     }
@@ -194,6 +251,17 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   void dispose() {
     TakeQuizScreen.isActive = false;
     _timer?.cancel();
+    // Safe database update without relying on BuildContext
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
+    if (userId != null) {
+      client
+          .from('profiles')
+          .update({'is_playing': false})
+          .eq('id', userId)
+          .then((_) {})
+          .catchError((_) {});
+    }
     super.dispose();
   }
 
@@ -216,16 +284,18 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        
+
         // Pause timer while dialog is open
         final wasPaused = _isPaused;
         setState(() => _isPaused = true);
-        
+
         final shouldPop = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Exit Quiz?'),
-            content: const Text('Are you sure you want to exit? Your progress will be lost.'),
+            content: const Text(
+              'Are you sure you want to exit? Your progress will be lost.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -238,9 +308,11 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
             ],
           ),
         );
-        
+
         if (shouldPop == true) {
-          if (mounted) context.pop();
+          if (mounted) {
+            _finishQuiz(isQuit: true);
+          }
         } else {
           if (mounted) {
             setState(() => _isPaused = wasPaused);
@@ -268,11 +340,18 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.pause_circle_outline, size: 80, color: Colors.grey),
+                      const Icon(
+                        Icons.pause_circle_outline,
+                        size: 80,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(height: 16),
                       const Text(
                         'Paused',
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 32),
                       ElevatedButton.icon(
@@ -283,24 +362,35 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                       const SizedBox(height: 16),
                       TextButton.icon(
                         icon: const Icon(Icons.stop, color: Colors.red),
-                        label: const Text('End Quiz', style: TextStyle(color: Colors.red)),
+                        label: const Text(
+                          'End Quiz',
+                          style: TextStyle(color: Colors.red),
+                        ),
                         onPressed: () async {
                           final confirm = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
                               title: const Text('End Quiz'),
-                              content: const Text('Are you sure you want to exit? Your progress will be lost.'),
+                              content: const Text(
+                                'Are you sure you want to exit? Your progress will be lost.',
+                              ),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('No'),
+                                ),
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('Yes', style: TextStyle(color: Colors.red)),
+                                  child: const Text(
+                                    'Yes',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
                                 ),
                               ],
                             ),
                           );
                           if (confirm == true && mounted) {
-                            _finishQuiz();
+                            _finishQuiz(isQuit: true);
                           }
                         },
                       ),
@@ -317,66 +407,150 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                         return LinearProgressIndicator(value: value);
                       },
                     ),
-            const SizedBox(height: 8),
-            Text(
-              '00:${_remainingSeconds.toString().padLeft(2, '0')}',
-              textAlign: TextAlign.right,
-            ),
-            const SizedBox(height: 32),
-            Text(
-              question.questionText,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 48),
-            if (_isAnswerChecked && _selectedOptionId == null)
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'Timeout!',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
+                    const SizedBox(height: 8),
+                    Text(
+                      '00:${_remainingSeconds.toString().padLeft(2, '0')}',
+                      textAlign: TextAlign.right,
                     ),
-                  ),
-                ),
-              )
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: question.options.length,
-                  itemBuilder: (context, index) {
-                    final option = question.options[index];
+                    const SizedBox(height: 32),
+                    Text(
+                      question.questionText,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 48),
+                    if (_isAnswerChecked && _selectedOptionIds.isEmpty)
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'Timeout!',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: question.options.length,
+                                itemBuilder: (context, index) {
+                                  final option = question.options[index];
+                                  final isMultipleChoice =
+                                      question.options
+                                          .where((o) => o.isCorrect)
+                                          .length >
+                                      1;
+                                  final isSelected = _selectedOptionIds
+                                      .contains(option.id);
 
-                    return Card(
-                      color: _isAnswerChecked
-                          ? (option.isCorrect
-                                ? Colors.green.shade200
-                                : (option.id == _selectedOptionId
-                                      ? Colors.red.shade200
-                                      : null))
-                          : null,
-                      child: RadioListTile<String>(
-                        title: Text(option.optionText),
-                        value: option.id,
-                        groupValue: _selectedOptionId,
-                        onChanged: _isAnswerChecked
-                            ? null
-                            : (val) {
-                                setState(() => _selectedOptionId = val);
-                                _checkAnswer();
-                              },
+                                  if (isMultipleChoice) {
+                                    return Card(
+                                      color: _isAnswerChecked
+                                          ? (option.isCorrect
+                                                ? Colors.green.shade200
+                                                : (isSelected
+                                                      ? Colors.red.shade200
+                                                      : null))
+                                          : null,
+                                      child: CheckboxListTile(
+                                        title: Text(option.optionText),
+                                        value: isSelected,
+                                        activeColor: Colors.deepPurple,
+                                        onChanged: _isAnswerChecked
+                                            ? null
+                                            : (val) {
+                                                setState(() {
+                                                  if (val == true) {
+                                                    _selectedOptionIds.add(
+                                                      option.id,
+                                                    );
+                                                  } else {
+                                                    _selectedOptionIds.remove(
+                                                      option.id,
+                                                    );
+                                                  }
+                                                });
+                                              },
+                                      ),
+                                    );
+                                  } else {
+                                    return Card(
+                                      color: _isAnswerChecked
+                                          ? (option.isCorrect
+                                                ? Colors.green.shade200
+                                                : (isSelected
+                                                      ? Colors.red.shade200
+                                                      : null))
+                                          : null,
+                                      child: RadioListTile<String>(
+                                        title: Text(option.optionText),
+                                        value: option.id,
+                                        groupValue: isSelected
+                                            ? option.id
+                                            : null,
+                                        activeColor: Colors.deepPurple,
+                                        onChanged: _isAnswerChecked
+                                            ? null
+                                            : (val) {
+                                                setState(
+                                                  () => _selectedOptionIds = {
+                                                    option.id,
+                                                  },
+                                                );
+                                                _checkAnswer();
+                                              },
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+                            if (!_isAnswerChecked &&
+                                question.options
+                                        .where((o) => o.isCorrect)
+                                        .length >
+                                    1)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16.0),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.deepPurple,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: _selectedOptionIds.isEmpty
+                                        ? null
+                                        : _checkAnswer,
+                                    child: const Text(
+                                      'Submit Answer',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    );
-                  },
+                  ],
                 ),
-              ),
-          ],
         ),
       ),
-    ));
+    );
   }
 }

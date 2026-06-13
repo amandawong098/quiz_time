@@ -8,7 +8,7 @@ class HomeShell extends StatelessWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
-    if (location.startsWith('/lessons')) {
+    if (location.startsWith('/learn')) {
       return 0;
     }
     if (location.startsWith('/leaderboard')) {
@@ -28,7 +28,7 @@ class HomeShell extends StatelessWidget {
   void _onItemTapped(int index, BuildContext context) {
     switch (index) {
       case 0:
-        context.go('/lessons');
+        context.go('/learn');
         break;
       case 1:
         context.go('/');
@@ -74,8 +74,8 @@ class HomeShell extends StatelessWidget {
 
     return FloatingActionButton(
       onPressed: () {
-        if (location.startsWith('/lessons')) {
-          _showComingSoonSnackBar(context, 'Create Lessons');
+        if (location.startsWith('/learn')) {
+          _showComingSoonSnackBar(context, 'Create Learning Content');
         } else if (location.startsWith('/discussions') ||
             location.startsWith('/my-discussions')) {
           context.push('/create-topic');
@@ -117,7 +117,7 @@ class HomeShell extends StatelessWidget {
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.menu_book_rounded),
-              label: 'Lessons',
+              label: 'Learn',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.assignment_turned_in_rounded),

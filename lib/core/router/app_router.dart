@@ -6,7 +6,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/discover/screens/discover_screen.dart';
 import '../../features/library/screens/my_quizzes_screen.dart';
-import '../../features/lessons/screens/lessons_dummy_screen.dart';
+import '../../features/learn/screens/learn_screen.dart';
 import '../../features/leaderboard/screens/leaderboard_dummy_screen.dart';
 import '../../features/discussions/screens/discussions_dummy_screen.dart';
 import '../../features/discussions/screens/create_topic_screen.dart';
@@ -26,7 +26,7 @@ final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: rootNavigatorKey,
-  initialLocation: '/lessons',
+  initialLocation: '/learn',
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
     final isGoingToLogin = state.uri.toString() == '/login';
@@ -35,7 +35,7 @@ final GoRouter appRouter = GoRouter(
       return '/login';
     }
     if (session != null && isGoingToLogin) {
-      return '/lessons';
+      return '/learn';
     }
     return null;
   },
@@ -55,8 +55,8 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) => const MyDiscussionsScreen(),
         ),
         GoRoute(
-          path: '/lessons',
-          builder: (context, state) => const LessonsDummyScreen(),
+          path: '/learn',
+          builder: (context, state) => const LearnScreen(),
         ),
         GoRoute(
           path: '/discussions',
@@ -89,16 +89,25 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/quiz/:id/take',
-      builder: (context, state) =>
-          TakeQuizScreen(quizId: state.pathParameters['id']!),
+      builder: (context, state) {
+        final challengeId = state.uri.queryParameters['challengeId'];
+        final shuffle = state.uri.queryParameters['shuffle'] == 'true';
+        return TakeQuizScreen(
+          quizId: state.pathParameters['id']!,
+          challengeId: challengeId,
+          shuffle: shuffle,
+        );
+      },
     ),
     GoRoute(
       path: '/quiz/:id/review',
       builder: (context, state) {
         final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        final challengeId = state.uri.queryParameters['challengeId'];
         return QuizReviewScreen(
           quizId: state.pathParameters['id']!,
           attemptId: extra['attemptId'],
+          challengeId: challengeId,
         );
       },
     ),

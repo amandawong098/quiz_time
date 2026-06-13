@@ -296,7 +296,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _descController,
-                  decoration: const InputDecoration(labelText: 'Quiz Description'),
+                  decoration: const InputDecoration(labelText: 'Quiz Description (optional)'),
                   maxLines: 3,
                 ),
                 const SizedBox(height: 16),

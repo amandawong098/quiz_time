@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -5,10 +6,13 @@ import '../models/friendship_models.dart';
 import '../../core/widgets/notification_overlay.dart';
 import '../../features/quiz/screens/take_quiz_screen.dart';
 import '../../core/router/app_router.dart';
+import '../../features/quiz/widgets/challenge_invitation_dialog.dart';
 
 class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   final SupabaseClient _supabase = Supabase.instance.client;
   RealtimeChannel? _notificationChannel;
+  RealtimeChannel? _challengeChannel;
+  Timer? _heartbeatTimer;
   int _unreadCount = 0;
   List<AppNotification> _notifications = [];
   UserProfile? _currentUserProfile;
@@ -25,10 +29,14 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
       if (state.session != null) {
         await _loadCurrentUserProfile();
         _subscribeToNotifications();
+        _subscribeToChallenges();
+        _startHeartbeat();
         await _loadUnreadCount();
         await _loadNotifications();
       } else {
         _unsubscribeFromNotifications();
+        _unsubscribeFromChallenges();
+        _stopHeartbeat();
         _unreadCount = 0;
         _notifications.clear();
         _currentUserProfile = null;
@@ -40,6 +48,8 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
     if (_supabase.auth.currentUser != null) {
       _loadCurrentUserProfile().then((_) {
         _subscribeToNotifications();
+        _subscribeToChallenges();
+        _startHeartbeat();
         _loadUnreadCount();
         _loadNotifications();
       });
@@ -394,9 +404,130 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startHeartbeat();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _stopHeartbeat();
+    }
+  }
+
+  void _startHeartbeat() {
+    _stopHeartbeat();
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _sendHeartbeat();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+      _sendHeartbeat();
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
+  Future<void> _sendHeartbeat() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      await _supabase
+          .from('profiles')
+          .update({'last_seen_at': DateTime.now().toUtc().toIso8601String()})
+          .eq('id', userId);
+    } catch (e) {
+      debugPrint('Error sending heartbeat: $e');
+    }
+  }
+
+  Future<void> setUserPlaying(bool isPlaying) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      await _supabase
+          .from('profiles')
+          .update({'is_playing': isPlaying})
+          .eq('id', userId);
+    } catch (e) {
+      debugPrint('Error setting is_playing = $isPlaying: $e');
+    }
+  }
+
+  void _subscribeToChallenges() {
+    _unsubscribeFromChallenges();
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _challengeChannel = _supabase.channel('public:quiz_challenge_players:user_$userId')
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'quiz_challenge_players',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'user_id',
+          value: userId,
+        ),
+        callback: (payload) async {
+          final newPlayerRecord = payload.newRecord;
+          final status = newPlayerRecord['status'] as String;
+          final challengeId = newPlayerRecord['challenge_id'] as String;
+
+          if (status == 'pending') {
+            try {
+              final challengeData = await _supabase
+                  .from('quiz_challenges')
+                  .select('*, quizzes(title), profiles!host_id(name)')
+                  .eq('id', challengeId)
+                  .single();
+
+              final quizTitle = challengeData['quizzes']['title'] as String;
+              final hostName = challengeData['profiles']['name'] as String;
+              final quizId = challengeData['quiz_id'] as String;
+              final shuffle = challengeData['shuffle'] as bool? ?? false;
+
+              _showInvitationDialog(challengeId, hostName, quizTitle, quizId, shuffle);
+            } catch (e) {
+              debugPrint('Error loading challenge details: $e');
+            }
+          }
+        },
+      )
+      ..subscribe();
+  }
+
+  void _unsubscribeFromChallenges() {
+    if (_challengeChannel != null) {
+      _supabase.removeChannel(_challengeChannel!);
+      _challengeChannel = null;
+    }
+  }
+
+  void _showInvitationDialog(
+      String challengeId, String hostName, String quizTitle, String quizId, bool shuffle) {
+    final context = rootNavigatorKey.currentContext;
+    if (context == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => ChallengeInvitationDialog(
+        challengeId: challengeId,
+        hostName: hostName,
+        quizTitle: quizTitle,
+        quizId: quizId,
+        shuffle: shuffle,
+      ),
+    );
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _unsubscribeFromNotifications();
+    _unsubscribeFromChallenges();
+    _stopHeartbeat();
     super.dispose();
   }
 }

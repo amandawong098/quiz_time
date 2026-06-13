@@ -107,6 +107,25 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
+-- Handle Profile updates on user metadata changes
+CREATE OR REPLACE FUNCTION public.handle_update_user() 
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE public.profiles
+    SET 
+        name = COALESCE(new.raw_user_meta_data->>'name', name),
+        avatar_url = COALESCE(new.raw_user_meta_data->>'avatar_url', avatar_url),
+        email = COALESCE(new.email, email),
+        updated_at = NOW()
+    WHERE id = new.id;
+    RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_updated
+    AFTER UPDATE ON auth.users
+    FOR EACH ROW EXECUTE PROCEDURE public.handle_update_user();
+
 -- Maintain Question Count on Quizzes
 -- Automatically increments/decrements question_count when questions are added/removed
 CREATE OR REPLACE FUNCTION public.update_quiz_question_count()
@@ -348,4 +367,52 @@ CREATE POLICY "Authenticated users can insert notifications" ON public.notificat
 
 -- Enable Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+
+-- =======================================================
+-- 9. MULTIPLAYER QUIZ CHALLENGES
+-- =======================================================
+
+-- Sync active and playing states on profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_playing BOOLEAN DEFAULT FALSE;
+
+-- Quiz Challenges Table
+CREATE TABLE IF NOT EXISTS public.quiz_challenges (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    quiz_id UUID REFERENCES public.quizzes(id) ON DELETE CASCADE NOT NULL,
+    host_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'started', 'completed', 'cancelled')),
+    shuffle BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Quiz Challenge Players Table
+CREATE TABLE IF NOT EXISTS public.quiz_challenge_players (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    challenge_id UUID REFERENCES public.quiz_challenges(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'timeout')),
+    score INTEGER DEFAULT 0,
+    accuracy DOUBLE PRECISION DEFAULT 0.0,
+    completed_at TIMESTAMPTZ,
+    is_quit BOOLEAN DEFAULT FALSE,
+    UNIQUE (challenge_id, user_id)
+);
+
+-- Enable RLS
+ALTER TABLE public.quiz_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quiz_challenge_players ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow select challenges" ON public.quiz_challenges FOR SELECT USING (true);
+CREATE POLICY "Allow insert own challenges" ON public.quiz_challenges FOR INSERT WITH CHECK (auth.uid() = host_id);
+CREATE POLICY "Allow update challenges" ON public.quiz_challenges FOR UPDATE USING (true);
+
+CREATE POLICY "Allow select players" ON public.quiz_challenge_players FOR SELECT USING (true);
+CREATE POLICY "Allow insert own players" ON public.quiz_challenge_players FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update players" ON public.quiz_challenge_players FOR UPDATE USING (true);
+
+-- Enable Realtime Replication
+ALTER PUBLICATION supabase_realtime ADD TABLE public.quiz_challenges;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.quiz_challenge_players;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
 
