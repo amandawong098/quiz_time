@@ -7,6 +7,7 @@ import '../../features/home/screens/home_shell.dart';
 import '../../features/discover/screens/discover_screen.dart';
 import '../../features/library/screens/my_quizzes_screen.dart';
 import '../../features/learn/screens/learn_screen.dart';
+import '../../features/learn/screens/lesson_player_screen.dart';
 import '../../features/leaderboard/screens/leaderboard_dummy_screen.dart';
 import '../../features/discussions/screens/discussions_dummy_screen.dart';
 import '../../features/discussions/screens/create_topic_screen.dart';
@@ -140,6 +141,10 @@ final GoRouter appRouter = GoRouter(
       path: '/discussion/:id',
       builder: (context, state) =>
           DiscussionDetailsScreen(topicId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/learn/lesson-player',
+      builder: (context, state) => const LessonPlayerScreen(),
     ),
   ],
 );

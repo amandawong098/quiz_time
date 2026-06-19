@@ -491,6 +491,18 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                   ],
                 );
               }),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      formData.optionControllers.add(TextEditingController());
+                    });
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Option'),
+                ),
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -515,19 +527,6 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                     },
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      formData.optionControllers.add(TextEditingController());
-                    });
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Option'),
-                ),
               ),
             ],
           ),

@@ -161,6 +161,15 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
               (answerData['selected_option_id'] != null ? [answerData['selected_option_id']] : []);
           final isUnattempted = selectedOptionIds.isEmpty;
 
+          final correctOptionIds = options
+              .where((o) => o['is_correct'] == true)
+              .map((o) => o['id'])
+              .toSet();
+
+          final isCorrect = !isUnattempted &&
+              selectedOptionIds.length == correctOptionIds.length &&
+              selectedOptionIds.every((id) => correctOptionIds.contains(id));
+
           return Card(
             color: isUnattempted ? Colors.grey.shade200 : null,
             margin: const EdgeInsets.only(bottom: 16),
@@ -169,9 +178,29 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Question ${index + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Question ${index + 1}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      if (isUnattempted)
+                        const Text(
+                          'Unattempted',
+                          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                        )
+                      else if (isCorrect)
+                        const Text(
+                          'Correct',
+                          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        )
+                      else
+                        const Text(
+                          'Incorrect',
+                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -420,6 +449,61 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
             ] else ...[
               if (widget.challengeId != null) ...[
                 _buildMultiplayerRankingView(),
+                const SizedBox(height: 24),
+                Center(
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 120,
+                            height: 120,
+                            child: CircularProgressIndicator(
+                              value: _attempt!.score / 100,
+                              strokeWidth: 12,
+                              backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                              valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+                            ),
+                          ),
+                          Text(
+                            '${_attempt!.score}%',
+                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              color: scoreColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _attempt!.score < 40
+                            ? 'Try Again!'
+                            : (_attempt!.score < 80 ? 'Good Job!' : 'Outstanding!'),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSummaryBox(
+                      title: 'Correct',
+                      value: _attempt!.correctAnswers.toString(),
+                    ),
+                    _buildSummaryBox(
+                      title: 'Wrong',
+                      value: _attempt!.wrongAnswers.toString(),
+                    ),
+                    _buildSummaryBox(
+                      title: 'Avg Time',
+                      value: '${_attempt!.avgTimePerQuestion?.toStringAsFixed(1) ?? 0}s',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
               ] else ...[
                 // Solo Mode Attempt view
                 Center(

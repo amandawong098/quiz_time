@@ -35,6 +35,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
   Set<String> _selectedOptionIds = {};
   bool _isAnswerChecked = false;
+  bool? _lastAnswerCorrect;
 
   int _correctCount = 0;
   int _wrongCount = 0;
@@ -93,6 +94,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   void _startQuestion() {
     _selectedOptionIds.clear();
     _isAnswerChecked = false;
+    _lastAnswerCorrect = null;
     _remainingSeconds = _questions[_currentIndex].durationSeconds;
     _currentQuestionStartTime = DateTime.now().millisecondsSinceEpoch;
 
@@ -146,6 +148,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       } else {
         _wrongCount++;
       }
+      _lastAnswerCorrect = isCorrect;
 
       _userAnswers.add({
         'question_text': currentQ.questionText,
@@ -437,6 +440,51 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                       Expanded(
                         child: Column(
                           children: [
+                            if (_isAnswerChecked)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16.0),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: _lastAnswerCorrect == true
+                                        ? Colors.green.shade50
+                                        : Colors.red.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: _lastAnswerCorrect == true
+                                          ? Colors.green.shade300
+                                          : Colors.red.shade300,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        _lastAnswerCorrect == true
+                                            ? Icons.check_circle
+                                            : Icons.cancel,
+                                        color: _lastAnswerCorrect == true
+                                            ? Colors.green
+                                            : Colors.red,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _lastAnswerCorrect == true
+                                            ? 'Correct!'
+                                            : 'Incorrect!',
+                                        style: TextStyle(
+                                          color: _lastAnswerCorrect == true
+                                              ? Colors.green.shade800
+                                              : Colors.red.shade800,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             Expanded(
                               child: ListView.builder(
                                 itemCount: question.options.length,
