@@ -8,6 +8,9 @@ import '../../features/discover/screens/discover_screen.dart';
 import '../../features/library/screens/my_quizzes_screen.dart';
 import '../../features/learn/screens/learn_screen.dart';
 import '../../features/learn/screens/lesson_player_screen.dart';
+import '../../features/learn/screens/my_lessons_screen.dart';
+import '../../features/learn/screens/sub_chapter_slides_screen.dart';
+import '../../features/learn/screens/slide_block_editor_screen.dart';
 import '../../features/leaderboard/screens/leaderboard_dummy_screen.dart';
 import '../../features/discussions/screens/discussions_dummy_screen.dart';
 import '../../features/discussions/screens/create_topic_screen.dart';
@@ -54,6 +57,10 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/my-discussions',
           builder: (context, state) => const MyDiscussionsScreen(),
+        ),
+        GoRoute(
+          path: '/my-lessons',
+          builder: (context, state) => const MyLessonsScreen(),
         ),
         GoRoute(
           path: '/learn',
@@ -144,7 +151,31 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/learn/lesson-player',
-      builder: (context, state) => const LessonPlayerScreen(),
+      builder: (context, state) {
+        final subChapterId = state.uri.queryParameters['subChapterId'];
+        final courseId = state.uri.queryParameters['courseId'];
+        return LessonPlayerScreen(subChapterId: subChapterId, courseId: courseId);
+      },
+    ),
+    GoRoute(
+      path: '/my-lessons/sub-chapter/:id/slides',
+      builder: (context, state) {
+        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        return SubChapterSlidesScreen(
+          subChapterId: state.pathParameters['id']!,
+          subChapterTitle: extra['subChapterTitle'] as String,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/my-lessons/page/:id/editor',
+      builder: (context, state) {
+        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        return SlideBlockEditorScreen(
+          pageId: state.pathParameters['id']!,
+          pageTitle: extra['pageTitle'] as String,
+        );
+      },
     ),
   ],
 );

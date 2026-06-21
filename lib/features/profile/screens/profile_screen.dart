@@ -215,7 +215,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     context: context,
                     icon: Icons.menu_book_rounded,
                     title: 'My Lessons',
-                    isDummy: true,
+                    isDummy: false,
+                    onTap: () => context.push('/my-lessons'),
                   ),
                   const SizedBox(height: 12),
                   _buildManageOptionItem(

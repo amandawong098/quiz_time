@@ -1,25 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../data/repositories/lesson_repository.dart';
+import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
 
 class LessonPlayerScreen extends StatefulWidget {
-  const LessonPlayerScreen({super.key});
+  final String? subChapterId;
+  final String? courseId;
+  const LessonPlayerScreen({super.key, this.subChapterId, this.courseId});
 
   @override
   State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
 }
 
+class SlideQuestionState {
+  int? selectedIndex; // for radio
+  final Set<int> selectedIndices = {}; // for checkbox
+  bool checked = false;
+  bool? isCorrect;
+}
+
 class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
-  int _currentSlide = 0; // 0: Reading, 1: Single Choice, 2: Multiple Choice
-  final int _totalSlides = 3;
+  late PageController _pageController;
+  int _currentSlide = 0;
   final MockLessonProgress _progressTracker = MockLessonProgress();
 
-  // Slide 2 (Single Choice) state
+  // Dynamic lesson database state
+  bool _isLoading = false;
+  List<LessonPage> _dynamicPages = [];
+  Map<String, List<LessonBlock>> _dynamicPageBlocks = {};
+  final Map<String, String> _pageSubChapterMap = {};
+  final Map<int, SlideQuestionState> _questionStates = {};
+
+  // Mock Lesson state (when subChapterId is null)
+  final int _totalSlides = 3;
   int? _slide2SelectedIndex;
   bool _slide2Checked = false;
   bool? _slide2Correct;
 
-  // Slide 3 (Multiple Choice) state
   final Set<int> _slide3SelectedIndices = {};
   bool _slide3Checked = false;
   bool? _slide3Correct;
@@ -36,7 +56,68 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     '-1',
     '2',
   ];
-  final Set<int> _slide3CorrectIndices = {0, 1}; // '0' and '1' are correct
+  final Set<int> _slide3CorrectIndices = {0, 1};
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    if (widget.subChapterId != null || widget.courseId != null) {
+      _loadDynamicLesson();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDynamicLesson() async {
+    setState(() => _isLoading = true);
+    try {
+      final repo = context.read<LessonRepository>();
+      final List<LessonPage> pages = [];
+      final Map<String, List<LessonBlock>> pageBlocks = {};
+
+      if (widget.courseId != null) {
+        final chapters = await repo.getChapters(widget.courseId!);
+        for (var ch in chapters) {
+          final subs = await repo.getSubChapters(ch.id);
+          for (var sub in subs) {
+            final subPages = await repo.getPages(sub.id);
+            for (var page in subPages) {
+              pages.add(page);
+              _pageSubChapterMap[page.id] = sub.id;
+              final blocks = await repo.getBlocks(page.id);
+              pageBlocks[page.id] = blocks;
+            }
+          }
+        }
+      } else if (widget.subChapterId != null) {
+        final subPages = await repo.getPages(widget.subChapterId!);
+        for (var page in subPages) {
+          pages.add(page);
+          _pageSubChapterMap[page.id] = widget.subChapterId!;
+          final blocks = await repo.getBlocks(page.id);
+          pageBlocks[page.id] = blocks;
+        }
+      }
+
+      setState(() {
+        _dynamicPages = pages;
+        _dynamicPageBlocks = pageBlocks;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading lesson: ${e.toString()}')),
+        );
+      }
+    }
+  }
 
   Future<void> _handleBackPress() async {
     final shouldExit = await showDialog<bool>(
@@ -79,14 +160,50 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     if (_slide3Checked) return;
     setState(() {
       _slide3Checked = true;
-      // All correct must be selected, and no incorrect must be selected
       _slide3Correct = _slide3SelectedIndices.length == _slide3CorrectIndices.length &&
           _slide3SelectedIndices.every((i) => _slide3CorrectIndices.contains(i));
     });
   }
 
+  void _handleContinue(int totalSlides) {
+    if (_currentSlide < totalSlides - 1) {
+      if (widget.courseId != null) {
+        final currentPageObj = _dynamicPages[_currentSlide];
+        final currentSubChapterId = _pageSubChapterMap[currentPageObj.id];
+
+        final nextPageObj = _dynamicPages[_currentSlide + 1];
+        final nextSubChapterId = _pageSubChapterMap[nextPageObj.id];
+
+        if (currentSubChapterId != null && currentSubChapterId != nextSubChapterId) {
+          _progressTracker.complete(currentSubChapterId);
+        }
+      }
+
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _completeLesson();
+    }
+  }
+
   void _completeLesson() {
-    _progressTracker.complete('thinking_machine');
+    final isDynamic = widget.subChapterId != null || widget.courseId != null;
+    if (isDynamic) {
+      if (widget.subChapterId != null) {
+        _progressTracker.complete(widget.subChapterId!);
+      } else if (widget.courseId != null && _dynamicPages.isNotEmpty) {
+        final currentPageObj = _dynamicPages[_currentSlide];
+        final currentSubChapterId = _pageSubChapterMap[currentPageObj.id];
+        if (currentSubChapterId != null) {
+          _progressTracker.complete(currentSubChapterId);
+        }
+      }
+    } else {
+      _progressTracker.complete('thinking_machine');
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -127,15 +244,17 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'You have successfully completed "Thinking Like a Machine". You can now proceed to the next lesson sub-chapter!',
+              Text(
+                isDynamic
+                    ? 'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!'
+                    : 'You have successfully completed "Thinking Like a Machine". You can now proceed to the next lesson sub-chapter!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   color: Colors.grey,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -148,12 +267,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    context.pop(); // Return to dashboard
+                    Navigator.pop(context); // Dismiss dialog
+                    context.pop(true); // Return back to lessons
                   },
                   child: const Text(
-                    'Return to Dashboard',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    'Back to Lessons',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
               ),
@@ -164,237 +283,317 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     );
   }
 
-  Widget _buildCpuChipDiagram() {
-    return Center(
-      child: Container(
-        width: 160,
-        height: 160,
-        decoration: BoxDecoration(
-          color: Colors.deepPurple.shade900,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.deepPurple.withValues(alpha: 0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // CPU Pins layout decoration
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
+  // ------------------------------------------
+  // DYNAMIC SIDES RENDERING
+  // ------------------------------------------
+  Widget _buildDynamicPage(LessonPage page, List<LessonBlock> blocks, int pageIndex) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...blocks.map((block) {
+            if (block.blockType == 'text') {
+              final textContent = block.content['text'] as String? ?? '';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: MarkdownRenderer(text: textContent),
+              );
+            } else if (block.blockType == 'media') {
+              final url = block.content['url'] as String? ?? '';
+              final type = block.content['type'] as String? ?? 'image';
+              final caption = block.content['caption'] as String? ?? '';
+
+              if (url.isEmpty) return const SizedBox();
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 20.0),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(
-                    4,
-                    (_) => Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: type == 'video'
+                          ? AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: Container(
+                                color: Colors.black,
+                                child: const Center(
+                                  child: Icon(Icons.play_circle_outline, color: Colors.white, size: 64),
+                                ),
+                              ),
+                            )
+                          : Image.network(url, fit: BoxFit.cover),
+                    ),
+                    if (caption.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        caption,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            } else if (block.blockType == 'file') {
+              final url = block.content['url'] as String? ?? '';
+              final name = block.content['name'] as String? ?? 'Attachment';
+              final size = block.content['size'] as String? ?? '';
+
+              if (url.isEmpty) return const SizedBox();
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: InkWell(
+                  onTap: () async {
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Row(
                       children: [
-                        Container(
-                          width: 8,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade400,
-                            borderRadius: BorderRadius.circular(2),
+                        const Icon(Icons.insert_drive_file, color: Colors.deepPurple),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (size.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(size, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              ],
+                            ],
                           ),
                         ),
-                        Container(
-                          width: 8,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade400,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
+                        const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ),
-            // CPU Package center
-            Center(
-              child: Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green.shade700, Colors.green.shade900],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.green.shade400, width: 2),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.green.shade300),
-                    ),
-                    child: Icon(
-                      Icons.memory,
-                      color: Colors.green.shade300,
-                      size: 32,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+              );
+            } else if (block.blockType == 'test') {
+              return _buildDynamicTestBlock(block, pageIndex);
+            }
+            return const SizedBox();
+          }),
+          const SizedBox(height: 40),
+        ],
       ),
     );
   }
 
-  Widget _buildBinarySwitchesDiagram() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.deepPurple.shade900,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Switch blocks row
-            Column(
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildSwitchBox('ON', '1', true),
-                    const SizedBox(width: 8),
-                    _buildSwitchBox('OFF', '0', false),
-                    const SizedBox(width: 8),
-                    _buildSwitchBox('OFF', '0', false),
-                    const SizedBox(width: 8),
-                    _buildSwitchBox('ON', '1', true),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(width: 24),
-            // Rocker switch graphic mockup
-            Container(
-              width: 32,
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade500, width: 2),
-              ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(4),
-                          topRight: Radius.circular(4),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            offset: const Offset(0, 2),
-                            blurRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'I',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Colors.grey,
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(4),
-                          bottomRight: Radius.circular(4),
-                        ),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'O',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildDynamicTestBlock(LessonBlock block, int pageIndex) {
+    final question = block.content['question'] as String? ?? '';
+    final isMultipleChoice = block.content['is_multiple_choice'] as bool? ?? false;
+    final List<dynamic> options = block.content['options'] as List<dynamic>? ?? [];
 
-  Widget _buildSwitchBox(String state, String value, bool isOn) {
+    final state = _questionStates.putIfAbsent(pageIndex, () => SlideQuestionState());
+
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          width: 44,
-          height: 36,
-          decoration: BoxDecoration(
-            color: isOn ? Colors.orange : Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isOn ? 0.3 : 0.1),
-                offset: const Offset(0, 2),
-                blurRadius: isOn ? 4 : 2,
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              state,
-              style: TextStyle(
-                color: isOn ? Colors.white : Colors.black54,
-                fontWeight: FontWeight.bold,
-                fontSize: 11,
-              ),
+        if (question.isNotEmpty) ...[
+          Text(
+            question,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
+          const SizedBox(height: 16),
+        ],
+        // Check banner ABOVE the options
+        if (state.checked) ...[
+          _buildCheckStatusBanner(state.isCorrect ?? false),
+          const SizedBox(height: 8),
+        ],
+        Column(
+          children: List.generate(options.length, (optIdx) {
+            final opt = options[optIdx] as Map;
+            final optionText = opt['text'] as String? ?? '';
+            final isCorrectOption = opt['is_correct'] as bool? ?? false;
+
+            final isSelected = isMultipleChoice
+                ? state.selectedIndices.contains(optIdx)
+                : state.selectedIndex == optIdx;
+
+            Color? cardColor;
+            BorderSide borderSide = BorderSide(color: Colors.grey.shade300);
+
+            if (state.checked) {
+              if (isCorrectOption) {
+                cardColor = Colors.green.shade200;
+                borderSide = BorderSide(color: Colors.green.shade400, width: 2);
+              } else if (isSelected) {
+                cardColor = Colors.red.shade200;
+                borderSide = BorderSide(color: Colors.red.shade400, width: 2);
+              }
+            } else if (isSelected) {
+              borderSide = const BorderSide(color: Colors.deepPurple, width: 2);
+            }
+
+            return Card(
+              color: cardColor,
+              margin: const EdgeInsets.symmetric(vertical: 6.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: borderSide,
+              ),
+              child: isMultipleChoice
+                  ? CheckboxListTile(
+                      title: Text(
+                        optionText,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      value: isSelected,
+                      activeColor: Colors.deepPurple,
+                      onChanged: state.checked
+                          ? null
+                          : (val) {
+                              setState(() {
+                                if (val == true) {
+                                  state.selectedIndices.add(optIdx);
+                                } else {
+                                  state.selectedIndices.remove(optIdx);
+                                }
+                              });
+                            },
+                    )
+                  : RadioListTile<int>(
+                      title: Text(
+                        optionText,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      value: optIdx,
+                      groupValue: state.selectedIndex,
+                      activeColor: Colors.deepPurple,
+                      onChanged: state.checked
+                          ? null
+                          : (val) {
+                              setState(() {
+                                state.selectedIndex = val;
+                                // Auto-check for single choice
+                                state.checked = true;
+                                state.isCorrect = isCorrectOption;
+                              });
+                            },
+                    ),
+            );
+          }),
         ),
       ],
     );
   }
 
+  Widget _buildDynamicFooter(int pageIndex, List<LessonBlock> blocks, int totalSlides) {
+    // Find if page has a test block
+    final testBlockIndex = blocks.indexWhere((b) => b.blockType == 'test');
+    if (testBlockIndex == -1) {
+      return _buildContinueButton(() {
+        _handleContinue(totalSlides);
+      });
+    }
+
+    final block = blocks[testBlockIndex];
+    final isMultipleChoice = block.content['is_multiple_choice'] as bool? ?? false;
+    final List<dynamic> options = block.content['options'] as List<dynamic>? ?? [];
+
+    final state = _questionStates.putIfAbsent(pageIndex, () => SlideQuestionState());
+
+    if (state.checked) {
+      return _buildContinueButton(() {
+        _handleContinue(totalSlides);
+      });
+    } else {
+      if (isMultipleChoice) {
+        final hasSelection = state.selectedIndices.isNotEmpty;
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: hasSelection
+                  ? () {
+                      setState(() {
+                        state.checked = true;
+                        final correctIndices = <int>{};
+                        for (int k = 0; k < options.length; k++) {
+                          if ((options[k] as Map)['is_correct'] == true) {
+                            correctIndices.add(k);
+                          }
+                        }
+                        state.isCorrect = state.selectedIndices.length == correctIndices.length &&
+                            state.selectedIndices.every((i) => correctIndices.contains(i));
+                      });
+                    }
+                  : null,
+              child: const Text(
+                'Submit Answer',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+        );
+      } else {
+        return const SizedBox(height: 24);
+      }
+    }
+  }
+
+  Widget _buildContinueButton(VoidCallback onPressed) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.deepPurple,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onPressed: onPressed,
+          child: const Text(
+            'Continue',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------------
+  // MOCK SIDES RENDERING
+  // ------------------------------------------
   Widget _buildReadingSlide() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -450,6 +649,10 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          if (_slide2Checked) ...[
+            _buildCheckStatusBanner(_slide2Correct ?? false),
+            const SizedBox(height: 8),
+          ],
           Column(
             children: _slide2Options.asMap().entries.map((entry) {
               final index = entry.key;
@@ -529,7 +732,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          if (_slide3Checked) ...[
+            _buildCheckStatusBanner(_slide3Correct ?? false),
+            const SizedBox(height: 8),
+          ],
           Column(
             children: _slide3Options.asMap().entries.map((entry) {
               final index = entry.key;
@@ -590,7 +797,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
   Widget _buildCheckStatusBanner(bool isCorrect) {
     return Container(
-      margin: const EdgeInsets.all(24.0),
+      margin: const EdgeInsets.only(bottom: 16.0),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       decoration: BoxDecoration(
         color: isCorrect ? Colors.green.shade50 : Colors.red.shade50,
@@ -622,9 +829,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Widget _buildFooterActions() {
-    // Current Slide logic
     if (_currentSlide == 0) {
-      // Reading Slide: Always Continue button
       return Container(
         padding: const EdgeInsets.all(24.0),
         child: SizedBox(
@@ -639,9 +844,10 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               ),
             ),
             onPressed: () {
-              setState(() {
-                _currentSlide = 1;
-              });
+              _pageController.nextPage(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
             },
             child: const Text(
               'Continue',
@@ -651,75 +857,60 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         ),
       );
     } else if (_currentSlide == 1) {
-      // Single Choice (Radio): Checked vs Idle
       if (_slide2Checked) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildCheckStatusBanner(_slide2Correct ?? false),
-            Padding(
-              padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 24.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _currentSlide = 2;
-                    });
-                  },
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              onPressed: () {
+                _pageController.nextPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: const Text(
+                'Continue',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
-          ],
+          ),
         );
       } else {
-        // Idle radio state: Tapping options directly checks it, so no footer action yet
         return const SizedBox(height: 24);
       }
     } else {
-      // Multiple Choice (Checkbox): Submit vs Continue
       if (_slide3Checked) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildCheckStatusBanner(_slide3Correct ?? false),
-            Padding(
-              padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 24.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _completeLesson,
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              onPressed: _completeLesson,
+              child: const Text(
+                'Continue',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
-          ],
+          ),
         );
       } else {
-        // Idle checkbox state: Submit button is required
         final hasSelection = _slide3SelectedIndices.isNotEmpty;
         return Padding(
           padding: const EdgeInsets.all(24.0),
@@ -746,9 +937,99 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     }
   }
 
+  Widget _buildCpuChipDiagram() {
+    return Container(
+      height: 180,
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.shade50,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.memory, size: 64, color: Colors.deepPurple.shade700),
+            const SizedBox(height: 8),
+            Text(
+              'CPU chip: executes billions of simple instructions per second',
+              style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade900, fontWeight: FontWeight.bold),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBinarySwitchesDiagram() {
+    return Container(
+      height: 180,
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.shade50,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.toggle_on, size: 56, color: Colors.deepPurple.shade700),
+                const SizedBox(width: 24),
+                Icon(Icons.toggle_off, size: 56, color: Colors.grey.shade400),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Switch state inside computer: ON (1) vs OFF (0)',
+              style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade900, fontWeight: FontWeight.bold),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final double progressRatio = (_currentSlide + 1) / _totalSlides;
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final isDynamic = widget.subChapterId != null || widget.courseId != null;
+    final totalSlides = isDynamic ? _dynamicPages.length : _totalSlides;
+
+    if (isDynamic && totalSlides == 0) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Lesson Player'),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.collections_bookmark_rounded, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(
+                widget.courseId != null
+                    ? 'This lesson has no slide pages yet.'
+                    : 'This sub-chapter has no slide pages yet.',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.pop(),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final double progressRatio = (totalSlides > 0) ? (_currentSlide + 1) / totalSlides : 0.0;
 
     return PopScope(
       canPop: false,
@@ -775,8 +1056,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                   value: progressRatio,
                   minHeight: 6,
                   backgroundColor: Colors.grey.shade200,
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(Colors.green),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
                 ),
               ),
             ),
@@ -787,20 +1067,231 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           child: Column(
             children: [
               Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: _currentSlide == 0
-                      ? _buildReadingSlide()
-                      : (_currentSlide == 1
-                          ? _buildSingleChoiceSlide()
-                          : _buildMultipleChoiceSlide()),
+                child: PageView(
+                  controller: _pageController,
+                  physics: LessonScrollPhysics(
+                    isPageUnlocked: (page) {
+                      if (!isDynamic) {
+                        if (page == 0) return true;
+                        if (page == 1) return _slide2Checked;
+                        return _slide3Checked;
+                      } else {
+                        final pageObj = _dynamicPages[page];
+                        final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
+                        final hasTest = blocks.any((b) => b.blockType == 'test');
+                        if (!hasTest) return true;
+                        return _questionStates[page]?.checked == true;
+                      }
+                    },
+                  ),
+                  onPageChanged: (page) {
+                    setState(() {
+                      _currentSlide = page;
+                    });
+                  },
+                  children: isDynamic
+                      ? _dynamicPages.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final pageObj = entry.value;
+                          final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
+                          return _buildDynamicPage(pageObj, blocks, idx);
+                        }).toList()
+                      : [
+                          _buildReadingSlide(),
+                          _buildSingleChoiceSlide(),
+                          _buildMultipleChoiceSlide(),
+                        ],
                 ),
               ),
-              _buildFooterActions(),
+              isDynamic
+                  ? _buildDynamicFooter(_currentSlide, _dynamicPages.isNotEmpty ? _dynamicPageBlocks[_dynamicPages[_currentSlide].id] ?? [] : [], totalSlides)
+                  : _buildFooterActions(),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+// Custom ScrollPhysics subclass to enforce lesson linear progression
+class LessonScrollPhysics extends ScrollPhysics {
+  final bool Function(int page) isPageUnlocked;
+
+  const LessonScrollPhysics({
+    required this.isPageUnlocked,
+    super.parent,
+  });
+
+  @override
+  LessonScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return LessonScrollPhysics(
+      isPageUnlocked: isPageUnlocked,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  double applyBoundaryConditions(ScrollMetrics position, double value) {
+    if (value > position.pixels) {
+      final double viewportWidth = position.viewportDimension;
+      if (viewportWidth > 0) {
+        final int currentPage = (position.pixels / viewportWidth).floor();
+        if (!isPageUnlocked(currentPage)) {
+          final double pageBoundary = currentPage * viewportWidth;
+          if (value > pageBoundary) {
+            return value - position.pixels;
+          }
+        }
+      }
+    }
+    return super.applyBoundaryConditions(position, value);
+  }
+}
+
+// ------------------------------------------
+// DYNAMIC MARKDOWN TEXT RENDERER
+// ------------------------------------------
+class MarkdownRenderer extends StatelessWidget {
+  final String text;
+
+  const MarkdownRenderer({super.key, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = text.split('\n');
+    final List<Widget> children = [];
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        children.add(const SizedBox(height: 8));
+        continue;
+      }
+
+      if (trimmed.startsWith('# ')) {
+        children.add(_buildHeading(trimmed.substring(2), 24, FontWeight.bold));
+      } else if (trimmed.startsWith('## ')) {
+        children.add(_buildHeading(trimmed.substring(3), 22, FontWeight.bold));
+      } else if (trimmed.startsWith('### ')) {
+        children.add(_buildHeading(trimmed.substring(4), 20, FontWeight.bold));
+      } else if (trimmed.startsWith('#### ')) {
+        children.add(_buildHeading(trimmed.substring(5), 18, FontWeight.bold));
+      } else if (trimmed.startsWith('##### ')) {
+        children.add(_buildHeading(trimmed.substring(6), 16, FontWeight.bold));
+      } else if (trimmed.startsWith('###### ')) {
+        children.add(_buildHeading(trimmed.substring(7), 14, FontWeight.bold));
+      } else if (trimmed.startsWith('• ')) {
+        children.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(width: 8),
+              const Text('• ', style: TextStyle(fontSize: 16, height: 1.4)),
+              Expanded(child: RichText(text: _parseInlineStyles(trimmed.substring(2)))),
+            ],
+          ),
+        ));
+      } else if (trimmed.startsWith('- ')) {
+        children.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(width: 8),
+              const Text('• ', style: TextStyle(fontSize: 16, height: 1.4)),
+              Expanded(child: RichText(text: _parseInlineStyles(trimmed.substring(2)))),
+            ],
+          ),
+        ));
+      } else {
+        children.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: RichText(
+            text: _parseInlineStyles(trimmed),
+          ),
+        ));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  Widget _buildHeading(String content, double fontSize, FontWeight weight) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12.0, bottom: 6.0),
+      child: RichText(
+        text: _parseInlineStyles(content, baseStyle: TextStyle(fontSize: fontSize, fontWeight: weight, color: Colors.black87)),
+      ),
+    );
+  }
+
+  TextSpan _parseInlineStyles(String line, {TextStyle? baseStyle}) {
+    final defaultStyle = baseStyle ?? const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87);
+    final List<TextSpan> spans = [];
+
+    final RegExp exp = RegExp(r'(\*\*|\*|~~|<u>|</u>)');
+    final matches = exp.allMatches(line);
+
+    if (matches.isEmpty) {
+      return TextSpan(text: line, style: defaultStyle);
+    }
+
+    int lastIndex = 0;
+    bool isBold = false;
+    bool isItalic = false;
+    bool isStrike = false;
+    bool isUnderline = false;
+
+    for (final match in matches) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(
+          text: line.substring(lastIndex, match.start),
+          style: defaultStyle.copyWith(
+            fontWeight: isBold ? FontWeight.bold : defaultStyle.fontWeight,
+            fontStyle: isItalic ? FontStyle.italic : defaultStyle.fontStyle,
+            decoration: TextDecoration.combine([
+              if (isStrike) TextDecoration.lineThrough,
+              if (isUnderline) TextDecoration.underline,
+            ]),
+          ),
+        ));
+      }
+
+      final tag = match.group(0);
+      if (tag == '**') {
+        isBold = !isBold;
+      } else if (tag == '*') {
+        isItalic = !isItalic;
+      } else if (tag == '~~') {
+        isStrike = !isStrike;
+      } else if (tag == '<u>') {
+        isUnderline = true;
+      } else if (tag == '</u>') {
+        isUnderline = false;
+      }
+
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < line.length) {
+      spans.add(TextSpan(
+        text: line.substring(lastIndex),
+        style: defaultStyle.copyWith(
+          fontWeight: isBold ? FontWeight.bold : defaultStyle.fontWeight,
+          fontStyle: isItalic ? FontStyle.italic : defaultStyle.fontStyle,
+          decoration: TextDecoration.combine([
+            if (isStrike) TextDecoration.lineThrough,
+            if (isUnderline) TextDecoration.underline,
+          ]),
+        ),
+      ));
+    }
+
+    return TextSpan(children: spans, style: defaultStyle);
   }
 }

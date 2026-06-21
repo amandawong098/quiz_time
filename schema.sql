@@ -17,6 +17,11 @@ DROP TABLE IF EXISTS public.quizzes CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
 DROP TABLE IF EXISTS public.subjects CASCADE;
 DROP TABLE IF EXISTS public.grades CASCADE;
+DROP TABLE IF EXISTS public.lesson_blocks CASCADE;
+DROP TABLE IF EXISTS public.lesson_pages CASCADE;
+DROP TABLE IF EXISTS public.lesson_sub_chapters CASCADE;
+DROP TABLE IF EXISTS public.lesson_chapters CASCADE;
+DROP TABLE IF EXISTS public.lesson_courses CASCADE;
 
 -- 2. CREATE TABLES
 
@@ -415,4 +420,83 @@ CREATE POLICY "Allow update players" ON public.quiz_challenge_players FOR UPDATE
 ALTER PUBLICATION supabase_realtime ADD TABLE public.quiz_challenges;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.quiz_challenge_players;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+
+-- =======================================================
+-- 10. INTERACTIVE LESSONS & BLOCK CREATOR
+-- =======================================================
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Lesson Courses Table
+CREATE TABLE IF NOT EXISTS public.lesson_courses (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    title TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Lesson Chapters Table
+CREATE TABLE IF NOT EXISTS public.lesson_chapters (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    course_id UUID REFERENCES public.lesson_courses(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Lesson Sub-chapters Table
+CREATE TABLE IF NOT EXISTS public.lesson_sub_chapters (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    chapter_id UUID REFERENCES public.lesson_chapters(id) ON DELETE CASCADE NOT NULL,
+    title TEXT NOT NULL,
+    xp_reward INTEGER DEFAULT 10,
+    position INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Lesson Pages Table
+CREATE TABLE IF NOT EXISTS public.lesson_pages (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    sub_chapter_id UUID REFERENCES public.lesson_sub_chapters(id) ON DELETE CASCADE NOT NULL,
+    position INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Lesson Blocks Table
+CREATE TABLE IF NOT EXISTS public.lesson_blocks (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    page_id UUID REFERENCES public.lesson_pages(id) ON DELETE CASCADE NOT NULL,
+    block_type TEXT NOT NULL CHECK (block_type IN ('text', 'media', 'test', 'file')),
+    content JSONB NOT NULL,
+    position INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.lesson_courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lesson_chapters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lesson_sub_chapters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lesson_pages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lesson_blocks ENABLE ROW LEVEL SECURITY;
+
+-- Allow select to everyone
+CREATE POLICY "Allow select courses" ON public.lesson_courses FOR SELECT USING (true);
+CREATE POLICY "Allow select chapters" ON public.lesson_chapters FOR SELECT USING (true);
+CREATE POLICY "Allow select sub_chapters" ON public.lesson_sub_chapters FOR SELECT USING (true);
+CREATE POLICY "Allow select pages" ON public.lesson_pages FOR SELECT USING (true);
+CREATE POLICY "Allow select blocks" ON public.lesson_blocks FOR SELECT USING (true);
+
+-- Allow write to authenticated users
+CREATE POLICY "Allow write courses" ON public.lesson_courses FOR ALL WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow write chapters" ON public.lesson_chapters FOR ALL WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow write sub_chapters" ON public.lesson_sub_chapters FOR ALL WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow write pages" ON public.lesson_pages FOR ALL WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow write blocks" ON public.lesson_blocks FOR ALL WITH CHECK (auth.role() = 'authenticated');
+
+-- Enable Realtime Replication
+ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_courses;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_chapters;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_sub_chapters;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_pages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_blocks;
+
 

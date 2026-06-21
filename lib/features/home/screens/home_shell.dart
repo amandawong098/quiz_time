@@ -19,6 +19,7 @@ class HomeShell extends StatelessWidget {
     }
     if (location.startsWith('/me') ||
         location.startsWith('/my-discussions') ||
+        location.startsWith('/my-lessons') ||
         location.startsWith('/my-quizzes')) {
       return 4;
     }
@@ -68,7 +69,9 @@ class HomeShell extends StatelessWidget {
     final String location = GoRouterState.of(context).uri.path;
 
     // Hide FAB on Leaderboard and all Profile screens/sub-routes
-    if (location.startsWith('/leaderboard') || location.startsWith('/me')) {
+    if (location.startsWith('/leaderboard') ||
+        location.startsWith('/me') ||
+        location.startsWith('/my-lessons')) {
       return null;
     }
 

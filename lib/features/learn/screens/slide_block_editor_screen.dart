@@ -1,0 +1,908 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../../data/repositories/lesson_repository.dart';
+import '../models/lesson_models.dart';
+
+class SlideBlockEditorScreen extends StatefulWidget {
+  final String pageId;
+  final String pageTitle;
+  const SlideBlockEditorScreen({
+    super.key,
+    required this.pageId,
+    required this.pageTitle,
+  });
+
+  @override
+  State<SlideBlockEditorScreen> createState() => _SlideBlockEditorScreenState();
+}
+
+class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _hasUnsavedChanges = false;
+  List<LessonBlock> _blocks = [];
+
+  // Controllers mapped to block ID for text and media fields
+  final Map<String, TextEditingController> _textControllers = {};
+  final Map<String, TextEditingController> _captionControllers = {};
+  final Map<String, TextEditingController> _questionControllers = {};
+  final Map<String, List<TextEditingController>> _optionControllers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBlocks();
+  }
+
+  @override
+  void dispose() {
+    _disposeControllers();
+    super.dispose();
+  }
+
+  void _disposeControllers() {
+    for (var c in _textControllers.values) {
+      c.dispose();
+    }
+    for (var c in _captionControllers.values) {
+      c.dispose();
+    }
+    for (var c in _questionControllers.values) {
+      c.dispose();
+    }
+    for (var list in _optionControllers.values) {
+      for (var c in list) {
+        c.dispose();
+      }
+    }
+    _textControllers.clear();
+    _captionControllers.clear();
+    _questionControllers.clear();
+    _optionControllers.clear();
+  }
+
+  Future<void> _loadBlocks() async {
+    setState(() => _isLoading = true);
+    _disposeControllers();
+
+    try {
+      final repo = context.read<LessonRepository>();
+      final blocks = await repo.getBlocks(widget.pageId);
+
+      setState(() {
+        _blocks = blocks;
+        _isLoading = false;
+        _hasUnsavedChanges = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading blocks: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _markChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
+  }
+
+  // Formatting insert utility
+  void _insertFormatting(
+      TextEditingController controller, String prefix, String suffix) {
+    _markChanged();
+    final text = controller.text;
+    final selection = controller.selection;
+    final start = selection.start;
+    final end = selection.end;
+
+    if (start >= 0 && end >= start) {
+      final selectedText = text.substring(start, end);
+      final newText =
+          text.replaceRange(start, end, '$prefix$selectedText$suffix');
+      controller.text = newText;
+      controller.selection = TextSelection.collapsed(
+        offset: start + prefix.length + selectedText.length,
+      );
+    } else {
+      final currentPosition = selection.baseOffset;
+      if (currentPosition >= 0) {
+        final newText = text.replaceRange(
+            currentPosition, currentPosition, '$prefix$suffix');
+        controller.text = newText;
+        controller.selection =
+            TextSelection.collapsed(offset: currentPosition + prefix.length);
+      } else {
+        controller.text = text + prefix + suffix;
+      }
+    }
+  }
+
+  // Supabase storage media file upload
+  Future<String?> _uploadFile(PlatformFile file) async {
+    try {
+      final client = Supabase.instance.client;
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+      final path = 'lessons/$fileName';
+
+      if (file.bytes != null) {
+        await client.storage.from('discussion_attachments').uploadBinary(path, file.bytes!);
+      } else if (file.path != null) {
+        final fileIo = File(file.path!);
+        await client.storage.from('discussion_attachments').upload(path, fileIo);
+      } else {
+        return null;
+      }
+
+      return client.storage.from('discussion_attachments').getPublicUrl(path);
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: ${e.toString()}')),
+      );
+      return null;
+    }
+  }
+
+  // ------------------------------------------
+  // BLOCK CRUD
+  // ------------------------------------------
+  void _addBlock(String type) {
+    _markChanged();
+    setState(() {
+      Map<String, dynamic> initialContent = {};
+      if (type == 'text') {
+        initialContent = {'text': ''};
+      } else if (type == 'media') {
+        initialContent = {'url': '', 'type': 'image', 'caption': ''};
+      } else if (type == 'test') {
+        initialContent = {
+          'question': '',
+          'is_multiple_choice': false,
+          'options': [
+            {'text': '', 'is_correct': true},
+            {'text': '', 'is_correct': false},
+          ]
+        };
+      } else if (type == 'file') {
+        initialContent = {'url': '', 'name': '', 'size': ''};
+      }
+
+      final newBlock = LessonBlock(
+        id: 'new_${DateTime.now().millisecondsSinceEpoch}_${_blocks.length}',
+        pageId: widget.pageId,
+        blockType: type,
+        content: initialContent,
+        position: _blocks.length,
+      );
+
+      _blocks.add(newBlock);
+    });
+  }
+
+  void _deleteBlock(int index) {
+    _markChanged();
+    setState(() {
+      _blocks.removeAt(index);
+    });
+  }
+
+  void _moveBlock(int index, bool moveUp) {
+    if (moveUp && index == 0) return;
+    if (!moveUp && index == _blocks.length - 1) return;
+
+    _markChanged();
+    setState(() {
+      final targetIndex = moveUp ? index - 1 : index + 1;
+      final block = _blocks.removeAt(index);
+      _blocks.insert(targetIndex, block);
+    });
+  }
+
+  Future<void> _saveChanges() async {
+    final List<LessonBlock> updatedBlocks = [];
+
+    for (int i = 0; i < _blocks.length; i++) {
+      final b = _blocks[i];
+      Map<String, dynamic> content = Map.from(b.content);
+
+      if (b.blockType == 'text') {
+        final ctrl = _textControllers[b.id];
+        final text = ctrl?.text.trim() ?? '';
+        if (text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Block ${i + 1} (Text) cannot be empty.')),
+          );
+          return;
+        }
+        content['text'] = ctrl?.text ?? (b.content['text'] ?? '');
+      } else if (b.blockType == 'media') {
+        final ctrl = _captionControllers[b.id];
+        content['caption'] = ctrl?.text ?? (b.content['caption'] ?? '');
+        final url = b.content['url'] as String? ?? '';
+        if (url.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Block ${i + 1} (Media) must have a selected image or video.')),
+          );
+          return;
+        }
+      } else if (b.blockType == 'file') {
+        final url = b.content['url'] as String? ?? '';
+        if (url.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Block ${i + 1} (File) must have a selected file.')),
+          );
+          return;
+        }
+      } else if (b.blockType == 'test') {
+        final qCtrl = _questionControllers[b.id];
+        final qText = qCtrl?.text.trim() ?? '';
+        if (qText.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Block ${i + 1} (Test): Question text cannot be empty.')),
+          );
+          return;
+        }
+        content['question'] = qCtrl?.text ?? (b.content['question'] ?? '');
+
+        // Options
+        final optCtrls = _optionControllers[b.id] ?? [];
+        if (optCtrls.length < 2) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Block ${i + 1} (Test) must have at least 2 options.')),
+          );
+          return;
+        }
+
+        final List<dynamic> originalOpts = b.content['options'] as List<dynamic>? ?? [];
+        final List<Map<String, dynamic>> finalOpts = [];
+
+        for (int optIdx = 0; optIdx < optCtrls.length; optIdx++) {
+          final optText = optCtrls[optIdx].text.trim();
+          if (optText.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Block ${i + 1} (Test): Option ${optIdx + 1} cannot be empty.')),
+            );
+            return;
+          }
+          final isCorrect = optIdx < originalOpts.length
+              ? ((originalOpts[optIdx] as Map)['is_correct'] as bool? ?? false)
+              : false;
+          finalOpts.add({
+            'text': optCtrls[optIdx].text,
+            'is_correct': isCorrect,
+          });
+        }
+
+        final hasCorrect = finalOpts.any((opt) => opt['is_correct'] == true);
+        if (!hasCorrect) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Block ${i + 1} (Test) must have at least one correct option checked.')),
+          );
+          return;
+        }
+
+        content['options'] = finalOpts;
+      }
+
+      updatedBlocks.add(LessonBlock(
+        id: b.id.startsWith('new_') ? '' : b.id,
+        pageId: b.pageId,
+        blockType: b.blockType,
+        content: content,
+        position: i,
+      ));
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final repo = context.read<LessonRepository>();
+      await repo.saveBlocks(widget.pageId, updatedBlocks);
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _hasUnsavedChanges = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Slide saved successfully!')),
+      );
+      context.pop(true); // Return true to refresh slides view
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving: ${e.toString()}')),
+      );
+    }
+  }
+
+  // ------------------------------------------
+  // BLOCK RENDERING & EDITORS
+  // ------------------------------------------
+  Widget _buildBlockEditor(LessonBlock block, int index) {
+    Widget editorBody = const SizedBox();
+
+    if (block.blockType == 'text') {
+      editorBody = _buildTextBlockEditor(block, index);
+    } else if (block.blockType == 'media') {
+      editorBody = _buildMediaBlockEditor(block, index);
+    } else if (block.blockType == 'test') {
+      editorBody = _buildTestBlockEditor(block, index);
+    } else if (block.blockType == 'file') {
+      editorBody = _buildFileBlockEditor(block, index);
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Block Header Actions
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${block.blockType.toUpperCase()} BLOCK',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple.shade700,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.arrow_upward, size: 18),
+                  onPressed: index == 0 ? null : () => _moveBlock(index, true),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_downward, size: 18),
+                  onPressed: index == _blocks.length - 1
+                      ? null
+                      : () => _moveBlock(index, false),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      color: Colors.redAccent, size: 18),
+                  onPressed: () => _deleteBlock(index),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            editorBody,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextBlockEditor(LessonBlock block, int index) {
+    if (!_textControllers.containsKey(block.id)) {
+      _textControllers[block.id] =
+          TextEditingController(text: block.content['text'] ?? '')
+            ..addListener(_markChanged);
+    }
+    final ctrl = _textControllers[block.id]!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Formatting Toolbar Row (H1-H6, Bold, Italic, Underline, Strikethrough, Bullets)
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                PopupMenuButton<int>(
+                  icon: const Text('H',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  tooltip: 'Headings',
+                  onSelected: (h) {
+                    final hashes = '#' * h;
+                    _insertFormatting(ctrl, '$hashes ', '');
+                  },
+                  itemBuilder: (context) => List.generate(
+                    6,
+                    (idx) => PopupMenuItem(
+                      value: idx + 1,
+                      child: Text('Heading ${idx + 1}',
+                          style: TextStyle(
+                              fontSize: (20 - idx * 2).toDouble(),
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.format_bold, size: 18),
+                  tooltip: 'Bold',
+                  onPressed: () => _insertFormatting(ctrl, '**', '**'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.format_italic, size: 18),
+                  tooltip: 'Italic',
+                  onPressed: () => _insertFormatting(ctrl, '*', '*'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.format_underlined, size: 18),
+                  tooltip: 'Underline',
+                  onPressed: () => _insertFormatting(ctrl, '<u>', '</u>'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.strikethrough_s, size: 18),
+                  tooltip: 'Strikethrough',
+                  onPressed: () => _insertFormatting(ctrl, '~~', '~~'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.format_list_bulleted, size: 18),
+                  tooltip: 'Bullet List',
+                  onPressed: () => _insertFormatting(ctrl, '• ', ''),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: ctrl,
+          maxLines: null,
+          minLines: 3,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: 'Enter lesson text here (supports Markdown style)...',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMediaBlockEditor(LessonBlock block, int index) {
+    if (!_captionControllers.containsKey(block.id)) {
+      _captionControllers[block.id] =
+          TextEditingController(text: block.content['caption'] ?? '')
+            ..addListener(_markChanged);
+    }
+    final captionCtrl = _captionControllers[block.id]!;
+    final url = block.content['url'] as String? ?? '';
+    final mediaType = block.content['type'] as String? ?? 'image';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (url.isNotEmpty) ...[
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: mediaType == 'video'
+                  ? const Center(child: Icon(Icons.video_library, size: 48))
+                  : Image.network(url, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.media,
+                  );
+                  if (result != null && result.files.isNotEmpty) {
+                    final file = result.files.single;
+                    final publicUrl = await _uploadFile(file);
+                    if (publicUrl != null) {
+                      _markChanged();
+                      setState(() {
+                        final isVideo = file.extension == 'mp4' ||
+                            file.extension == 'mov' ||
+                            file.extension == 'avi';
+                        block.content['url'] = publicUrl;
+                        block.content['type'] = isVideo ? 'video' : 'image';
+                      });
+                    }
+                  }
+                },
+                icon: const Icon(Icons.upload),
+                label: Text(url.isEmpty ? 'Upload Media' : 'Replace Media'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: captionCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Media Caption (optional)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTestBlockEditor(LessonBlock block, int index) {
+    if (!_questionControllers.containsKey(block.id)) {
+      _questionControllers[block.id] =
+          TextEditingController(text: block.content['question'] ?? '')
+            ..addListener(_markChanged);
+    }
+    final qCtrl = _questionControllers[block.id]!;
+    final isMultipleChoice = block.content['is_multiple_choice'] as bool? ?? false;
+    
+    if (block.content['options'] == null) {
+      block.content['options'] = <dynamic>[];
+    }
+    final List<dynamic> options = block.content['options'] as List<dynamic>;
+
+    if (!_optionControllers.containsKey(block.id)) {
+      _optionControllers[block.id] = options
+          .map((opt) => TextEditingController(text: (opt as Map)['text'] ?? '')
+            ..addListener(_markChanged))
+          .toList();
+    }
+    final optCtrls = _optionControllers[block.id]!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: qCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Question Text',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Answers (Check the correct option):',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        ),
+        const SizedBox(height: 8),
+        ...List.generate(optCtrls.length, (optIdx) {
+          final opt = options[optIdx] as Map;
+          final isCorrect = opt['is_correct'] as bool? ?? false;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Row(
+              children: [
+                if (isMultipleChoice)
+                  Checkbox(
+                    value: isCorrect,
+                    activeColor: Colors.deepPurple,
+                    onChanged: (val) {
+                      _markChanged();
+                      setState(() {
+                        opt['is_correct'] = val == true;
+                      });
+                    },
+                  )
+                else
+                  Radio<int>(
+                    value: optIdx,
+                    groupValue: options.indexWhere((o) => (o as Map)['is_correct'] == true),
+                    activeColor: Colors.deepPurple,
+                    onChanged: (val) {
+                      _markChanged();
+                      setState(() {
+                        for (int k = 0; k < options.length; k++) {
+                          (options[k] as Map)['is_correct'] = k == val;
+                        }
+                      });
+                    },
+                  ),
+                Expanded(
+                  child: TextField(
+                    controller: optCtrls[optIdx],
+                    decoration: InputDecoration(
+                      hintText: 'Option ${optIdx + 1}',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: () {
+                    _markChanged();
+                    setState(() {
+                      options.removeAt(optIdx);
+                      optCtrls[optIdx].dispose();
+                      optCtrls.removeAt(optIdx);
+                    });
+                  },
+                ),
+              ],
+            ),
+          );
+        }),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              _markChanged();
+              setState(() {
+                options.add({'text': '', 'is_correct': false});
+                optCtrls.add(TextEditingController()..addListener(_markChanged));
+              });
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Add Option'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Multiple Choice (Checkbox)',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Switch(
+              value: isMultipleChoice,
+              activeThumbColor: Colors.deepPurple,
+              onChanged: (val) {
+                _markChanged();
+                setState(() {
+                  block.content['is_multiple_choice'] = val;
+                  if (!val) {
+                    // Reset to single correct answer
+                    bool foundCorrect = false;
+                    for (var opt in options) {
+                      final optMap = opt as Map;
+                      if (optMap['is_correct'] == true) {
+                        if (foundCorrect) {
+                          optMap['is_correct'] = false;
+                        } else {
+                          foundCorrect = true;
+                        }
+                      }
+                    }
+                  }
+                });
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFileBlockEditor(LessonBlock block, int index) {
+    final url = block.content['url'] as String? ?? '';
+    final fileName = block.content['name'] as String? ?? '';
+    final fileSize = block.content['size'] as String? ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (url.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.insert_drive_file, color: Colors.deepPurple),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fileName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (fileSize.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(fileSize,
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.grey)),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.any,
+                  );
+                  if (result != null && result.files.isNotEmpty) {
+                    final file = result.files.single;
+                    final publicUrl = await _uploadFile(file);
+                    if (publicUrl != null) {
+                      _markChanged();
+                      setState(() {
+                        block.content['url'] = publicUrl;
+                        block.content['name'] = file.name;
+                        block.content['size'] =
+                            '${(file.size / 1024).toStringAsFixed(1)} KB';
+                      });
+                    }
+                  }
+                },
+                icon: const Icon(Icons.upload_file),
+                label: Text(url.isEmpty ? 'Upload File' : 'Replace File'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Discard Changes?'),
+            content: const Text(
+              'You have unsaved changes. Are you sure you want to exit without saving?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Keep Editing'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Discard'),
+              ),
+            ],
+          ),
+        );
+
+        if (!context.mounted) return;
+        if (confirm == true) {
+          Navigator.of(context).pop(result);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.pageTitle),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.save),
+              tooltip: 'Save Slide',
+              onPressed: _saveChanges,
+            ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _isSaving
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Saving elements...',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )
+                : _blocks.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_to_photos_rounded,
+                              size: 64,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Slide is empty',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Add content blocks below to structure this slide.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(
+                            left: 16, right: 16, top: 16, bottom: 88),
+                        itemCount: _blocks.length,
+                        itemBuilder: (context, index) {
+                          return _buildBlockEditor(_blocks[index], index);
+                        },
+                      ),
+        // Sticky insertion bar wrapped in SafeArea
+        bottomSheet: SafeArea(
+          child: Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _addBlock('text'),
+                  icon: const Icon(Icons.text_fields),
+                  label: const Text('Text'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _addBlock('media'),
+                  icon: const Icon(Icons.image),
+                  label: const Text('Media'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _addBlock('test'),
+                  icon: const Icon(Icons.check_box_outlined),
+                  label: const Text('Test'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _addBlock('file'),
+                  icon: const Icon(Icons.attach_file),
+                  label: const Text('File'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

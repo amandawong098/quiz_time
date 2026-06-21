@@ -257,8 +257,8 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.description_rounded, color: Colors.deepPurple),
-                title: const Text('Document'),
+                leading: const Icon(Icons.attach_file_rounded, color: Colors.deepPurple),
+                title: const Text('File'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickGeneralFile();

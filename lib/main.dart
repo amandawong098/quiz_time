@@ -11,6 +11,7 @@ import 'data/repositories/auth_repository.dart';
 import 'data/repositories/quiz_repository.dart';
 import 'data/repositories/discussion_repository.dart';
 import 'data/repositories/friendship_repository.dart';
+import 'data/repositories/lesson_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,7 @@ Future<void> main() async {
         ChangeNotifierProvider<FriendshipRepository>(
           create: (_) => FriendshipRepository(),
         ),
+        Provider<LessonRepository>(create: (_) => LessonRepository()),
       ],
       child: const LearnByteApp(),
     ),
