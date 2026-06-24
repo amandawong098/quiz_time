@@ -68,10 +68,11 @@ class HomeShell extends StatelessWidget {
   Widget? _buildFloatingActionButton(BuildContext context, int selectedIndex) {
     final String location = GoRouterState.of(context).uri.path;
 
-    // Hide FAB on Leaderboard and all Profile screens/sub-routes
+    // Hide FAB on Leaderboard, all Profile screens/sub-routes, and Learn screen
     if (location.startsWith('/leaderboard') ||
         location.startsWith('/me') ||
-        location.startsWith('/my-lessons')) {
+        location.startsWith('/my-lessons') ||
+        location.startsWith('/learn')) {
       return null;
     }
 
@@ -119,7 +120,7 @@ class HomeShell extends StatelessWidget {
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.menu_book_rounded),
+              icon: Icon(Icons.school_rounded),
               label: 'Learn',
             ),
             BottomNavigationBarItem(

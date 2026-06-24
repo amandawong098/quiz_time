@@ -162,9 +162,13 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Add a page/slide to begin building the lesson flow.',
-                        style: TextStyle(color: Colors.grey),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Text(
+                          'Add a page/slide to begin building the lesson flow.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(

@@ -1,16 +1,25 @@
 class LessonCourse {
   final String id;
   final String title;
+  final String? description;
+  final bool isPublic;
+  final String? imageUrl;
 
   LessonCourse({
     required this.id,
     required this.title,
+    this.description,
+    this.isPublic = false,
+    this.imageUrl,
   });
 
   factory LessonCourse.fromJson(Map<String, dynamic> json) {
     return LessonCourse(
       id: json['id'] as String,
       title: json['title'] as String,
+      description: json['description'] as String?,
+      isPublic: json['is_public'] as bool? ?? false,
+      imageUrl: json['image_url'] as String?,
     );
   }
 
@@ -18,6 +27,9 @@ class LessonCourse {
     return {
       'id': id,
       'title': title,
+      'description': description,
+      'is_public': isPublic,
+      'image_url': imageUrl,
     };
   }
 }

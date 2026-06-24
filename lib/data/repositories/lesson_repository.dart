@@ -15,19 +15,40 @@ class LessonRepository {
     return (response as List).map((e) => LessonCourse.fromJson(e)).toList();
   }
 
-  Future<LessonCourse> createCourse(String title) async {
+  Future<LessonCourse> createCourse({
+    required String title,
+    String? description,
+    bool isPublic = false,
+    String? imageUrl,
+  }) async {
     final response = await _supabase
         .from('lesson_courses')
-        .insert({'title': title})
+        .insert({
+          'title': title,
+          'description': description,
+          'is_public': isPublic,
+          'image_url': imageUrl,
+        })
         .select()
         .single();
     return LessonCourse.fromJson(response);
   }
 
-  Future<void> updateCourse(String id, String title) async {
+  Future<void> updateCourse({
+    required String id,
+    required String title,
+    String? description,
+    bool isPublic = false,
+    String? imageUrl,
+  }) async {
     await _supabase
         .from('lesson_courses')
-        .update({'title': title})
+        .update({
+          'title': title,
+          'description': description,
+          'is_public': isPublic,
+          'image_url': imageUrl,
+        })
         .eq('id', id);
   }
 

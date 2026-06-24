@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
@@ -32,7 +33,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   List<LessonPage> _dynamicPages = [];
   Map<String, List<LessonBlock>> _dynamicPageBlocks = {};
   final Map<String, String> _pageSubChapterMap = {};
-  final Map<int, SlideQuestionState> _questionStates = {};
+  final Map<String, SlideQuestionState> _questionStates = {};
 
   // Mock Lesson state (when subChapterId is null)
   final int _totalSlides = 3;
@@ -50,12 +51,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   ];
   final int _slide2CorrectIndex = 1;
 
-  final List<String> _slide3Options = [
-    '0',
-    '1',
-    '-1',
-    '2',
-  ];
+  final List<String> _slide3Options = ['0', '1', '-1', '2'];
   final Set<int> _slide3CorrectIndices = {0, 1};
 
   @override
@@ -120,7 +116,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Future<void> _handleBackPress() async {
-    final shouldExit = await showDialog<bool>(
+    final shouldExit =
+        await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Exit Lesson?'),
@@ -160,8 +157,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     if (_slide3Checked) return;
     setState(() {
       _slide3Checked = true;
-      _slide3Correct = _slide3SelectedIndices.length == _slide3CorrectIndices.length &&
-          _slide3SelectedIndices.every((i) => _slide3CorrectIndices.contains(i));
+      _slide3Correct =
+          _slide3SelectedIndices.length == _slide3CorrectIndices.length &&
+          _slide3SelectedIndices.every(
+            (i) => _slide3CorrectIndices.contains(i),
+          );
     });
   }
 
@@ -174,7 +174,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         final nextPageObj = _dynamicPages[_currentSlide + 1];
         final nextSubChapterId = _pageSubChapterMap[nextPageObj.id];
 
-        if (currentSubChapterId != null && currentSubChapterId != nextSubChapterId) {
+        if (currentSubChapterId != null &&
+            currentSubChapterId != nextSubChapterId) {
           _progressTracker.complete(currentSubChapterId);
         }
       }
@@ -229,10 +230,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               const SizedBox(height: 24),
               const Text(
                 'Lesson Complete!',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
@@ -249,10 +247,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     ? 'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!'
                     : 'You have successfully completed "Thinking Like a Machine". You can now proceed to the next lesson sub-chapter!',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
               ),
               const SizedBox(height: 28),
               SizedBox(
@@ -286,7 +281,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   // ------------------------------------------
   // DYNAMIC SIDES RENDERING
   // ------------------------------------------
-  Widget _buildDynamicPage(LessonPage page, List<LessonBlock> blocks, int pageIndex) {
+  Widget _buildDynamicPage(
+    LessonPage page,
+    List<LessonBlock> blocks,
+    int pageIndex,
+  ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -319,7 +318,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                               child: Container(
                                 color: Colors.black,
                                 child: const Center(
-                                  child: Icon(Icons.play_circle_outline, color: Colors.white, size: 64),
+                                  child: Icon(
+                                    Icons.play_circle_outline,
+                                    color: Colors.white,
+                                    size: 64,
+                                  ),
                                 ),
                               ),
                             )
@@ -365,7 +368,10 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.insert_drive_file, color: Colors.deepPurple),
+                        const Icon(
+                          Icons.insert_drive_file,
+                          color: Colors.deepPurple,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -373,17 +379,30 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                             children: [
                               Text(
                                 name,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                               if (size.isNotEmpty) ...[
                                 const SizedBox(height: 2),
-                                Text(size, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                Text(
+                                  size,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ],
                             ],
                           ),
                         ),
-                        const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
+                        const Icon(
+                          Icons.open_in_new,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
                       ],
                     ),
                   ),
@@ -402,10 +421,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
   Widget _buildDynamicTestBlock(LessonBlock block, int pageIndex) {
     final question = block.content['question'] as String? ?? '';
-    final isMultipleChoice = block.content['is_multiple_choice'] as bool? ?? false;
-    final List<dynamic> options = block.content['options'] as List<dynamic>? ?? [];
+    final isMultipleChoice =
+        block.content['is_multiple_choice'] as bool? ?? false;
+    final List<dynamic> options =
+        block.content['options'] as List<dynamic>? ?? [];
 
-    final state = _questionStates.putIfAbsent(pageIndex, () => SlideQuestionState());
+    final state = _questionStates.putIfAbsent(
+      block.id,
+      () => SlideQuestionState(),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -504,28 +528,46 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     );
   }
 
-  Widget _buildDynamicFooter(int pageIndex, List<LessonBlock> blocks, int totalSlides) {
-    // Find if page has a test block
-    final testBlockIndex = blocks.indexWhere((b) => b.blockType == 'test');
-    if (testBlockIndex == -1) {
+  Widget _buildDynamicFooter(
+    int pageIndex,
+    List<LessonBlock> blocks,
+    int totalSlides,
+  ) {
+    // Find all test blocks on this page
+    final testBlocks = blocks.where((b) => b.blockType == 'test').toList();
+    if (testBlocks.isEmpty) {
       return _buildContinueButton(() {
         _handleContinue(totalSlides);
       });
     }
 
-    final block = blocks[testBlockIndex];
-    final isMultipleChoice = block.content['is_multiple_choice'] as bool? ?? false;
-    final List<dynamic> options = block.content['options'] as List<dynamic>? ?? [];
+    // Ensure state exists for each test block
+    for (var b in testBlocks) {
+      _questionStates.putIfAbsent(
+        b.id,
+        () => SlideQuestionState(),
+      );
+    }
 
-    final state = _questionStates.putIfAbsent(pageIndex, () => SlideQuestionState());
+    final allChecked = testBlocks.every((b) => _questionStates[b.id]?.checked == true);
 
-    if (state.checked) {
+    if (allChecked) {
       return _buildContinueButton(() {
         _handleContinue(totalSlides);
       });
     } else {
-      if (isMultipleChoice) {
-        final hasSelection = state.selectedIndices.isNotEmpty;
+      // Find unchecked checkbox tests
+      final uncheckedCheckboxes = testBlocks
+          .where((b) =>
+              (b.content['is_multiple_choice'] as bool? ?? false) &&
+              _questionStates[b.id]?.checked != true)
+          .toList();
+
+      if (uncheckedCheckboxes.isNotEmpty) {
+        // Can submit only when all unchecked checkbox tests have at least one choice selected
+        final canSubmit = uncheckedCheckboxes.every((b) =>
+            (_questionStates[b.id]?.selectedIndices.isNotEmpty) == true);
+
         return Padding(
           padding: const EdgeInsets.all(24.0),
           child: SizedBox(
@@ -539,18 +581,23 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: hasSelection
+              onPressed: canSubmit
                   ? () {
                       setState(() {
-                        state.checked = true;
-                        final correctIndices = <int>{};
-                        for (int k = 0; k < options.length; k++) {
-                          if ((options[k] as Map)['is_correct'] == true) {
-                            correctIndices.add(k);
+                        for (var b in uncheckedCheckboxes) {
+                          final state = _questionStates[b.id]!;
+                          state.checked = true;
+                          final options = b.content['options'] as List<dynamic>? ?? [];
+                          final correctIndices = <int>{};
+                          for (int k = 0; k < options.length; k++) {
+                            if ((options[k] as Map)['is_correct'] == true) {
+                              correctIndices.add(k);
+                            }
                           }
+                          state.isCorrect =
+                              state.selectedIndices.length == correctIndices.length &&
+                              state.selectedIndices.every((i) => correctIndices.contains(i));
                         }
-                        state.isCorrect = state.selectedIndices.length == correctIndices.length &&
-                            state.selectedIndices.every((i) => correctIndices.contains(i));
                       });
                     }
                   : null,
@@ -562,6 +609,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           ),
         );
       } else {
+        // Only radio tests left to answer (which auto-submit upon tapping), so just show empty space
         return const SizedBox(height: 24);
       }
     }
@@ -611,22 +659,14 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           const SizedBox(height: 20),
           const Text(
             'In the previous lesson, you learned that computers are really good at performing tiny simple operations very fast. Complex modern tasks like video streaming or online banking transactions can be broken down into these simple calculations.',
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.6,
-              color: Colors.black87,
-            ),
+            style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
           ),
           const SizedBox(height: 28),
           _buildCpuChipDiagram(),
           const SizedBox(height: 28),
           const Text(
             'In this lesson, you\'ll learn how to think like a computer to bring you one step closer to becoming a human-machine hybrid.',
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.6,
-              color: Colors.black87,
-            ),
+            style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
           ),
           const SizedBox(height: 40),
         ],
@@ -667,13 +707,19 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               if (_slide2Checked) {
                 if (isCorrectOption) {
                   cardColor = Colors.green.shade200;
-                  borderSide = BorderSide(color: Colors.green.shade400, width: 2);
+                  borderSide = BorderSide(
+                    color: Colors.green.shade400,
+                    width: 2,
+                  );
                 } else if (isSelected) {
                   cardColor = Colors.red.shade200;
                   borderSide = BorderSide(color: Colors.red.shade400, width: 2);
                 }
               } else if (isSelected) {
-                borderSide = const BorderSide(color: Colors.deepPurple, width: 2);
+                borderSide = const BorderSide(
+                  color: Colors.deepPurple,
+                  width: 2,
+                );
               }
 
               return Card(
@@ -715,11 +761,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         children: [
           const Text(
             'Computers use binary code to represent information. Binary means that there are only two possibilities for the state of a switch. To make things simpler, numbers are used to represent the OFF/ON states of a switch.',
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.6,
-              color: Colors.black87,
-            ),
+            style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
           ),
           const SizedBox(height: 24),
           _buildBinarySwitchesDiagram(),
@@ -751,13 +793,19 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               if (_slide3Checked) {
                 if (isCorrectOption) {
                   cardColor = Colors.green.shade200;
-                  borderSide = BorderSide(color: Colors.green.shade400, width: 2);
+                  borderSide = BorderSide(
+                    color: Colors.green.shade400,
+                    width: 2,
+                  );
                 } else if (isSelected) {
                   cardColor = Colors.red.shade200;
                   borderSide = BorderSide(color: Colors.red.shade400, width: 2);
                 }
               } else if (isSelected) {
-                borderSide = const BorderSide(color: Colors.deepPurple, width: 2);
+                borderSide = const BorderSide(
+                  color: Colors.deepPurple,
+                  width: 2,
+                );
               }
 
               return Card(
@@ -952,8 +1000,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             const SizedBox(height: 8),
             Text(
               'CPU chip: executes billions of simple instructions per second',
-              style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade900, fontWeight: FontWeight.bold),
-            )
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.deepPurple.shade900,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -974,7 +1026,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.toggle_on, size: 56, color: Colors.deepPurple.shade700),
+                Icon(
+                  Icons.toggle_on,
+                  size: 56,
+                  color: Colors.deepPurple.shade700,
+                ),
                 const SizedBox(width: 24),
                 Icon(Icons.toggle_off, size: 56, color: Colors.grey.shade400),
               ],
@@ -982,8 +1038,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             const SizedBox(height: 8),
             Text(
               'Switch state inside computer: ON (1) vs OFF (0)',
-              style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade900, fontWeight: FontWeight.bold),
-            )
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.deepPurple.shade900,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -993,9 +1053,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final isDynamic = widget.subChapterId != null || widget.courseId != null;
@@ -1003,20 +1061,26 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
     if (isDynamic && totalSlides == 0) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Lesson Player'),
-        ),
+        appBar: AppBar(title: const Text('Lesson Player')),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.collections_bookmark_rounded, size: 64, color: Colors.grey.shade400),
+              Icon(
+                Icons.collections_bookmark_rounded,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
               const SizedBox(height: 16),
               Text(
                 widget.courseId != null
                     ? 'This lesson has no slide pages yet.'
                     : 'This sub-chapter has no slide pages yet.',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
               ),
               const SizedBox(height: 16),
               ElevatedButton(
@@ -1029,7 +1093,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       );
     }
 
-    final double progressRatio = (totalSlides > 0) ? (_currentSlide + 1) / totalSlides : 0.0;
+    final double progressRatio = (totalSlides > 0)
+        ? (_currentSlide + 1) / totalSlides
+        : 0.0;
 
     return PopScope(
       canPop: false,
@@ -1078,9 +1144,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                       } else {
                         final pageObj = _dynamicPages[page];
                         final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
-                        final hasTest = blocks.any((b) => b.blockType == 'test');
-                        if (!hasTest) return true;
-                        return _questionStates[page]?.checked == true;
+                        final testBlocks = blocks.where((b) => b.blockType == 'test').toList();
+                        if (testBlocks.isEmpty) return true;
+                        return testBlocks.every((b) => _questionStates[b.id]?.checked == true);
                       }
                     },
                   ),
@@ -1104,7 +1170,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                 ),
               ),
               isDynamic
-                  ? _buildDynamicFooter(_currentSlide, _dynamicPages.isNotEmpty ? _dynamicPageBlocks[_dynamicPages[_currentSlide].id] ?? [] : [], totalSlides)
+                  ? _buildDynamicFooter(
+                      _currentSlide,
+                      _dynamicPages.isNotEmpty
+                          ? _dynamicPageBlocks[_dynamicPages[_currentSlide]
+                                    .id] ??
+                                []
+                          : [],
+                      totalSlides,
+                    )
                   : _buildFooterActions(),
             ],
           ),
@@ -1118,10 +1192,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 class LessonScrollPhysics extends ScrollPhysics {
   final bool Function(int page) isPageUnlocked;
 
-  const LessonScrollPhysics({
-    required this.isPageUnlocked,
-    super.parent,
-  });
+  const LessonScrollPhysics({required this.isPageUnlocked, super.parent});
 
   @override
   LessonScrollPhysics applyTo(ScrollPhysics? ancestor) {
@@ -1170,48 +1241,60 @@ class MarkdownRenderer extends StatelessWidget {
       }
 
       if (trimmed.startsWith('# ')) {
-        children.add(_buildHeading(trimmed.substring(2), 24, FontWeight.bold));
+        children.add(_buildHeading(context, trimmed.substring(2), 24, FontWeight.bold));
       } else if (trimmed.startsWith('## ')) {
-        children.add(_buildHeading(trimmed.substring(3), 22, FontWeight.bold));
+        children.add(_buildHeading(context, trimmed.substring(3), 22, FontWeight.bold));
       } else if (trimmed.startsWith('### ')) {
-        children.add(_buildHeading(trimmed.substring(4), 20, FontWeight.bold));
+        children.add(_buildHeading(context, trimmed.substring(4), 20, FontWeight.bold));
       } else if (trimmed.startsWith('#### ')) {
-        children.add(_buildHeading(trimmed.substring(5), 18, FontWeight.bold));
+        children.add(_buildHeading(context, trimmed.substring(5), 18, FontWeight.bold));
       } else if (trimmed.startsWith('##### ')) {
-        children.add(_buildHeading(trimmed.substring(6), 16, FontWeight.bold));
+        children.add(_buildHeading(context, trimmed.substring(6), 16, FontWeight.bold));
       } else if (trimmed.startsWith('###### ')) {
-        children.add(_buildHeading(trimmed.substring(7), 14, FontWeight.bold));
+        children.add(_buildHeading(context, trimmed.substring(7), 14, FontWeight.bold));
       } else if (trimmed.startsWith('• ')) {
-        children.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(width: 8),
-              const Text('• ', style: TextStyle(fontSize: 16, height: 1.4)),
-              Expanded(child: RichText(text: _parseInlineStyles(trimmed.substring(2)))),
-            ],
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(width: 8),
+                Text('• ', style: GoogleFonts.poppins(fontSize: 16, height: 1.4)),
+                Expanded(
+                  child: Text.rich(
+                    _parseInlineStyles(context, trimmed.substring(2)),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ));
+        );
       } else if (trimmed.startsWith('- ')) {
-        children.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(width: 8),
-              const Text('• ', style: TextStyle(fontSize: 16, height: 1.4)),
-              Expanded(child: RichText(text: _parseInlineStyles(trimmed.substring(2)))),
-            ],
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(width: 8),
+                Text('• ', style: GoogleFonts.poppins(fontSize: 16, height: 1.4)),
+                Expanded(
+                  child: Text.rich(
+                    _parseInlineStyles(context, trimmed.substring(2)),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ));
+        );
       } else {
-        children.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: RichText(
-            text: _parseInlineStyles(trimmed),
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Text.rich(_parseInlineStyles(context, trimmed)),
           ),
-        ));
+        );
       }
     }
 
@@ -1221,17 +1304,27 @@ class MarkdownRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildHeading(String content, double fontSize, FontWeight weight) {
+  Widget _buildHeading(BuildContext context, String content, double fontSize, FontWeight weight) {
     return Padding(
       padding: const EdgeInsets.only(top: 12.0, bottom: 6.0),
-      child: RichText(
-        text: _parseInlineStyles(content, baseStyle: TextStyle(fontSize: fontSize, fontWeight: weight, color: Colors.black87)),
+      child: Text.rich(
+        _parseInlineStyles(
+          context,
+          content,
+          baseStyle: GoogleFonts.poppins(
+            fontSize: fontSize,
+            fontWeight: weight,
+            color: Colors.black87,
+          ),
+        ),
       ),
     );
   }
 
-  TextSpan _parseInlineStyles(String line, {TextStyle? baseStyle}) {
-    final defaultStyle = baseStyle ?? const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87);
+  TextSpan _parseInlineStyles(BuildContext context, String line, {TextStyle? baseStyle}) {
+    final defaultStyle =
+        baseStyle ??
+        GoogleFonts.poppins(fontSize: 15, height: 1.5, color: Colors.black87);
     final List<TextSpan> spans = [];
 
     final RegExp exp = RegExp(r'(\*\*|\*|~~|<u>|</u>)');
@@ -1249,17 +1342,19 @@ class MarkdownRenderer extends StatelessWidget {
 
     for (final match in matches) {
       if (match.start > lastIndex) {
-        spans.add(TextSpan(
-          text: line.substring(lastIndex, match.start),
-          style: defaultStyle.copyWith(
-            fontWeight: isBold ? FontWeight.bold : defaultStyle.fontWeight,
-            fontStyle: isItalic ? FontStyle.italic : defaultStyle.fontStyle,
-            decoration: TextDecoration.combine([
-              if (isStrike) TextDecoration.lineThrough,
-              if (isUnderline) TextDecoration.underline,
-            ]),
+        spans.add(
+          TextSpan(
+            text: line.substring(lastIndex, match.start),
+            style: defaultStyle.copyWith(
+              fontWeight: isBold ? FontWeight.bold : defaultStyle.fontWeight,
+              fontStyle: isItalic ? FontStyle.italic : defaultStyle.fontStyle,
+              decoration: TextDecoration.combine([
+                if (isStrike) TextDecoration.lineThrough,
+                if (isUnderline) TextDecoration.underline,
+              ]),
+            ),
           ),
-        ));
+        );
       }
 
       final tag = match.group(0);
@@ -1279,17 +1374,19 @@ class MarkdownRenderer extends StatelessWidget {
     }
 
     if (lastIndex < line.length) {
-      spans.add(TextSpan(
-        text: line.substring(lastIndex),
-        style: defaultStyle.copyWith(
-          fontWeight: isBold ? FontWeight.bold : defaultStyle.fontWeight,
-          fontStyle: isItalic ? FontStyle.italic : defaultStyle.fontStyle,
-          decoration: TextDecoration.combine([
-            if (isStrike) TextDecoration.lineThrough,
-            if (isUnderline) TextDecoration.underline,
-          ]),
+      spans.add(
+        TextSpan(
+          text: line.substring(lastIndex),
+          style: defaultStyle.copyWith(
+            fontWeight: isBold ? FontWeight.bold : defaultStyle.fontWeight,
+            fontStyle: isItalic ? FontStyle.italic : defaultStyle.fontStyle,
+            decoration: TextDecoration.combine([
+              if (isStrike) TextDecoration.lineThrough,
+              if (isUnderline) TextDecoration.underline,
+            ]),
+          ),
         ),
-      ));
+      );
     }
 
     return TextSpan(children: spans, style: defaultStyle);

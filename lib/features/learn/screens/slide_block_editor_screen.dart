@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../models/lesson_models.dart';
 
@@ -26,11 +27,41 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
   bool _hasUnsavedChanges = false;
   List<LessonBlock> _blocks = [];
 
+  int get _totalTextLength {
+    int length = 0;
+    for (var b in _blocks) {
+      if (b.blockType == 'text') {
+        final ctrl = _textControllers[b.id];
+        if (ctrl != null) {
+          length += ctrl.text.length;
+        } else {
+          length += (b.content['text'] as String? ?? '').length;
+        }
+      }
+    }
+    return length;
+  }
+
+  bool get _isTooLong {
+    return _blocks.length > 4 || _totalTextLength > 500;
+  }
+
   // Controllers mapped to block ID for text and media fields
   final Map<String, TextEditingController> _textControllers = {};
   final Map<String, TextEditingController> _captionControllers = {};
   final Map<String, TextEditingController> _questionControllers = {};
   final Map<String, List<TextEditingController>> _optionControllers = {};
+
+  // Block error messages mapping block ID -> error text
+  final Map<String, String> _blockErrors = {};
+
+  void _clearError(String blockId) {
+    if (_blockErrors.containsKey(blockId)) {
+      setState(() {
+        _blockErrors.remove(blockId);
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -153,6 +184,26 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
     }
   }
 
+  Future<String?> _uploadXFile(XFile file) async {
+    try {
+      final client = Supabase.instance.client;
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+      final path = 'lessons/$fileName';
+
+      final fileIo = File(file.path);
+      await client.storage.from('discussion_attachments').upload(path, fileIo);
+
+      return client.storage.from('discussion_attachments').getPublicUrl(path);
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: ${e.toString()}')),
+      );
+      return null;
+    }
+  }
+
   // ------------------------------------------
   // BLOCK CRUD
   // ------------------------------------------
@@ -191,8 +242,10 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
 
   void _deleteBlock(int index) {
     _markChanged();
+    final block = _blocks[index];
     setState(() {
       _blocks.removeAt(index);
+      _blockErrors.remove(block.id);
     });
   }
 
@@ -209,7 +262,12 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
   }
 
   Future<void> _saveChanges() async {
+    final repo = context.read<LessonRepository>();
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+
     final List<LessonBlock> updatedBlocks = [];
+    final Map<String, String> errors = {};
 
     for (int i = 0; i < _blocks.length; i++) {
       final b = _blocks[i];
@@ -219,10 +277,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
         final ctrl = _textControllers[b.id];
         final text = ctrl?.text.trim() ?? '';
         if (text.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Block ${i + 1} (Text) cannot be empty.')),
-          );
-          return;
+          errors[b.id] = 'Text block cannot be empty.';
         }
         content['text'] = ctrl?.text ?? (b.content['text'] ?? '');
       } else if (b.blockType == 'media') {
@@ -230,37 +285,25 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
         content['caption'] = ctrl?.text ?? (b.content['caption'] ?? '');
         final url = b.content['url'] as String? ?? '';
         if (url.trim().isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Block ${i + 1} (Media) must have a selected image or video.')),
-          );
-          return;
+          errors[b.id] = 'Media block must have an image or video uploaded.';
         }
       } else if (b.blockType == 'file') {
         final url = b.content['url'] as String? ?? '';
         if (url.trim().isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Block ${i + 1} (File) must have a selected file.')),
-          );
-          return;
+          errors[b.id] = 'File block must have a file uploaded.';
         }
       } else if (b.blockType == 'test') {
         final qCtrl = _questionControllers[b.id];
         final qText = qCtrl?.text.trim() ?? '';
         if (qText.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Block ${i + 1} (Test): Question text cannot be empty.')),
-          );
-          return;
+          errors[b.id] = 'Question text cannot be empty.';
         }
         content['question'] = qCtrl?.text ?? (b.content['question'] ?? '');
 
         // Options
         final optCtrls = _optionControllers[b.id] ?? [];
         if (optCtrls.length < 2) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Block ${i + 1} (Test) must have at least 2 options.')),
-          );
-          return;
+          errors[b.id] = 'Test block must have at least 2 options.';
         }
 
         final List<dynamic> originalOpts = b.content['options'] as List<dynamic>? ?? [];
@@ -269,10 +312,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
         for (int optIdx = 0; optIdx < optCtrls.length; optIdx++) {
           final optText = optCtrls[optIdx].text.trim();
           if (optText.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Block ${i + 1} (Test): Option ${optIdx + 1} cannot be empty.')),
-            );
-            return;
+            errors[b.id] = 'Option ${optIdx + 1} cannot be empty.';
           }
           final isCorrect = optIdx < originalOpts.length
               ? ((originalOpts[optIdx] as Map)['is_correct'] as bool? ?? false)
@@ -284,11 +324,8 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
         }
 
         final hasCorrect = finalOpts.any((opt) => opt['is_correct'] == true);
-        if (!hasCorrect) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Block ${i + 1} (Test) must have at least one correct option checked.')),
-          );
-          return;
+        if (!hasCorrect && !errors.containsKey(b.id)) {
+          errors[b.id] = 'Test block must have at least one correct option checked.';
         }
 
         content['options'] = finalOpts;
@@ -303,19 +340,61 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
       ));
     }
 
+    if (errors.isNotEmpty) {
+      setState(() {
+        _blockErrors.clear();
+        _blockErrors.addAll(errors);
+      });
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Please resolve the errors highlighted in red before saving.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_isTooLong) {
+      final confirmSave = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Page Content Too Long?'),
+          content: Text(
+            'This slide contains a lot of content (${_blocks.length} blocks / $_totalTextLength characters). '
+            'To optimize for mobile readability, we recommend a maximum of 4 blocks and 500 characters per slide. '
+            'Do you want to save anyway?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep Editing'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+              child: const Text('Save Anyway'),
+            ),
+          ],
+        ),
+      );
+      if (confirmSave != true) {
+        return;
+      }
+      if (!mounted) return;
+    }
+
     setState(() => _isSaving = true);
     try {
-      final repo = context.read<LessonRepository>();
       await repo.saveBlocks(widget.pageId, updatedBlocks);
       if (!mounted) return;
       setState(() {
         _isSaving = false;
         _hasUnsavedChanges = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Slide saved successfully!')),
       );
-      context.pop(true); // Return true to refresh slides view
+      router.pop(true); // Return true to refresh slides view
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -341,11 +420,17 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
       editorBody = _buildFileBlockEditor(block, index);
     }
 
+    final hasError = _blockErrors.containsKey(block.id);
+    final errorText = _blockErrors[block.id];
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(
+          color: hasError ? Colors.red.shade700 : Colors.grey.shade200,
+          width: hasError ? 2.0 : 1.0,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -359,7 +444,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.deepPurple.shade50,
+                    color: hasError ? Colors.red.shade50 : Colors.deepPurple.shade50,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -367,7 +452,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple.shade700,
+                      color: hasError ? Colors.red.shade700 : Colors.deepPurple.shade700,
                       letterSpacing: 1.1,
                     ),
                   ),
@@ -392,8 +477,45 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
             ),
             const Divider(height: 24),
             editorBody,
+            if (hasError && errorText != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                errorText,
+                style: TextStyle(
+                  color: Colors.red.shade700,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildWarningBanner() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'This slide page contains a lot of content. We recommend splitting it across multiple slide pages to keep the lesson bite-sized for mobile screens.',
+              style: TextStyle(
+                color: Colors.amber.shade900,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -402,7 +524,12 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
     if (!_textControllers.containsKey(block.id)) {
       _textControllers[block.id] =
           TextEditingController(text: block.content['text'] ?? '')
-            ..addListener(_markChanged);
+            ..addListener(() {
+              setState(() {
+                _markChanged();
+                _clearError(block.id);
+              });
+            });
     }
     final ctrl = _textControllers[block.id]!;
 
@@ -486,7 +613,10 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
     if (!_captionControllers.containsKey(block.id)) {
       _captionControllers[block.id] =
           TextEditingController(text: block.content['caption'] ?? '')
-            ..addListener(_markChanged);
+            ..addListener(() {
+              _markChanged();
+              _clearError(block.id);
+            });
     }
     final captionCtrl = _captionControllers[block.id]!;
     final url = block.content['url'] as String? ?? '';
@@ -516,18 +646,18 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: () async {
-                  final result = await FilePicker.platform.pickFiles(
-                    type: FileType.media,
-                  );
-                  if (result != null && result.files.isNotEmpty) {
-                    final file = result.files.single;
-                    final publicUrl = await _uploadFile(file);
+                  final picker = ImagePicker();
+                  final XFile? file = await picker.pickMedia();
+                  if (file != null) {
+                    final publicUrl = await _uploadXFile(file);
                     if (publicUrl != null) {
                       _markChanged();
+                      _clearError(block.id);
                       setState(() {
-                        final isVideo = file.extension == 'mp4' ||
-                            file.extension == 'mov' ||
-                            file.extension == 'avi';
+                        final ext = file.name.split('.').last.toLowerCase();
+                        final isVideo = ext == 'mp4' ||
+                            ext == 'mov' ||
+                            ext == 'avi';
                         block.content['url'] = publicUrl;
                         block.content['type'] = isVideo ? 'video' : 'image';
                       });
@@ -556,7 +686,10 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
     if (!_questionControllers.containsKey(block.id)) {
       _questionControllers[block.id] =
           TextEditingController(text: block.content['question'] ?? '')
-            ..addListener(_markChanged);
+            ..addListener(() {
+              _markChanged();
+              _clearError(block.id);
+            });
     }
     final qCtrl = _questionControllers[block.id]!;
     final isMultipleChoice = block.content['is_multiple_choice'] as bool? ?? false;
@@ -569,7 +702,10 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
     if (!_optionControllers.containsKey(block.id)) {
       _optionControllers[block.id] = options
           .map((opt) => TextEditingController(text: (opt as Map)['text'] ?? '')
-            ..addListener(_markChanged))
+            ..addListener(() {
+              _markChanged();
+              _clearError(block.id);
+            }))
           .toList();
     }
     final optCtrls = _optionControllers[block.id]!;
@@ -604,6 +740,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                     activeColor: Colors.deepPurple,
                     onChanged: (val) {
                       _markChanged();
+                      _clearError(block.id);
                       setState(() {
                         opt['is_correct'] = val == true;
                       });
@@ -616,6 +753,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                     activeColor: Colors.deepPurple,
                     onChanged: (val) {
                       _markChanged();
+                      _clearError(block.id);
                       setState(() {
                         for (int k = 0; k < options.length; k++) {
                           (options[k] as Map)['is_correct'] = k == val;
@@ -636,6 +774,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                   icon: const Icon(Icons.close, color: Colors.grey),
                   onPressed: () {
                     _markChanged();
+                    _clearError(block.id);
                     setState(() {
                       options.removeAt(optIdx);
                       optCtrls[optIdx].dispose();
@@ -652,9 +791,13 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
           child: TextButton.icon(
             onPressed: () {
               _markChanged();
+              _clearError(block.id);
               setState(() {
                 options.add({'text': '', 'is_correct': false});
-                optCtrls.add(TextEditingController()..addListener(_markChanged));
+                optCtrls.add(TextEditingController()..addListener(() {
+                  _markChanged();
+                  _clearError(block.id);
+                }));
               });
             },
             icon: const Icon(Icons.add),
@@ -674,6 +817,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
               activeThumbColor: Colors.deepPurple,
               onChanged: (val) {
                 _markChanged();
+                _clearError(block.id);
                 setState(() {
                   block.content['is_multiple_choice'] = val;
                   if (!val) {
@@ -755,6 +899,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                     final publicUrl = await _uploadFile(file);
                     if (publicUrl != null) {
                       _markChanged();
+                      _clearError(block.id);
                       setState(() {
                         block.content['url'] = publicUrl;
                         block.content['name'] = file.name;
@@ -832,43 +977,54 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                       ],
                     ),
                   )
-                : _blocks.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_to_photos_rounded,
-                              size: 64,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Slide is empty',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.bold,
+                : Column(
+                    children: [
+                      if (_isTooLong) _buildWarningBanner(),
+                      Expanded(
+                        child: _blocks.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.add_to_photos_rounded,
+                                      size: 64,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Slide is empty',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 24.0),
+                                      child: Text(
+                                        'Add content blocks below to structure this slide.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.only(
+                                    left: 16, right: 16, top: 16, bottom: 88),
+                                itemCount: _blocks.length,
+                                itemBuilder: (context, index) {
+                                  return _buildBlockEditor(_blocks[index], index);
+                                },
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Add content blocks below to structure this slide.',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(
-                            left: 16, right: 16, top: 16, bottom: 88),
-                        itemCount: _blocks.length,
-                        itemBuilder: (context, index) {
-                          return _buildBlockEditor(_blocks[index], index);
-                        },
                       ),
+                    ],
+                  ),
         // Sticky insertion bar wrapped in SafeArea
-        bottomSheet: SafeArea(
+        bottomNavigationBar: SafeArea(
           child: Container(
             height: 64,
             decoration: BoxDecoration(

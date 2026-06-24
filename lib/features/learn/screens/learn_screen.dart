@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../widgets/lessons_tab.dart';
 import '../widgets/flashcards_tab.dart';
@@ -13,10 +14,17 @@ class LearnScreen extends StatefulWidget {
 class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  final GlobalKey<LessonsTabState> _lessonsTabKey = GlobalKey<LessonsTabState>();
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -52,11 +60,24 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [
-          LessonsTab(),
-          FlashcardsTab(),
+        children: [
+          LessonsTab(key: _lessonsTabKey),
+          const FlashcardsTab(),
         ],
       ),
+      floatingActionButton: _tabController.index == 0
+          ? FloatingActionButton(
+              onPressed: () async {
+                final result = await context.push<bool>('/create-lesson');
+                if (result == true) {
+                  _lessonsTabKey.currentState?.loadDbLessons();
+                }
+              },
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

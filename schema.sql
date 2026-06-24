@@ -224,6 +224,7 @@ CREATE POLICY "Insert own attempts" ON public.quiz_attempts FOR INSERT WITH CHEC
 -- Create Buckets
 INSERT INTO storage.buckets (id, name, public) VALUES ('profile_pictures', 'profile_pictures', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('quiz_images', 'quiz_images', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('lesson_images', 'lesson_images', true) ON CONFLICT (id) DO NOTHING;
 
 -- Storage Policies for 'profile_pictures'
 CREATE POLICY "Public Read Profile Pics" ON storage.objects FOR SELECT USING (bucket_id = 'profile_pictures');
@@ -236,6 +237,12 @@ CREATE POLICY "Public Read Quiz Images" ON storage.objects FOR SELECT USING (buc
 CREATE POLICY "Auth Insert Quiz Images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'quiz_images' AND auth.role() = 'authenticated');
 CREATE POLICY "Auth Update Quiz Images" ON storage.objects FOR UPDATE USING (bucket_id = 'quiz_images' AND auth.role() = 'authenticated');
 CREATE POLICY "Auth Delete Quiz Images" ON storage.objects FOR DELETE USING (bucket_id = 'quiz_images' AND auth.role() = 'authenticated');
+
+-- Storage Policies for 'lesson_images'
+CREATE POLICY "Public Read Lesson Images" ON storage.objects FOR SELECT USING (bucket_id = 'lesson_images');
+CREATE POLICY "Auth Insert Lesson Images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'lesson_images' AND auth.role() = 'authenticated');
+CREATE POLICY "Auth Update Lesson Images" ON storage.objects FOR UPDATE USING (bucket_id = 'lesson_images' AND auth.role() = 'authenticated');
+CREATE POLICY "Auth Delete Lesson Images" ON storage.objects FOR DELETE USING (bucket_id = 'lesson_images' AND auth.role() = 'authenticated');
 
 -- =======================================================
 -- 7. DISCUSSIONS SCHEMA WITH VOTING SYSTEM & THREADED COMMENTS
@@ -431,6 +438,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.lesson_courses (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     title TEXT NOT NULL,
+    description TEXT,
+    is_public BOOLEAN DEFAULT FALSE,
+    image_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -486,11 +496,11 @@ CREATE POLICY "Allow select pages" ON public.lesson_pages FOR SELECT USING (true
 CREATE POLICY "Allow select blocks" ON public.lesson_blocks FOR SELECT USING (true);
 
 -- Allow write to authenticated users
-CREATE POLICY "Allow write courses" ON public.lesson_courses FOR ALL WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Allow write chapters" ON public.lesson_chapters FOR ALL WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Allow write sub_chapters" ON public.lesson_sub_chapters FOR ALL WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Allow write pages" ON public.lesson_pages FOR ALL WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Allow write blocks" ON public.lesson_blocks FOR ALL WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow write courses" ON public.lesson_courses FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow write chapters" ON public.lesson_chapters FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow write sub_chapters" ON public.lesson_sub_chapters FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow write pages" ON public.lesson_pages FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow write blocks" ON public.lesson_blocks FOR ALL USING (auth.role() = 'authenticated');
 
 -- Enable Realtime Replication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_courses;

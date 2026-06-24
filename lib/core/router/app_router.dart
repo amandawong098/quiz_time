@@ -11,6 +11,7 @@ import '../../features/learn/screens/lesson_player_screen.dart';
 import '../../features/learn/screens/my_lessons_screen.dart';
 import '../../features/learn/screens/sub_chapter_slides_screen.dart';
 import '../../features/learn/screens/slide_block_editor_screen.dart';
+import '../../features/learn/screens/create_lesson_screen.dart';
 import '../../features/leaderboard/screens/leaderboard_dummy_screen.dart';
 import '../../features/discussions/screens/discussions_dummy_screen.dart';
 import '../../features/discussions/screens/create_topic_screen.dart';
@@ -125,6 +126,14 @@ final GoRouter appRouter = GoRouter(
         final Map<String, dynamic>? extra =
             state.extra as Map<String, dynamic>?;
         return CreateQuizScreen(quiz: extra?['quiz']);
+      },
+    ),
+    GoRoute(
+      path: '/create-lesson',
+      builder: (context, state) {
+        final Map<String, dynamic>? extra =
+            state.extra as Map<String, dynamic>?;
+        return CreateLessonScreen(lesson: extra?['lesson']);
       },
     ),
     GoRoute(
