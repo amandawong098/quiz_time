@@ -441,6 +441,7 @@ CREATE TABLE IF NOT EXISTS public.lesson_courses (
     description TEXT,
     is_public BOOLEAN DEFAULT FALSE,
     image_url TEXT,
+    creator_id UUID REFERENCES auth.users ON DELETE CASCADE DEFAULT auth.uid(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -488,19 +489,47 @@ ALTER TABLE public.lesson_sub_chapters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lesson_pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lesson_blocks ENABLE ROW LEVEL SECURITY;
 
--- Allow select to everyone
-CREATE POLICY "Allow select courses" ON public.lesson_courses FOR SELECT USING (true);
-CREATE POLICY "Allow select chapters" ON public.lesson_chapters FOR SELECT USING (true);
-CREATE POLICY "Allow select sub_chapters" ON public.lesson_sub_chapters FOR SELECT USING (true);
-CREATE POLICY "Allow select pages" ON public.lesson_pages FOR SELECT USING (true);
-CREATE POLICY "Allow select blocks" ON public.lesson_blocks FOR SELECT USING (true);
+-- Allow select to everyone if public, or if creator
+CREATE POLICY "Viewable courses" ON public.lesson_courses FOR SELECT USING (is_public = true OR auth.uid() = creator_id);
+CREATE POLICY "Insert own courses" ON public.lesson_courses FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY "Update own courses" ON public.lesson_courses FOR UPDATE USING (auth.uid() = creator_id);
+CREATE POLICY "Delete own courses" ON public.lesson_courses FOR DELETE USING (auth.uid() = creator_id);
 
--- Allow write to authenticated users
-CREATE POLICY "Allow write courses" ON public.lesson_courses FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Allow write chapters" ON public.lesson_chapters FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Allow write sub_chapters" ON public.lesson_sub_chapters FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Allow write pages" ON public.lesson_pages FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Allow write blocks" ON public.lesson_blocks FOR ALL USING (auth.role() = 'authenticated');
+-- Policies for chapters
+CREATE POLICY "Viewable chapters" ON public.lesson_chapters FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.lesson_courses WHERE id = course_id AND (is_public = true OR auth.uid() = creator_id))
+);
+CREATE POLICY "Manage own chapters" ON public.lesson_chapters FOR ALL USING (
+    NOT EXISTS (SELECT 1 FROM public.lesson_courses WHERE id = course_id) OR
+    EXISTS (SELECT 1 FROM public.lesson_courses WHERE id = course_id AND auth.uid() = creator_id)
+);
+
+-- Policies for sub_chapters
+CREATE POLICY "Viewable sub_chapters" ON public.lesson_sub_chapters FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.lesson_chapters c JOIN public.lesson_courses o ON c.course_id = o.id WHERE c.id = chapter_id AND (o.is_public = true OR auth.uid() = o.creator_id))
+);
+CREATE POLICY "Manage own sub_chapters" ON public.lesson_sub_chapters FOR ALL USING (
+    NOT EXISTS (SELECT 1 FROM public.lesson_chapters WHERE id = chapter_id) OR
+    EXISTS (SELECT 1 FROM public.lesson_chapters c JOIN public.lesson_courses o ON c.course_id = o.id WHERE c.id = chapter_id AND auth.uid() = o.creator_id)
+);
+
+-- Policies for pages
+CREATE POLICY "Viewable pages" ON public.lesson_pages FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.lesson_sub_chapters s JOIN public.lesson_chapters c ON s.chapter_id = c.id JOIN public.lesson_courses o ON c.course_id = o.id WHERE s.id = sub_chapter_id AND (o.is_public = true OR auth.uid() = o.creator_id))
+);
+CREATE POLICY "Manage own pages" ON public.lesson_pages FOR ALL USING (
+    NOT EXISTS (SELECT 1 FROM public.lesson_sub_chapters WHERE id = sub_chapter_id) OR
+    EXISTS (SELECT 1 FROM public.lesson_sub_chapters s JOIN public.lesson_chapters c ON s.chapter_id = c.id JOIN public.lesson_courses o ON c.course_id = o.id WHERE s.id = sub_chapter_id AND auth.uid() = o.creator_id)
+);
+
+-- Policies for blocks
+CREATE POLICY "Viewable blocks" ON public.lesson_blocks FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.lesson_pages p JOIN public.lesson_sub_chapters s ON p.sub_chapter_id = s.id JOIN public.lesson_chapters c ON s.chapter_id = c.id JOIN public.lesson_courses o ON c.course_id = o.id WHERE p.id = page_id AND (o.is_public = true OR auth.uid() = o.creator_id))
+);
+CREATE POLICY "Manage own blocks" ON public.lesson_blocks FOR ALL USING (
+    NOT EXISTS (SELECT 1 FROM public.lesson_pages WHERE id = page_id) OR
+    EXISTS (SELECT 1 FROM public.lesson_pages p JOIN public.lesson_sub_chapters s ON p.sub_chapter_id = s.id JOIN public.lesson_chapters c ON s.chapter_id = c.id JOIN public.lesson_courses o ON c.course_id = o.id WHERE p.id = page_id AND auth.uid() = o.creator_id)
+);
 
 -- Enable Realtime Replication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_courses;

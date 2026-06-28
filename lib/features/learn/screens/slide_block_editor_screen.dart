@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../models/lesson_models.dart';
+import '../../../core/widgets/video_preview_widget.dart';
 
 class SlideBlockEditorScreen extends StatefulWidget {
   final String pageId;
@@ -556,7 +557,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
                     _insertFormatting(ctrl, '$hashes ', '');
                   },
                   itemBuilder: (context) => List.generate(
-                    6,
+                    3,
                     (idx) => PopupMenuItem(
                       value: idx + 1,
                       child: Text('Heading ${idx + 1}',
@@ -626,19 +627,22 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (url.isNotEmpty) ...[
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: mediaType == 'video'
-                  ? const Center(child: Icon(Icons.video_library, size: 48))
-                  : Image.network(url, fit: BoxFit.cover),
-            ),
-          ),
+          mediaType == 'video'
+              ? VideoPreviewWidget(
+                  videoUrl: url,
+                  title: block.content['caption'] as String? ?? 'Video Preview',
+                )
+              : Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(url, fit: BoxFit.cover),
+                  ),
+                ),
           const SizedBox(height: 8),
         ],
         Row(

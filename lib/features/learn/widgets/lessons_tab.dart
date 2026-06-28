@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
@@ -14,7 +15,7 @@ class LessonsTab extends StatefulWidget {
 }
 
 class LessonsTabState extends State<LessonsTab> {
-  final MockLessonProgress _progressTracker = MockLessonProgress();
+  final LessonProgress _progressTracker = LessonProgress();
   
   // State for active lesson and preview
   String? _selectedLessonCourseId;
@@ -25,6 +26,8 @@ class LessonsTabState extends State<LessonsTab> {
   List<LessonCourse> _dbCourses = [];
   List<LessonChapter> _dbChapters = [];
   Map<String, List<LessonSubChapter>> _dbSubChaptersMap = {};
+  Map<String, List<LessonChapter>> _allChaptersMap = {};
+  Map<String, List<LessonSubChapter>> _allSubChaptersMap = {};
 
   @override
   void initState() {
@@ -33,39 +36,119 @@ class LessonsTabState extends State<LessonsTab> {
   }
 
   Future<void> _loadInitialCourseAndLessons() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final storedId = prefs.getString('current_lesson_course_id');
-      setState(() {
-        _selectedLessonCourseId = storedId;
-      });
-    } catch (_) {}
+    String? storedId;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        final metadata = user.userMetadata;
+        if (metadata != null && metadata.containsKey('current_lesson_course_id')) {
+          storedId = metadata['current_lesson_course_id'] as String?;
+        }
+      } catch (_) {}
+
+      if (storedId == null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          storedId = prefs.getString('current_lesson_course_id_${user.id}');
+        } catch (_) {}
+      }
+    }
+
+    setState(() {
+      _selectedLessonCourseId = storedId;
+    });
     await loadDbLessons();
+  }
+
+  double _getCourseProgress(LessonCourse course, Map<String, List<LessonChapter>> chaptersMap, Map<String, List<LessonSubChapter>> subChaptersMap) {
+    final chapters = chaptersMap[course.id] ?? [];
+    int totalSubs = 0;
+    int completedSubs = 0;
+    for (var ch in chapters) {
+      final subs = subChaptersMap[ch.id] ?? [];
+      totalSubs += subs.length;
+      for (var sub in subs) {
+        if (_progressTracker.isCompleted(sub.id)) {
+          completedSubs++;
+        }
+      }
+    }
+    if (totalSubs == 0) return 0.0;
+    return completedSubs / totalSubs;
+  }
+
+  int _getCourseCategory(LessonCourse course, double progress) {
+    final chapters = _allChaptersMap[course.id] ?? [];
+    int totalSubs = 0;
+    for (var ch in chapters) {
+      totalSubs += (_allSubChaptersMap[ch.id] ?? []).length;
+    }
+
+    final isCompleted = totalSubs > 0 && progress == 1.0;
+    final isCurrent = course.id == _selectedLessonCourseId || (progress > 0.0 && progress < 1.0);
+
+    if (isCompleted) {
+      return 2; // Completed at bottom
+    } else if (isCurrent) {
+      return 1; // Current in middle
+    } else {
+      return 0; // Not yet learned on top
+    }
   }
 
   Future<void> loadDbLessons() async {
     if (!mounted) return;
     setState(() => _isLoadingDb = true);
     try {
+      await _progressTracker.loadFromSupabase();
+      if (!mounted) return;
       final repo = context.read<LessonRepository>();
-      final courses = await repo.getCourses();
+      final allCourses = await repo.getCourses();
 
-      List<LessonChapter> chapters = [];
+      final user = Supabase.instance.client.auth.currentUser;
+      final currentUserId = user?.id;
+      final courses = allCourses.where((c) => c.isPublic || c.creatorId == currentUserId).toList();
+
+      final Map<String, List<LessonChapter>> chaptersMap = {};
       final Map<String, List<LessonSubChapter>> subChaptersMap = {};
+
+      for (var course in courses) {
+        if (!mounted) return;
+        final chapters = await repo.getChapters(course.id);
+        chaptersMap[course.id] = chapters;
+        for (var ch in chapters) {
+          if (!mounted) return;
+          final subs = await repo.getSubChapters(ch.id);
+          subChaptersMap[ch.id] = subs;
+        }
+      }
+
+      _allChaptersMap = chaptersMap;
+      _allSubChaptersMap = subChaptersMap;
+
+      courses.sort((a, b) {
+        final progressA = _getCourseProgress(a, chaptersMap, subChaptersMap);
+        final progressB = _getCourseProgress(b, chaptersMap, subChaptersMap);
+
+        final catA = _getCourseCategory(a, progressA);
+        final catB = _getCourseCategory(b, progressB);
+
+        return catA.compareTo(catB);
+      });
+
+      List<LessonChapter> activeChapters = [];
+      final Map<String, List<LessonSubChapter>> activeSubChaptersMap = {};
 
       if (_selectedLessonCourseId != null) {
         final dbCourseIdx = courses.indexWhere(
           (c) => c.id == _selectedLessonCourseId,
         );
         if (dbCourseIdx != -1) {
-          final course = courses[dbCourseIdx];
-          chapters = await repo.getChapters(course.id);
-          for (var ch in chapters) {
-            final subs = await repo.getSubChapters(ch.id);
-            subChaptersMap[ch.id] = subs;
+          activeChapters = chaptersMap[_selectedLessonCourseId] ?? [];
+          for (var ch in activeChapters) {
+            activeSubChaptersMap[ch.id] = subChaptersMap[ch.id] ?? [];
           }
         } else {
-          // Reset selection if course no longer exists in DB
           _selectedLessonCourseId = null;
         }
       }
@@ -73,8 +156,8 @@ class LessonsTabState extends State<LessonsTab> {
       if (!mounted) return;
       setState(() {
         _dbCourses = courses;
-        _dbChapters = chapters;
-        _dbSubChaptersMap = subChaptersMap;
+        _dbChapters = activeChapters;
+        _dbSubChaptersMap = activeSubChaptersMap;
         _isLoadingDb = false;
       });
     } catch (e) {
@@ -92,11 +175,177 @@ class LessonsTabState extends State<LessonsTab> {
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('current_lesson_course_id', course.id);
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      if (user != null) {
+        await client.auth.updateUser(
+          UserAttributes(
+            data: {
+              'current_lesson_course_id': course.id,
+            },
+          ),
+        );
+      }
+    } catch (_) {}
+
+    try {
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      if (user != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('current_lesson_course_id_${user.id}', course.id);
+      }
     } catch (_) {}
 
     await loadDbLessons();
+  }
+
+  Widget _buildSection({
+    required String title,
+    required String subtitle,
+    required List<LessonCourse> courses,
+    required String emptyMessage,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple.shade900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (courses.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Center(
+                child: Text(
+                  emptyMessage,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade500,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            itemCount: courses.length,
+            itemBuilder: (context, index) {
+              final course = courses[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 16),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _previewCourse = course;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.deepPurple.shade50,
+                          ),
+                          child: course.imageUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    course.imageUrl!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.school_rounded,
+                                  color: Colors.deepPurple,
+                                  size: 32,
+                                ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                course.title,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              if (course.description != null &&
+                                  course.description!.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  course.description!,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.grey.shade400,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        const SizedBox(height: 12),
+      ],
+    );
   }
 
   Widget _buildDiscoveryView() {
@@ -133,124 +382,46 @@ class LessonsTabState extends State<LessonsTab> {
       );
     }
 
+    final ongoing = _dbCourses.where((c) {
+      final progress = _getCourseProgress(c, _allChaptersMap, _allSubChaptersMap);
+      return _getCourseCategory(c, progress) == 1;
+    }).toList();
+
+    final unlearned = _dbCourses.where((c) {
+      final progress = _getCourseProgress(c, _allChaptersMap, _allSubChaptersMap);
+      return _getCourseCategory(c, progress) == 0;
+    }).toList();
+
+    final completed = _dbCourses.where((c) {
+      final progress = _getCourseProgress(c, _allChaptersMap, _allSubChaptersMap);
+      return _getCourseCategory(c, progress) == 2;
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Explore Lessons',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple.shade900,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Select a lesson to begin your learning journey.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
+        _buildSection(
+          title: 'Your On-going Lessons',
+          subtitle: 'Continue where you left off to master these topics.',
+          courses: ongoing,
+          emptyMessage: 'No lessons in progress. Start a lesson below!',
         ),
-        const SizedBox(height: 8),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          itemCount: _dbCourses.length,
-          itemBuilder: (context, index) {
-            final course = _dbCourses[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    _previewCourse = course;
-                  });
-                },
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: Colors.deepPurple.shade50,
-                        ),
-                        child: course.imageUrl != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  course.imageUrl!,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.school_rounded,
-                                color: Colors.deepPurple,
-                                size: 32,
-                              ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              course.title,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            if (course.description != null &&
-                                course.description!.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                course.description!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: Colors.grey.shade400,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+        _buildSection(
+          title: 'Explore New Lessons',
+          subtitle: 'Discover new subjects and expand your knowledge.',
+          courses: unlearned,
+          emptyMessage: 'No new lessons to explore.',
+        ),
+        _buildSection(
+          title: 'Your Completed Lessons',
+          subtitle: 'Great job! You have fully completed these lessons.',
+          courses: completed,
+          emptyMessage: 'No completed lessons yet. Complete a lesson to see it here!',
         ),
       ],
     );
   }
+
 
   Widget _buildIntroView(LessonCourse course) {
     return Column(
@@ -621,7 +792,7 @@ class LessonsTabState extends State<LessonsTab> {
                             );
                           } else {
                             final result = await context.push<bool>(
-                              '/learn/lesson-player?subChapterId=${sub.id}',
+                              '/lesson-player?subChapterId=${sub.id}',
                             );
                             if (result == true) {
                               loadDbLessons();

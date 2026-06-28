@@ -3,14 +3,23 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
+import '../../../core/widgets/video_preview_widget.dart';
 
 class LessonPlayerScreen extends StatefulWidget {
   final String? subChapterId;
   final String? courseId;
-  const LessonPlayerScreen({super.key, this.subChapterId, this.courseId});
+  final bool isPreview;
+  const LessonPlayerScreen({
+    super.key,
+    this.subChapterId,
+    this.courseId,
+    this.isPreview = false,
+  });
 
   @override
   State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
@@ -26,7 +35,7 @@ class SlideQuestionState {
 class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   late PageController _pageController;
   int _currentSlide = 0;
-  final MockLessonProgress _progressTracker = MockLessonProgress();
+  final LessonProgress _progressTracker = LessonProgress();
 
   // Dynamic lesson database state
   bool _isLoading = false;
@@ -60,6 +69,28 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     _pageController = PageController();
     if (widget.subChapterId != null || widget.courseId != null) {
       _loadDynamicLesson();
+    } else {
+      _loadMockLessonProgress();
+    }
+    if (widget.isPreview) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Preview Mode'),
+            content: const Text(
+              'This is a preview only. Progress will not be saved and no XP points will be rewarded.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      });
     }
   }
 
@@ -67,6 +98,78 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMockLessonProgress() async {
+    if (widget.isPreview) return;
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final prefs = await SharedPreferences.getInstance();
+        final key = _getProgressKey(user.id);
+        if (key != null) {
+          final saved = prefs.getInt(key);
+          if (saved != null && saved >= 0 && saved < _totalSlides) {
+            setState(() {
+              _currentSlide = saved;
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_pageController.hasClients) {
+                _pageController.jumpToPage(saved);
+              }
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveProgressStep(int pageIndex) async {
+    if (widget.isPreview) return;
+    if (widget.subChapterId != null) {
+      await _progressTracker.saveSlideIndex(widget.subChapterId!, pageIndex);
+    } else {
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user == null) return;
+
+        final prefs = await SharedPreferences.getInstance();
+        final key = _getProgressKey(user.id);
+        if (key != null) {
+          final currentSaved = prefs.getInt(key) ?? 0;
+          if (pageIndex > currentSaved) {
+            await prefs.setInt(key, pageIndex);
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _clearProgressStep() async {
+    if (widget.subChapterId != null) {
+      await _progressTracker.clearSlideIndex(widget.subChapterId!);
+    } else {
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user == null) return;
+
+        final prefs = await SharedPreferences.getInstance();
+        final key = _getProgressKey(user.id);
+        if (key != null) {
+          await prefs.remove(key);
+        }
+      } catch (_) {}
+    }
+  }
+
+  String? _getProgressKey(String userId) {
+    if (widget.subChapterId != null) {
+      return 'lesson_slide_index_${userId}_sub_${widget.subChapterId}';
+    } else if (widget.courseId != null) {
+      return 'lesson_slide_index_${userId}_course_${widget.courseId}';
+    } else {
+      return 'lesson_slide_index_${userId}_mock';
+    }
   }
 
   Future<void> _loadDynamicLesson() async {
@@ -100,11 +203,45 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         }
       }
 
+      int initialPage = 0;
+      if (!widget.isPreview) {
+        if (widget.subChapterId != null) {
+          await _progressTracker.loadFromSupabase();
+          initialPage = _progressTracker.getSavedSlideIndex(widget.subChapterId!);
+          if (initialPage >= pages.length) {
+            initialPage = 0;
+          }
+        } else if (widget.courseId != null) {
+          try {
+            final user = Supabase.instance.client.auth.currentUser;
+            if (user != null) {
+              final prefs = await SharedPreferences.getInstance();
+              final key = _getProgressKey(user.id);
+              if (key != null) {
+                final saved = prefs.getInt(key);
+                if (saved != null && saved >= 0 && saved < pages.length) {
+                  initialPage = saved;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
       setState(() {
         _dynamicPages = pages;
         _dynamicPageBlocks = pageBlocks;
+        _currentSlide = initialPage;
         _isLoading = false;
       });
+
+      if (initialPage > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(initialPage);
+          }
+        });
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -121,8 +258,10 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Exit Lesson?'),
-            content: const Text(
-              'Are you sure you want to quit this lesson? Your progress for this sub-chapter will not be saved.',
+            content: Text(
+              widget.isPreview
+                  ? 'Are you sure you want to quit this lesson? Your preview progress will not be saved.'
+                  : 'Are you sure you want to quit this lesson? Your progress will be saved so you can continue from this page next time.',
             ),
             actions: [
               TextButton(
@@ -175,7 +314,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         final nextSubChapterId = _pageSubChapterMap[nextPageObj.id];
 
         if (currentSubChapterId != null &&
-            currentSubChapterId != nextSubChapterId) {
+            currentSubChapterId != nextSubChapterId &&
+            !widget.isPreview) {
           _progressTracker.complete(currentSubChapterId);
         }
       }
@@ -189,92 +329,145 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     }
   }
 
+  Future<void> _saveCompletionState() async {
+    final isDynamic = widget.subChapterId != null || widget.courseId != null;
+    if (!widget.isPreview) {
+      await _clearProgressStep();
+      if (isDynamic) {
+        if (widget.subChapterId != null) {
+          await _progressTracker.complete(widget.subChapterId!);
+        } else if (widget.courseId != null && _dynamicPages.isNotEmpty) {
+          final currentPageObj = _dynamicPages[_currentSlide];
+          final currentSubChapterId = _pageSubChapterMap[currentPageObj.id];
+          if (currentSubChapterId != null) {
+            await _progressTracker.complete(currentSubChapterId);
+          }
+        }
+      } else {
+        await _progressTracker.complete('thinking_machine');
+      }
+    }
+  }
+
   void _completeLesson() {
     final isDynamic = widget.subChapterId != null || widget.courseId != null;
-    if (isDynamic) {
-      if (widget.subChapterId != null) {
-        _progressTracker.complete(widget.subChapterId!);
-      } else if (widget.courseId != null && _dynamicPages.isNotEmpty) {
-        final currentPageObj = _dynamicPages[_currentSlide];
-        final currentSubChapterId = _pageSubChapterMap[currentPageObj.id];
-        if (currentSubChapterId != null) {
-          _progressTracker.complete(currentSubChapterId);
-        }
-      }
-    } else {
-      _progressTracker.complete('thinking_machine');
+    final completionFuture = _saveCompletionState();
+
+    if (widget.isPreview) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Preview Complete'),
+          content: const Text('You have successfully previewed this lesson sub-chapter!'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Dismiss dialog
+                context.pop(true); // Return back to lessons
+              },
+              child: const Text('Back to Lessons'),
+            ),
+          ],
+        ),
+      );
+      return;
     }
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.emoji_events,
-                  color: Colors.amber,
-                  size: 72,
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Lesson Complete!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'XP +10 Earned',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.deepPurple.shade800,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                isDynamic
-                    ? 'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!'
-                    : 'You have successfully completed "Thinking Like a Machine". You can now proceed to the next lesson sub-chapter!',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+      builder: (context) {
+        bool isSaving = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events,
+                        color: Colors.amber,
+                        size: 72,
+                      ),
                     ),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context); // Dismiss dialog
-                    context.pop(true); // Return back to lessons
-                  },
-                  child: const Text(
-                    'Back to Lessons',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Lesson Complete!',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'XP +10 Earned',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.deepPurple.shade800,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      isDynamic
+                          ? 'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!'
+                          : 'You have successfully completed "Thinking Like a Machine". You can now proceed to the next lesson sub-chapter!',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                setDialogState(() => isSaving = true);
+                                try {
+                                  await completionFuture;
+                                } catch (_) {}
+                                if (context.mounted) {
+                                  Navigator.pop(context); // Dismiss dialog
+                                  context.pop(true); // Return back to lessons
+                                }
+                              },
+                        child: isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Back to Lessons',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -313,18 +506,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: type == 'video'
-                          ? AspectRatio(
-                              aspectRatio: 16 / 9,
-                              child: Container(
-                                color: Colors.black,
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.play_circle_outline,
-                                    color: Colors.white,
-                                    size: 64,
-                                  ),
-                                ),
-                              ),
+                          ? VideoPreviewWidget(
+                              videoUrl: url,
+                              title: caption.isNotEmpty ? caption : 'Embedded Video',
                             )
                           : Image.network(url, fit: BoxFit.cover),
                     ),
@@ -552,6 +736,22 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     final allChecked = testBlocks.every((b) => _questionStates[b.id]?.checked == true);
 
     if (allChecked) {
+      final anyWrong = testBlocks.any((b) => _questionStates[b.id]?.isCorrect != true);
+      if (anyWrong) {
+        return _buildTryAgainButton(() {
+          setState(() {
+            for (var b in testBlocks) {
+              final state = _questionStates[b.id];
+              if (state != null && state.isCorrect != true) {
+                state.checked = false;
+                state.isCorrect = null;
+                state.selectedIndex = null;
+                state.selectedIndices.clear();
+              }
+            }
+          });
+        });
+      }
       return _buildContinueButton(() {
         _handleContinue(totalSlides);
       });
@@ -613,6 +813,30 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         return const SizedBox(height: 24);
       }
     }
+  }
+
+  Widget _buildTryAgainButton(VoidCallback onPressed) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.deepPurple,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onPressed: onPressed,
+          child: const Text(
+            'Try Again',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildContinueButton(VoidCallback onPressed) {
@@ -906,6 +1130,16 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       );
     } else if (_currentSlide == 1) {
       if (_slide2Checked) {
+        final isCorrect = _slide2Correct ?? false;
+        if (!isCorrect) {
+          return _buildTryAgainButton(() {
+            setState(() {
+              _slide2Checked = false;
+              _slide2SelectedIndex = null;
+              _slide2Correct = null;
+            });
+          });
+        }
         return Padding(
           padding: const EdgeInsets.all(24.0),
           child: SizedBox(
@@ -937,6 +1171,16 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       }
     } else {
       if (_slide3Checked) {
+        final isCorrect = _slide3Correct ?? false;
+        if (!isCorrect) {
+          return _buildTryAgainButton(() {
+            setState(() {
+              _slide3Checked = false;
+              _slide3SelectedIndices.clear();
+              _slide3Correct = null;
+            });
+          });
+        }
         return Padding(
           padding: const EdgeInsets.all(24.0),
           child: SizedBox(
@@ -1154,6 +1398,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     setState(() {
                       _currentSlide = page;
                     });
+                    _saveProgressStep(page);
                   },
                   children: isDynamic
                       ? _dynamicPages.asMap().entries.map((entry) {

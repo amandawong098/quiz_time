@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../features/learn/models/lesson_progress.dart';
 
 class AuthRepository extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -9,6 +10,11 @@ class AuthRepository extends ChangeNotifier {
     _currentUser = _supabase.auth.currentUser;
     _supabase.auth.onAuthStateChange.listen((data) {
       _currentUser = data.session?.user;
+      if (_currentUser == null) {
+        LessonProgress().clear();
+      } else {
+        LessonProgress().loadFromSupabase();
+      }
       notifyListeners();
     });
   }

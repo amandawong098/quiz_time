@@ -9,6 +9,7 @@ import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/models/discussion_models.dart';
 import './create_topic_screen.dart'; // Reuse PendingAttachment class
 import '../../../core/widgets/in_app_video_player.dart';
+import '../../../core/widgets/video_preview_widget.dart';
 
 class DiscussionDetailsScreen extends StatefulWidget {
   final String topicId;
@@ -455,14 +456,17 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
           );
         }
 
+        if (att.type == 'video') {
+          return VideoPreviewWidget(
+            videoUrl: att.url,
+            title: att.name,
+          );
+        }
+
         IconData icon;
         Color color;
 
         switch (att.type) {
-          case 'video':
-            icon = Icons.video_collection_rounded;
-            color = Colors.red;
-            break;
           case 'link':
             icon = Icons.link_rounded;
             color = Colors.blue;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../models/lesson_models.dart';
 
@@ -29,7 +30,9 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = context.read<LessonRepository>();
-      final courses = await repo.getCourses();
+      final allCourses = await repo.getCourses();
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      final courses = allCourses.where((c) => c.creatorId == currentUser?.id).toList();
       
       final Map<String, List<LessonChapter>> chaptersMap = {};
       final Map<String, List<LessonSubChapter>> subChaptersMap = {};
@@ -430,6 +433,57 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
     }
   }
 
+  List<String> _getWarnings() {
+    final List<String> warnings = [];
+    for (var course in _courses) {
+      final chapters = _chaptersMap[course.id] ?? [];
+      for (var ch in chapters) {
+        final subs = _subChaptersMap[ch.id] ?? [];
+        if (subs.length > 6) {
+          warnings.add(
+            "Chapter '${ch.title}' contains more than 6 sub-chapters (${subs.length} sub-chapters). We recommend keeping chapters short.",
+          );
+        }
+        for (var sub in subs) {
+          final slidesCount = _subChapterSlidesCountMap[sub.id] ?? 0;
+          if (slidesCount > 7) {
+            warnings.add(
+              "Sub-chapter '${sub.title}' contains more than 7 slide pages ($slidesCount pages). We recommend keeping sub-chapters short to make learning bite-sized.",
+            );
+          }
+        }
+      }
+    }
+    return warnings;
+  }
+
+  Widget _buildWarningBanner(String message) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.amber.shade900,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNoCoursesView() {
     return Center(
       child: Column(
@@ -472,9 +526,15 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
   }
 
   Widget _buildCoursesListView() {
-    return RefreshIndicator(
-      onRefresh: _loadLessons,
-      child: ListView.builder(
+    final warnings = _getWarnings();
+    return Column(
+      children: [
+        if (warnings.isNotEmpty)
+          ...warnings.map((w) => _buildWarningBanner(w)),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadLessons,
+            child: ListView.builder(
         padding: const EdgeInsets.all(16.0),
         itemCount: _courses.length,
         itemBuilder: (context, courseIdx) {
@@ -564,23 +624,6 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                             ),
                           ],
                         ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: () => context.push('/learn/lesson-player?courseId=${course.id}'),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.play_arrow,
-                          color: Colors.white,
-                          size: 20,
-                        ),
                       ),
                     ),
                   ],
@@ -789,34 +832,46 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                                               'XP Reward: ${sub.xpReward} • ${_subChapterSlidesCountMap[sub.id] ?? 0} slides',
                                               style: const TextStyle(fontSize: 11),
                                             ),
-                                            trailing: PopupMenuButton<String>(
-                                              onSelected: (val) {
-                                                if (val == 'edit') {
-                                                  _editSubChapter(sub);
-                                                } else if (val == 'delete') {
-                                                  _deleteSubChapter(sub);
-                                                }
-                                              },
-                                              itemBuilder: (context) => [
-                                                const PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(Icons.edit, size: 20),
-                                                      SizedBox(width: 8),
-                                                      Text('Edit Title'),
-                                                    ],
-                                                  ),
+                                            trailing: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.play_arrow_rounded, color: Colors.green),
+                                                  onPressed: () {
+                                                    context.push('/lesson-player?subChapterId=${sub.id}&preview=true');
+                                                  },
+                                                  tooltip: 'Play Sub-chapter',
                                                 ),
-                                                const PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(Icons.delete, color: Colors.red, size: 20),
-                                                      SizedBox(width: 8),
-                                                      Text('Delete Sub-chapter', style: TextStyle(color: Colors.red)),
-                                                    ],
-                                                  ),
+                                                PopupMenuButton<String>(
+                                                  onSelected: (val) {
+                                                    if (val == 'edit') {
+                                                      _editSubChapter(sub);
+                                                    } else if (val == 'delete') {
+                                                      _deleteSubChapter(sub);
+                                                    }
+                                                  },
+                                                  itemBuilder: (context) => [
+                                                    const PopupMenuItem(
+                                                      value: 'edit',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.edit, size: 20),
+                                                          SizedBox(width: 8),
+                                                          Text('Edit Title'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    const PopupMenuItem(
+                                                      value: 'delete',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.delete, color: Colors.red, size: 20),
+                                                          SizedBox(width: 8),
+                                                          Text('Delete Sub-chapter', style: TextStyle(color: Colors.red)),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ],
                                             ),
@@ -886,6 +941,9 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
           );
         },
       ),
+    ),
+  ),
+],
     );
   }
 

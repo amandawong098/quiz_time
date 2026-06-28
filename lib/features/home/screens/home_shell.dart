@@ -8,13 +8,23 @@ class HomeShell extends StatelessWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
-    if (location.startsWith('/learn')) {
+    if (location == '/' ||
+        location.startsWith('/lesson-player') ||
+        location.startsWith('/create-lesson')) {
       return 0;
+    }
+    if (location.startsWith('/discover') ||
+        location.startsWith('/quiz') ||
+        location.startsWith('/create-quiz') ||
+        location.startsWith('/create-questions')) {
+      return 1;
     }
     if (location.startsWith('/leaderboard')) {
       return 2;
     }
-    if (location.startsWith('/discussions')) {
+    if (location.startsWith('/discussions') ||
+        location.startsWith('/create-topic') ||
+        location.startsWith('/discussion/')) {
       return 3;
     }
     if (location.startsWith('/me') ||
@@ -23,16 +33,16 @@ class HomeShell extends StatelessWidget {
         location.startsWith('/my-quizzes')) {
       return 4;
     }
-    return 1; // default to quizzes (DiscoverScreen)
+    return 0; // default to Learn
   }
 
   void _onItemTapped(int index, BuildContext context) {
     switch (index) {
       case 0:
-        context.go('/learn');
+        context.go('/');
         break;
       case 1:
-        context.go('/');
+        context.go('/discover');
         break;
       case 2:
         context.go('/leaderboard');
@@ -72,7 +82,9 @@ class HomeShell extends StatelessWidget {
     if (location.startsWith('/leaderboard') ||
         location.startsWith('/me') ||
         location.startsWith('/my-lessons') ||
-        location.startsWith('/learn')) {
+        location == '/' ||
+        location.startsWith('/lesson-player') ||
+        location.startsWith('/create-lesson')) {
       return null;
     }
 

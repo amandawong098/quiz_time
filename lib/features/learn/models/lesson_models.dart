@@ -4,6 +4,7 @@ class LessonCourse {
   final String? description;
   final bool isPublic;
   final String? imageUrl;
+  final String? creatorId;
 
   LessonCourse({
     required this.id,
@@ -11,6 +12,7 @@ class LessonCourse {
     this.description,
     this.isPublic = false,
     this.imageUrl,
+    this.creatorId,
   });
 
   factory LessonCourse.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class LessonCourse {
       description: json['description'] as String?,
       isPublic: json['is_public'] as bool? ?? false,
       imageUrl: json['image_url'] as String?,
+      creatorId: json['creator_id'] as String?,
     );
   }
 
@@ -30,6 +33,7 @@ class LessonCourse {
       'description': description,
       'is_public': isPublic,
       'image_url': imageUrl,
+      'creator_id': creatorId,
     };
   }
 }

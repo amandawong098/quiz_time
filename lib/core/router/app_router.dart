@@ -31,7 +31,7 @@ final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: rootNavigatorKey,
-  initialLocation: '/learn',
+  initialLocation: '/',
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
     final isGoingToLogin = state.uri.toString() == '/login';
@@ -40,7 +40,7 @@ final GoRouter appRouter = GoRouter(
       return '/login';
     }
     if (session != null && isGoingToLogin) {
-      return '/learn';
+      return '/';
     }
     return null;
   },
@@ -50,7 +50,11 @@ final GoRouter appRouter = GoRouter(
       navigatorKey: _shellNavigatorKey,
       builder: (context, state, child) => HomeShell(child: child),
       routes: [
-        GoRoute(path: '/', builder: (context, state) => const DiscoverScreen()),
+        GoRoute(path: '/', builder: (context, state) => const LearnScreen()),
+        GoRoute(
+          path: '/discover',
+          builder: (context, state) => const DiscoverScreen(),
+        ),
         GoRoute(
           path: '/my-quizzes',
           builder: (context, state) => const MyQuizzesScreen(),
@@ -63,10 +67,7 @@ final GoRouter appRouter = GoRouter(
           path: '/my-lessons',
           builder: (context, state) => const MyLessonsScreen(),
         ),
-        GoRoute(
-          path: '/learn',
-          builder: (context, state) => const LearnScreen(),
-        ),
+
         GoRoute(
           path: '/discussions',
           builder: (context, state) => const DiscussionsDummyScreen(),
@@ -159,11 +160,16 @@ final GoRouter appRouter = GoRouter(
           DiscussionDetailsScreen(topicId: state.pathParameters['id']!),
     ),
     GoRoute(
-      path: '/learn/lesson-player',
+      path: '/lesson-player',
       builder: (context, state) {
         final subChapterId = state.uri.queryParameters['subChapterId'];
         final courseId = state.uri.queryParameters['courseId'];
-        return LessonPlayerScreen(subChapterId: subChapterId, courseId: courseId);
+        final isPreview = state.uri.queryParameters['preview'] == 'true';
+        return LessonPlayerScreen(
+          subChapterId: subChapterId,
+          courseId: courseId,
+          isPreview: isPreview,
+        );
       },
     ),
     GoRoute(

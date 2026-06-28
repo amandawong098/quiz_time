@@ -58,6 +58,7 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
   }
 
   Future<void> _addPage() async {
+    if (!mounted) return;
     try {
       final repo = context.read<LessonRepository>();
       await repo.createPage(
@@ -72,6 +73,33 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
         );
       }
     }
+  }
+
+  Widget _buildWarningBanner() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'This sub-chapter contains more than 7 slide pages (${_pages.length} pages). We recommend keeping sub-chapters short to make learning bite-sized.',
+              style: TextStyle(
+                color: Colors.amber.shade900,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _deletePage(LessonPage page) async {
@@ -142,132 +170,139 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _pages.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.collections_bookmark_rounded,
-                        size: 64,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No pages in this sub-chapter',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Text(
-                          'Add a page/slide to begin building the lesson flow.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: _addPage,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Slide Page'),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadPages,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: _pages.length,
-                    itemBuilder: (context, index) {
-                      final page = _pages[index];
-                      final blockCount = _blockCountMap[page.id] ?? 0;
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8.0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 8,
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.deepPurple.shade50,
-                            child: Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                color: Colors.deepPurple.shade700,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                           title: Text(
-                            'Slide ${index + 1}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          subtitle: Text('$blockCount elements (blocks)'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+          : Column(
+              children: [
+                if (_pages.length > 7) _buildWarningBanner(),
+                Expanded(
+                  child: _pages.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              IconButton(
-                                icon: const Icon(Icons.arrow_upward, size: 20),
-                                onPressed: index == 0
-                                    ? null
-                                    : () => _reorderPage(page, true),
+                              Icon(
+                                Icons.collections_bookmark_rounded,
+                                size: 64,
+                                color: Colors.grey.shade400,
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.arrow_downward, size: 20),
-                                onPressed: index == _pages.length - 1
-                                    ? null
-                                    : () => _reorderPage(page, false),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No pages in this sub-chapter',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              PopupMenuButton<String>(
-                                onSelected: (val) {
-                                  if (val == 'delete') {
-                                    _deletePage(page);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.delete,
-                                            color: Colors.red, size: 20),
-                                        SizedBox(width: 8),
-                                        Text('Delete Page',
-                                            style: TextStyle(color: Colors.red)),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                              const SizedBox(height: 8),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 24.0),
+                                child: Text(
+                                  'Add a page/slide to begin building the lesson flow.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: _addPage,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add Slide Page'),
                               ),
                             ],
                           ),
-                          onTap: () async {
-                            final changed = await context.push(
-                              '/my-lessons/page/${page.id}/editor',
-                              extra: {'pageTitle': 'Slide ${index + 1}'},
-                            );
-                            if (changed == true) {
-                              _loadPages();
-                            }
-                          },
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadPages,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(16.0),
+                            itemCount: _pages.length,
+                            itemBuilder: (context, index) {
+                              final page = _pages[index];
+                              final blockCount = _blockCountMap[page.id] ?? 0;
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8.0),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 8,
+                                  ),
+                                  leading: CircleAvatar(
+                                    backgroundColor: Colors.deepPurple.shade50,
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: TextStyle(
+                                        color: Colors.deepPurple.shade700,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                   title: Text(
+                                    'Slide ${index + 1}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  subtitle: Text('$blockCount elements (blocks)'),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.arrow_upward, size: 20),
+                                        onPressed: index == 0
+                                            ? null
+                                            : () => _reorderPage(page, true),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.arrow_downward, size: 20),
+                                        onPressed: index == _pages.length - 1
+                                            ? null
+                                            : () => _reorderPage(page, false),
+                                      ),
+                                      PopupMenuButton<String>(
+                                        onSelected: (val) {
+                                          if (val == 'delete') {
+                                            _deletePage(page);
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.delete,
+                                                    color: Colors.red, size: 20),
+                                                SizedBox(width: 8),
+                                                Text('Delete Page',
+                                                    style: TextStyle(color: Colors.red)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () async {
+                                    final changed = await context.push(
+                                      '/my-lessons/page/${page.id}/editor',
+                                      extra: {'pageTitle': 'Slide ${index + 1}'},
+                                    );
+                                    if (changed == true) {
+                                      _loadPages();
+                                    }
+                                  },
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                      );
-                    },
-                  ),
                 ),
+              ],
+            ),
       floatingActionButton: _pages.isEmpty
           ? null
           : FloatingActionButton.extended(

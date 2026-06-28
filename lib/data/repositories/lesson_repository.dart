@@ -28,6 +28,7 @@ class LessonRepository {
           'description': description,
           'is_public': isPublic,
           'image_url': imageUrl,
+          'creator_id': _supabase.auth.currentUser?.id,
         })
         .select()
         .single();
