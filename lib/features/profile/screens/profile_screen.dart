@@ -223,7 +223,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     context: context,
                     icon: Icons.style_rounded,
                     title: 'My Flashcards',
-                    isDummy: true,
+                    isDummy: false,
+                    onTap: () => context.push('/my-flashcards'),
                   ),
                   const SizedBox(height: 12),
                   _buildManageOptionItem(

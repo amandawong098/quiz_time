@@ -1,18 +1,9 @@
 import 'package:flutter/material.dart';
-
-class Flashcard {
-  final String category;
-  final String front;
-  final String back;
-  final Color color;
-
-  Flashcard({
-    required this.category,
-    required this.front,
-    required this.back,
-    required this.color,
-  });
-}
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../data/repositories/flashcard_repository.dart';
+import '../models/flashcard_models.dart';
 
 class FlashcardsTab extends StatefulWidget {
   const FlashcardsTab({super.key});
@@ -22,53 +13,70 @@ class FlashcardsTab extends StatefulWidget {
 }
 
 class _FlashcardsTabState extends State<FlashcardsTab> {
-  final List<Flashcard> _flashcards = [
-    Flashcard(
-      category: 'Flutter',
-      front: 'What is a Widget in Flutter?',
-      back: 'Everything in Flutter is a Widget! Widgets are the basic building blocks of a Flutter app\'s user interface. They describe what their view should look like given their current configuration and state.',
-      color: Colors.blue.shade800,
-    ),
-    Flashcard(
-      category: 'Dart',
-      front: 'What is the difference between final and const in Dart?',
-      back: '`const` is compiled-time constant, whereas `final` is run-time constant. A `const` variable must be assigned a value during compilation, while a `final` variable can only be set once and its value is evaluated at runtime.',
-      color: Colors.orange.shade800,
-    ),
-    Flashcard(
-      category: 'Supabase',
-      front: 'What is Supabase Realtime?',
-      back: 'Supabase Realtime listens to database changes (inserts, updates, deletes) in PostgreSQL and broadcasts them to clients over WebSockets. This powers features like live notifications and chat applications.',
-      color: Colors.green.shade800,
-    ),
-    Flashcard(
-      category: 'State Management',
-      front: 'What is Provider in Flutter?',
-      back: 'Provider is a wrapper around InheritedWidget to make state management and dependency injection easier, cleaner, and highly reusable across the widget tree.',
-      color: Colors.deepPurple.shade800,
-    ),
-  ];
+  bool _isLoading = true;
+  List<FlashcardDeck> _decks = [];
+  List<FlashcardDeck> _filteredDecks = [];
+  final _searchController = TextEditingController();
 
-  int _currentIndex = 0;
-  final GlobalKey<_FlipCardState> _cardKey = GlobalKey<_FlipCardState>();
-
-  void _nextCard() {
-    _cardKey.currentState?.resetCard();
-    setState(() {
-      _currentIndex = (_currentIndex + 1) % _flashcards.length;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _loadDecks();
+    _searchController.addListener(_onSearchChanged);
   }
 
-  void _prevCard() {
-    _cardKey.currentState?.resetCard();
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDecks() async {
+    setState(() => _isLoading = true);
+    try {
+      final repo = context.read<FlashcardRepository>();
+      final decks = await repo.getDecks();
+      if (mounted) {
+        setState(() {
+          _decks = decks;
+          _filteredDecks = decks;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading decks: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.toLowerCase();
     setState(() {
-      _currentIndex = (_currentIndex - 1 + _flashcards.length) % _flashcards.length;
+      if (query.isEmpty) {
+        _filteredDecks = _decks;
+      } else {
+        _filteredDecks = _decks
+            .where((deck) =>
+                deck.title.toLowerCase().contains(query) ||
+                (deck.description?.toLowerCase().contains(query) ?? false))
+            .toList();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentCard = _flashcards[_currentIndex];
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final currentUserId = currentUser?.id;
+
+    // Filter into categories
+    final myDecks = _filteredDecks.where((d) => d.creatorId == currentUserId).toList();
+    final publicDecks = _filteredDecks.where((d) => d.creatorId != currentUserId && d.isPublic).toList();
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -76,370 +84,365 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header banner
+          // Header Banner
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.purple.shade900, Colors.deepPurple.shade600],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.deepPurple.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: Colors.deepPurple.withValues(alpha: 0.25),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  'Interactive Flashcards',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Interactive Flashcards',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Master core concepts with active recall. Create your own decks or study public ones shared by others.',
+                        style: TextStyle(
+                          color: Colors.purple.shade100,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
-                  'Tap the card to flip and view the answer. Use flashcards to drill and memorize core concepts.',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
+                const SizedBox(width: 12),
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  child: const Icon(Icons.style, color: Colors.white, size: 28),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 32),
-
-          // Cards tracker
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Decks: Development Essentials',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-              Text(
-                '${_currentIndex + 1} / ${_flashcards.length}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: Colors.deepPurple,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Flip card widget
-          FlipCard(
-            key: _cardKey,
-            card: currentCard,
           ),
           const SizedBox(height: 24),
 
-          // Interactive controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                onPressed: _prevCard,
-                iconSize: 36,
-                color: Colors.deepPurple,
-                icon: const Icon(Icons.arrow_circle_left_rounded),
+          // Search Bar
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search flashcard decks...',
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
               ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  _cardKey.currentState?.flip();
-                },
-                icon: const Icon(Icons.flip_camera_android_rounded),
-                label: const Text('Flip Card'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
               ),
-              IconButton(
-                onPressed: _nextCard,
-                iconSize: 36,
-                color: Colors.deepPurple,
-                icon: const Icon(Icons.arrow_circle_right_rounded),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Colors.deepPurple, width: 1.5),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
 
-          // Tips section
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade200),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Icon(Icons.lightbulb_outline_rounded, color: Colors.amber, size: 24),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Tip: Active recall is the most effective way to study. Try answering before flipping the card.',
-                      style: TextStyle(fontSize: 12, height: 1.4),
-                    ),
-                  ),
-                ],
+          if (_isLoading) ...[
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 40.0),
+                child: CircularProgressIndicator(),
               ),
             ),
-          ),
+          ] else ...[
+            // 1. My Decks Section
+            _buildSectionHeader(
+              title: 'Your Flashcard Decks',
+              subtitle: 'Decks you created and customize.',
+              trailing: TextButton.icon(
+                onPressed: () async {
+                  final result = await context.push('/create-flashcard-deck');
+                  if (result == true) _loadDecks();
+                },
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('New Deck'),
+                style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (myDecks.isEmpty)
+              _buildEmptyState(
+                message: 'You have not created any decks yet.',
+                actionLabel: 'Create Deck',
+                onAction: () async {
+                  final result = await context.push('/create-flashcard-deck');
+                  if (result == true) _loadDecks();
+                },
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: myDecks.length,
+                itemBuilder: (context, idx) => _buildDeckCard(myDecks[idx], isOwnDeck: true),
+              ),
+            const SizedBox(height: 32),
+
+            // 2. Explore Public Decks Section
+            _buildSectionHeader(
+              title: 'Explore Public Decks',
+              subtitle: 'Learn from decks created by the community.',
+            ),
+            const SizedBox(height: 12),
+            if (publicDecks.isEmpty)
+              _buildEmptyState(
+                message: 'No public flashcard decks available yet.',
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: publicDecks.length,
+                itemBuilder: (context, idx) => _buildDeckCard(publicDecks[idx], isOwnDeck: false),
+              ),
+          ],
         ],
       ),
     );
   }
-}
 
-class FlipCard extends StatefulWidget {
-  final Flashcard card;
-
-  const FlipCard({
-    super.key,
-    required this.card,
-  });
-
-  @override
-  State<FlipCard> createState() => _FlipCardState();
-}
-
-class _FlipCardState extends State<FlipCard> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-  bool _isFront = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant FlipCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Keep it in sync if widget changes
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void resetCard() {
-    _controller.reverse();
-    setState(() {
-      _isFront = true;
-    });
-  }
-
-  void flip() {
-    if (_isFront) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
-    setState(() {
-      _isFront = !_isFront;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: flip,
-      child: AnimatedBuilder(
-        animation: _animation,
-        builder: (context, child) {
-          final double value = _animation.value;
-          final double angle = value * 3.141592653589793;
-          final isBack = angle >= 3.141592653589793 / 2;
-
-          return Transform(
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001) // perspective effect
-              ..rotateY(angle),
-            alignment: Alignment.center,
-            child: isBack
-                ? Transform(
-                    transform: Matrix4.identity()..rotateY(3.141592653589793),
-                    alignment: Alignment.center,
-                    child: _buildCardBack(),
-                  )
-                : _buildCardFront(),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCardFront() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Container(
-        height: 220,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.deepPurple.shade50.withValues(alpha: 0.2)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: widget.card.color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    widget.card.category.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: widget.card.color,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ),
-                Icon(Icons.flip_camera_android_rounded, color: Colors.grey.shade400, size: 20),
-              ],
-            ),
-            Center(
-              child: Text(
-                widget.card.front,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
+  Widget _buildSectionHeader({
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple.shade900,
                 ),
               ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) trailing,
+      ],
+    );
+  }
+
+  Widget _buildEmptyState({
+    required String message,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade500,
+              fontStyle: FontStyle.italic,
             ),
-            Text(
-              'TAP TO FLIP',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade400,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: onAction,
+              icon: const Icon(Icons.add, size: 16),
+              label: Text(actionLabel),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildCardBack() {
+  Widget _buildDeckCard(FlashcardDeck deck, {required bool isOwnDeck}) {
     return Card(
-      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
       ),
-      child: Container(
-        height: 220,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [Colors.deepPurple.shade900, Colors.deepPurple.shade800],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+      color: Colors.white,
+      child: InkWell(
+        onTap: () => context.push(
+          '/flashcard-deck/${deck.id}/play',
+          extra: {'deckTitle': deck.title},
         ),
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'ANSWER',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ),
-                const Icon(Icons.check_circle_outline_rounded, color: Colors.white60, size: 20),
-              ],
-            ),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  child: Text(
-                    widget.card.back,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.white,
-                      height: 1.4,
-                    ),
-                  ),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            children: [
+              // Cover picture
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  color: Colors.deepPurple.shade50,
+                  child: deck.imageUrl != null && deck.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          deck.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, o, s) => const Icon(
+                            Icons.style_rounded,
+                            color: Colors.deepPurple,
+                            size: 32,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.style_rounded,
+                          color: Colors.deepPurple,
+                          size: 32,
+                        ),
                 ),
               ),
-            ),
-            Text(
-              'TAP TO RETURN',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.white.withValues(alpha: 0.5),
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+              const SizedBox(width: 16),
+
+              // Title and Description
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            deck.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isOwnDeck)
+                          Icon(
+                            deck.isPublic ? Icons.public : Icons.lock_outline,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (deck.description != null && deck.description!.isNotEmpty) ...[
+                      Text(
+                        deck.description!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isOwnDeck ? Colors.deepPurple.shade50 : Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isOwnDeck ? 'My Deck' : 'Public',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: isOwnDeck ? Colors.deepPurple.shade700 : Colors.blue.shade700,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        if (isOwnDeck)
+                          IconButton(
+                            icon: const Icon(Icons.settings_outlined, size: 18),
+                            onPressed: () => context.push(
+                              '/my-flashcards/deck/${deck.id}/cards',
+                              extra: {'deckTitle': deck.title},
+                            ),
+                            color: Colors.grey,
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          ),
+                        TextButton.icon(
+                          onPressed: () => context.push(
+                            '/flashcard-deck/${deck.id}/play',
+                            extra: {'deckTitle': deck.title},
+                          ),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                          label: const Text('Study'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.deepPurple,
+                            textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

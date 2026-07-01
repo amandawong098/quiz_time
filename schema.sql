@@ -539,3 +539,61 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_pages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.lesson_blocks;
 
 
+-- =======================================================
+-- 11. INTERACTIVE FLASHCARDS
+-- =======================================================
+
+-- Flashcard Decks Table
+CREATE TABLE IF NOT EXISTS public.flashcard_decks (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    creator_id UUID REFERENCES auth.users ON DELETE CASCADE DEFAULT auth.uid() NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    is_public BOOLEAN DEFAULT FALSE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Flashcards Table
+CREATE TABLE IF NOT EXISTS public.flashcards (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    deck_id UUID REFERENCES public.flashcard_decks(id) ON DELETE CASCADE NOT NULL,
+    front TEXT NOT NULL,
+    back TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.flashcard_decks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.flashcards ENABLE ROW LEVEL SECURITY;
+
+-- Decks Policies
+CREATE POLICY "Viewable decks" ON public.flashcard_decks FOR SELECT USING (is_public = true OR auth.uid() = creator_id);
+CREATE POLICY "Insert own decks" ON public.flashcard_decks FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY "Update own decks" ON public.flashcard_decks FOR UPDATE USING (auth.uid() = creator_id);
+CREATE POLICY "Delete own decks" ON public.flashcard_decks FOR DELETE USING (auth.uid() = creator_id);
+
+-- Flashcards Policies
+CREATE POLICY "Viewable cards" ON public.flashcards FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.flashcard_decks WHERE id = deck_id AND (is_public = true OR auth.uid() = creator_id))
+);
+CREATE POLICY "Manage own cards" ON public.flashcards FOR ALL USING (
+    NOT EXISTS (SELECT 1 FROM public.flashcard_decks WHERE id = deck_id) OR
+    EXISTS (SELECT 1 FROM public.flashcard_decks WHERE id = deck_id AND auth.uid() = creator_id)
+);
+
+-- Storage bucket for flashcards
+INSERT INTO storage.buckets (id, name, public) VALUES ('flashcard_images', 'flashcard_images', true) ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies for flashcard_images
+CREATE POLICY "Public Read Flashcard Images" ON storage.objects FOR SELECT USING (bucket_id = 'flashcard_images');
+CREATE POLICY "Auth Insert Flashcard Images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'flashcard_images' AND auth.role() = 'authenticated');
+CREATE POLICY "Auth Update Flashcard Images" ON storage.objects FOR UPDATE USING (bucket_id = 'flashcard_images' AND auth.role() = 'authenticated');
+CREATE POLICY "Auth Delete Flashcard Images" ON storage.objects FOR DELETE USING (bucket_id = 'flashcard_images' AND auth.role() = 'authenticated');
+
+-- Enable Realtime Replication
+ALTER PUBLICATION supabase_realtime ADD TABLE public.flashcard_decks;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.flashcards;
+
+

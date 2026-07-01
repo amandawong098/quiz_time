@@ -25,6 +25,10 @@ import '../../features/library/screens/create_question_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/profile/screens/my_discussions_screen.dart';
 import '../../features/profile/screens/friends_screen.dart';
+import '../../features/learn/screens/my_flashcards_screen.dart';
+import '../../features/learn/screens/create_flashcard_deck_screen.dart';
+import '../../features/learn/screens/manage_cards_screen.dart';
+import '../../features/learn/screens/play_flashcards_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -189,6 +193,37 @@ final GoRouter appRouter = GoRouter(
         return SlideBlockEditorScreen(
           pageId: state.pathParameters['id']!,
           pageTitle: extra['pageTitle'] as String,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/my-flashcards',
+      builder: (context, state) => const MyFlashcardsScreen(),
+    ),
+    GoRoute(
+      path: '/create-flashcard-deck',
+      builder: (context, state) {
+        final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
+        return CreateFlashcardDeckScreen(deck: extra?['deck']);
+      },
+    ),
+    GoRoute(
+      path: '/my-flashcards/deck/:id/cards',
+      builder: (context, state) {
+        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        return ManageCardsScreen(
+          deckId: state.pathParameters['id']!,
+          deckTitle: extra['deckTitle'] as String,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/flashcard-deck/:id/play',
+      builder: (context, state) {
+        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        return PlayFlashcardsScreen(
+          deckId: state.pathParameters['id']!,
+          deckTitle: extra['deckTitle'] as String,
         );
       },
     ),
