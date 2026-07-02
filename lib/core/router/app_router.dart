@@ -12,7 +12,7 @@ import '../../features/learn/screens/my_lessons_screen.dart';
 import '../../features/learn/screens/sub_chapter_slides_screen.dart';
 import '../../features/learn/screens/slide_block_editor_screen.dart';
 import '../../features/learn/screens/create_lesson_screen.dart';
-import '../../features/leaderboard/screens/leaderboard_dummy_screen.dart';
+import '../../features/leaderboard/screens/leaderboard_screen.dart';
 import '../../features/discussions/screens/discussions_dummy_screen.dart';
 import '../../features/discussions/screens/create_topic_screen.dart';
 import '../../features/discussions/screens/discussion_details_screen.dart';
@@ -78,7 +78,7 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: '/leaderboard',
-          builder: (context, state) => const LeaderboardDummyScreen(),
+          builder: (context, state) => const LeaderboardScreen(),
         ),
         GoRoute(
           path: '/me',

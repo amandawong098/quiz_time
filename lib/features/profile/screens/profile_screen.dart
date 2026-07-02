@@ -200,6 +200,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color: Colors.grey.shade600,
                         ),
                   ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.amber.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.emoji_events, color: Colors.amber, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${user?.userMetadata?['xp'] ?? 0} XP',
+                            style: TextStyle(
+                              color: Colors.amber.shade900,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                   const Divider(),
                   const SizedBox(height: 24),

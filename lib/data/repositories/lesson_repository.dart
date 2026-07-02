@@ -185,6 +185,15 @@ class LessonRepository {
     await _supabase.from('lesson_pages').delete().eq('id', id);
   }
 
+  Future<List<LessonPage>> getPagesWithBlocks(String subChapterId) async {
+    final response = await _supabase
+        .from('lesson_pages')
+        .select('*, lesson_blocks(*)')
+        .eq('sub_chapter_id', subChapterId)
+        .order('position', ascending: true);
+    return (response as List).map((e) => LessonPage.fromJson(e)).toList();
+  }
+
   // ------------------------------------------
   // BLOCKS
   // ------------------------------------------

@@ -110,18 +110,27 @@ class LessonPage {
   final String id;
   final String subChapterId;
   final int position;
+  final List<LessonBlock>? blocks;
 
   LessonPage({
     required this.id,
     required this.subChapterId,
     required this.position,
+    this.blocks,
   });
 
   factory LessonPage.fromJson(Map<String, dynamic> json) {
+    List<LessonBlock>? loadedBlocks;
+    if (json['lesson_blocks'] != null) {
+      final list = json['lesson_blocks'] as List;
+      loadedBlocks = list.map((e) => LessonBlock.fromJson(e)).toList();
+      loadedBlocks.sort((a, b) => a.position.compareTo(b.position));
+    }
     return LessonPage(
       id: json['id'] as String,
       subChapterId: json['sub_chapter_id'] as String,
       position: json['position'] as int? ?? 0,
+      blocks: loadedBlocks,
     );
   }
 
@@ -130,6 +139,7 @@ class LessonPage {
       'id': id,
       'sub_chapter_id': subChapterId,
       'position': position,
+      if (blocks != null) 'lesson_blocks': blocks!.map((b) => b.toJson()).toList(),
     };
   }
 }

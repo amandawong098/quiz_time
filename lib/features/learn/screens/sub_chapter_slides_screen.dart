@@ -21,6 +21,7 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
   bool _isLoading = true;
   List<LessonPage> _pages = [];
   Map<String, int> _blockCountMap = {};
+  bool _hasTest = false;
 
   @override
   void initState() {
@@ -33,19 +34,23 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = context.read<LessonRepository>();
-      final pages = await repo.getPages(widget.subChapterId);
+      final pages = await repo.getPagesWithBlocks(widget.subChapterId);
       final Map<String, int> countMap = {};
+      bool foundTest = false;
 
       for (var page in pages) {
-        if (!mounted) return;
-        final blocks = await repo.getBlocks(page.id);
+        final blocks = page.blocks ?? [];
         countMap[page.id] = blocks.length;
+        if (blocks.any((b) => b.blockType == 'test')) {
+          foundTest = true;
+        }
       }
 
       if (!mounted) return;
       setState(() {
         _pages = pages;
         _blockCountMap = countMap;
+        _hasTest = foundTest;
         _isLoading = false;
       });
     } catch (e) {
@@ -75,7 +80,7 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
     }
   }
 
-  Widget _buildWarningBanner() {
+  Widget _buildWarningBanner(String message) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -89,7 +94,7 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'This sub-chapter contains more than 7 slide pages (${_pages.length} pages). We recommend keeping sub-chapters short to make learning bite-sized.',
+              message,
               style: TextStyle(
                 color: Colors.amber.shade900,
                 fontSize: 12,
@@ -172,7 +177,14 @@ class _SubChapterSlidesScreenState extends State<SubChapterSlidesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                if (_pages.length > 7) _buildWarningBanner(),
+                if (_pages.length > 7)
+                  _buildWarningBanner(
+                    'This sub-chapter contains more than 7 slide pages (${_pages.length} pages). We recommend keeping sub-chapters short to make learning bite-sized.',
+                  ),
+                if (!_hasTest)
+                  _buildWarningBanner(
+                    'We recommend having at least 1 test in a sub-chapter to ensure the lesson remains interactive.',
+                  ),
                 Expanded(
                   child: _pages.isEmpty
                       ? Center(

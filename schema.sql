@@ -31,6 +31,7 @@ CREATE TABLE public.profiles (
     email TEXT,
     name TEXT,
     avatar_url TEXT,
+    xp INTEGER DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -102,8 +103,8 @@ CREATE TABLE public.quiz_attempts (
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, name)
-    VALUES (new.id, new.email, new.raw_user_meta_data->>'name');
+    INSERT INTO public.profiles (id, email, name, xp, weekly_xp, league)
+    VALUES (new.id, new.email, new.raw_user_meta_data->>'name', 0, 0, 'Stargazer');
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -121,6 +122,9 @@ BEGIN
         name = COALESCE(new.raw_user_meta_data->>'name', name),
         avatar_url = COALESCE(new.raw_user_meta_data->>'avatar_url', avatar_url),
         email = COALESCE(new.email, email),
+        xp = COALESCE((new.raw_user_meta_data->>'xp')::integer, xp),
+        weekly_xp = COALESCE((new.raw_user_meta_data->>'weekly_xp')::integer, weekly_xp),
+        league = COALESCE(new.raw_user_meta_data->>'league', league),
         updated_at = NOW()
     WHERE id = new.id;
     RETURN new;
@@ -595,5 +599,218 @@ CREATE POLICY "Auth Delete Flashcard Images" ON storage.objects FOR DELETE USING
 -- Enable Realtime Replication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.flashcard_decks;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.flashcards;
+
+
+-- =======================================================
+-- 12. DATABASE OPTIMIZATION INDEXES
+-- =======================================================
+
+-- Lesson schema indexes
+CREATE INDEX IF NOT EXISTS idx_lesson_chapters_course_id ON public.lesson_chapters(course_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_sub_chapters_chapter_id ON public.lesson_sub_chapters(chapter_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_pages_sub_chapter_id ON public.lesson_pages(sub_chapter_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_blocks_page_id ON public.lesson_blocks(page_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_courses_creator_id ON public.lesson_courses(creator_id);
+
+-- Quiz schema indexes
+CREATE INDEX IF NOT EXISTS idx_quizzes_creator_id ON public.quizzes(creator_id);
+CREATE INDEX IF NOT EXISTS idx_questions_quiz_id ON public.questions(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_options_question_id ON public.options(question_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_id ON public.quiz_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz_id ON public.quiz_attempts(quiz_id);
+
+-- Friendship & Discussion indexes
+CREATE INDEX IF NOT EXISTS idx_friendships_sender_id ON public.friendships(sender_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_receiver_id ON public.friendships(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_topics_author_id ON public.discussion_topics(author_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_replies_topic_id ON public.discussion_replies(topic_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_replies_author_id ON public.discussion_replies(author_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_replies_parent_id ON public.discussion_replies(parent_id);
+
+-- Flashcards indexes
+CREATE INDEX IF NOT EXISTS idx_flashcard_decks_creator_id ON public.flashcard_decks(creator_id);
+CREATE INDEX IF NOT EXISTS idx_flashcards_deck_id ON public.flashcards(deck_id);
+
+
+-- =======================================================
+-- 13. WEEKLY LEAGUE LEADERBOARD SYSTEM
+-- =======================================================
+
+-- Add weekly_xp and league columns to profiles table
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS weekly_xp INTEGER DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS league TEXT DEFAULT 'Stargazer';
+
+-- Create league configurations table
+CREATE TABLE IF NOT EXISTS public.league_configs (
+    league TEXT PRIMARY KEY,
+    rank_order INTEGER NOT NULL,
+    min_weekly_xp INTEGER NOT NULL,
+    promotion_pct DOUBLE PRECISION NOT NULL,
+    demotion_pct DOUBLE PRECISION NOT NULL
+);
+
+-- Seed default league configurations (Top 20% promoted, Bottom 10% demoted)
+INSERT INTO public.league_configs (league, rank_order, min_weekly_xp, promotion_pct, demotion_pct) VALUES
+('Stargazer', 1, 10, 0.20, 0.10),
+('Explorer', 2, 20, 0.20, 0.10),
+('Voyager', 3, 30, 0.20, 0.10),
+('Stellar Scholar', 4, 40, 0.20, 0.10),
+('Galactic Sage', 5, 50, 0.20, 0.10),
+('Cosmic Legend', 6, 60, 0.20, 0.10)
+ON CONFLICT (league) DO NOTHING;
+
+-- Index on league column to optimize leaderboard grouping queries
+CREATE INDEX IF NOT EXISTS idx_profiles_league_weekly_xp ON public.profiles(league, weekly_xp DESC);
+
+-- RPC Function for Weekly Reset Promotion/Demotion logic
+CREATE OR REPLACE FUNCTION public.reset_weekly_leagues()
+RETURNS void AS $$
+DECLARE
+    league_rec RECORD;
+    user_rec RECORD;
+    total_users INTEGER;
+    promo_count INTEGER;
+    demo_count INTEGER;
+    user_rank INTEGER;
+    next_league_name TEXT;
+    prev_league_name TEXT;
+    min_xp INTEGER;
+    promo_pct DOUBLE PRECISION;
+    demo_pct DOUBLE PRECISION;
+    v_new_league TEXT;
+BEGIN
+    -- Create temporary table to store updates
+    CREATE TEMP TABLE temp_league_updates (
+        user_id UUID PRIMARY KEY,
+        new_league TEXT
+    ) ON COMMIT DROP;
+
+    -- Iterate through leagues sorted by order
+    FOR league_rec IN 
+        SELECT league, rank_order, min_weekly_xp, promotion_pct, demotion_pct
+        FROM public.league_configs
+        ORDER BY rank_order ASC
+    LOOP
+        -- Count users currently in this league
+        SELECT COUNT(*) INTO total_users 
+        FROM public.profiles 
+        WHERE league = league_rec.league;
+
+        IF total_users > 0 THEN
+            promo_pct := league_rec.promotion_pct;
+            demo_pct := league_rec.demotion_pct;
+            min_xp := league_rec.min_weekly_xp;
+
+            -- Ceiling rounding ensures that even in small lists, at least 1 person can be promoted/demoted
+            promo_count := CEIL(total_users * promo_pct);
+            demo_count := CEIL(total_users * demo_pct);
+
+            user_rank := 0;
+            -- Fetch all users in this league sorted by weekly_xp desc
+            FOR user_rec IN 
+                SELECT id, weekly_xp 
+                FROM public.profiles 
+                WHERE league = league_rec.league
+                ORDER BY weekly_xp DESC, updated_at ASC, id ASC
+            LOOP
+                user_rank := user_rank + 1;
+                v_new_league := league_rec.league;
+
+                -- Promotion logic: top rank within top% and met min weekly XP
+                IF user_rank <= promo_count AND user_rec.weekly_xp >= min_xp THEN
+                    SELECT league INTO next_league_name 
+                    FROM public.league_configs 
+                    WHERE rank_order = league_rec.rank_order + 1;
+
+                    IF next_league_name IS NOT NULL THEN
+                        v_new_league := next_league_name;
+                    END IF;
+                
+                -- Demotion logic: bottom rank within bottom% and failed to meet min weekly XP
+                ELSIF user_rank > (total_users - demo_count) AND user_rec.weekly_xp < min_xp THEN
+                    SELECT league INTO prev_league_name 
+                    FROM public.league_configs 
+                    WHERE rank_order = league_rec.rank_order - 1;
+
+                    IF prev_league_name IS NOT NULL THEN
+                        v_new_league := prev_league_name;
+                    END IF;
+                END IF;
+
+                -- If the league has changed, save to updates table
+                IF v_new_league <> league_rec.league THEN
+                    INSERT INTO temp_league_updates (user_id, new_league)
+                    VALUES (user_rec.id, v_new_league);
+                END IF;
+            END LOOP;
+        END IF;
+    END LOOP;
+
+    -- Apply promotions/demotions to profiles table using a safe loop to bypass Safe Update constraints
+    FOR user_rec IN SELECT user_id, new_league FROM temp_league_updates LOOP
+        UPDATE public.profiles
+        SET league = user_rec.new_league
+        WHERE id = user_rec.user_id;
+    END LOOP;
+
+    -- Reset weekly XP for all users back to 0
+    UPDATE public.profiles
+    SET weekly_xp = 0
+    WHERE id IS NOT NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- =======================================================
+-- 14. LEADERBOARD SANDBOX TESTING RPC HELPERS (Bypass RLS)
+-- =======================================================
+
+-- Adjust any user's weekly XP
+CREATE OR REPLACE FUNCTION public.test_adjust_user_xp(target_user_id UUID, xp_change INTEGER)
+RETURNS void AS $$
+BEGIN
+    UPDATE public.profiles
+    SET weekly_xp = GREATEST(0, LEAST(1000, weekly_xp + xp_change))
+    WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Generate 5 mock profiles in target league
+CREATE OR REPLACE FUNCTION public.test_add_dummy_users(target_league TEXT)
+RETURNS void AS $$
+DECLARE
+    dummy_id UUID;
+    i INTEGER;
+BEGIN
+    FOR i IN 1..5 LOOP
+        dummy_id := ('00000000-0000-0000-0000-00000000000' || i)::uuid;
+        
+        -- Delete profile and auth user if exists
+        DELETE FROM public.profiles WHERE id = dummy_id;
+        DELETE FROM auth.users WHERE id = dummy_id;
+        
+        -- Insert into auth.users first to satisfy foreign key constraint
+        INSERT INTO auth.users (id, email, raw_user_meta_data, aud, role)
+        VALUES (dummy_id, 'dummy' || i || '@quiztime.com', jsonb_build_object('name', 'Test User ' || i), 'authenticated', 'authenticated');
+        
+        -- Update the created profile (which was automatically inserted by handle_new_user trigger)
+        UPDATE public.profiles
+        SET weekly_xp = i * 15,
+            xp = i * 100,
+            league = target_league
+        WHERE id = dummy_id;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Delete all test mock profiles
+CREATE OR REPLACE FUNCTION public.test_clear_dummy_users()
+RETURNS void AS $$
+BEGIN
+    -- Deleting from auth.users will automatically cascade delete from public.profiles
+    DELETE FROM auth.users WHERE email LIKE 'dummy%@quiztime.com';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 

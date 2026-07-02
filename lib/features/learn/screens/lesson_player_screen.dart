@@ -44,34 +44,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   final Map<String, String> _pageSubChapterMap = {};
   final Map<String, SlideQuestionState> _questionStates = {};
 
-  // Mock Lesson state (when subChapterId is null)
-  final int _totalSlides = 3;
-  int? _slide2SelectedIndex;
-  bool _slide2Checked = false;
-  bool? _slide2Correct;
-
-  final Set<int> _slide3SelectedIndices = {};
-  bool _slide3Checked = false;
-  bool? _slide3Correct;
-
-  final List<String> _slide2Options = [
-    '3: LOW, MEDIUM and HIGH',
-    '2: ON and OFF',
-  ];
-  final int _slide2CorrectIndex = 1;
-
-  final List<String> _slide3Options = ['0', '1', '-1', '2'];
-  final Set<int> _slide3CorrectIndices = {0, 1};
-
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    if (widget.subChapterId != null || widget.courseId != null) {
-      _loadDynamicLesson();
-    } else {
-      _loadMockLessonProgress();
-    }
+    _loadDynamicLesson();
     if (widget.isPreview) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         showDialog(
@@ -100,35 +77,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     super.dispose();
   }
 
-  Future<void> _loadMockLessonProgress() async {
-    if (widget.isPreview) return;
-    try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        final prefs = await SharedPreferences.getInstance();
-        final key = _getProgressKey(user.id);
-        if (key != null) {
-          final saved = prefs.getInt(key);
-          if (saved != null && saved >= 0 && saved < _totalSlides) {
-            setState(() {
-              _currentSlide = saved;
-            });
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (_pageController.hasClients) {
-                _pageController.jumpToPage(saved);
-              }
-            });
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
   Future<void> _saveProgressStep(int pageIndex) async {
     if (widget.isPreview) return;
     if (widget.subChapterId != null) {
       await _progressTracker.saveSlideIndex(widget.subChapterId!, pageIndex);
-    } else {
+    } else if (widget.courseId != null) {
       try {
         final user = Supabase.instance.client.auth.currentUser;
         if (user == null) return;
@@ -148,7 +101,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Future<void> _clearProgressStep() async {
     if (widget.subChapterId != null) {
       await _progressTracker.clearSlideIndex(widget.subChapterId!);
-    } else {
+    } else if (widget.courseId != null) {
       try {
         final user = Supabase.instance.client.auth.currentUser;
         if (user == null) return;
@@ -167,9 +120,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       return 'lesson_slide_index_${userId}_sub_${widget.subChapterId}';
     } else if (widget.courseId != null) {
       return 'lesson_slide_index_${userId}_course_${widget.courseId}';
-    } else {
-      return 'lesson_slide_index_${userId}_mock';
     }
+    return null;
   }
 
   Future<void> _loadDynamicLesson() async {
@@ -184,22 +136,20 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         for (var ch in chapters) {
           final subs = await repo.getSubChapters(ch.id);
           for (var sub in subs) {
-            final subPages = await repo.getPages(sub.id);
+            final subPages = await repo.getPagesWithBlocks(sub.id);
             for (var page in subPages) {
               pages.add(page);
               _pageSubChapterMap[page.id] = sub.id;
-              final blocks = await repo.getBlocks(page.id);
-              pageBlocks[page.id] = blocks;
+              pageBlocks[page.id] = page.blocks ?? [];
             }
           }
         }
       } else if (widget.subChapterId != null) {
-        final subPages = await repo.getPages(widget.subChapterId!);
+        final subPages = await repo.getPagesWithBlocks(widget.subChapterId!);
         for (var page in subPages) {
           pages.add(page);
           _pageSubChapterMap[page.id] = widget.subChapterId!;
-          final blocks = await repo.getBlocks(page.id);
-          pageBlocks[page.id] = blocks;
+          pageBlocks[page.id] = page.blocks ?? [];
         }
       }
 
@@ -253,6 +203,13 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Future<void> _handleBackPress() async {
+    if (widget.isPreview) {
+      if (mounted) {
+        context.pop();
+      }
+      return;
+    }
+
     final shouldExit =
         await showDialog<bool>(
           context: context,
@@ -283,26 +240,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     }
   }
 
-  void _checkSlide2Answer(int index) {
-    if (_slide2Checked) return;
-    setState(() {
-      _slide2SelectedIndex = index;
-      _slide2Checked = true;
-      _slide2Correct = index == _slide2CorrectIndex;
-    });
-  }
 
-  void _checkSlide3Answer() {
-    if (_slide3Checked) return;
-    setState(() {
-      _slide3Checked = true;
-      _slide3Correct =
-          _slide3SelectedIndices.length == _slide3CorrectIndices.length &&
-          _slide3SelectedIndices.every(
-            (i) => _slide3CorrectIndices.contains(i),
-          );
-    });
-  }
 
   void _handleContinue(int totalSlides) {
     if (_currentSlide < totalSlides - 1) {
@@ -330,27 +268,21 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Future<void> _saveCompletionState() async {
-    final isDynamic = widget.subChapterId != null || widget.courseId != null;
     if (!widget.isPreview) {
       await _clearProgressStep();
-      if (isDynamic) {
-        if (widget.subChapterId != null) {
-          await _progressTracker.complete(widget.subChapterId!);
-        } else if (widget.courseId != null && _dynamicPages.isNotEmpty) {
-          final currentPageObj = _dynamicPages[_currentSlide];
-          final currentSubChapterId = _pageSubChapterMap[currentPageObj.id];
-          if (currentSubChapterId != null) {
-            await _progressTracker.complete(currentSubChapterId);
-          }
+      if (widget.subChapterId != null) {
+        await _progressTracker.complete(widget.subChapterId!);
+      } else if (widget.courseId != null && _dynamicPages.isNotEmpty) {
+        final currentPageObj = _dynamicPages[_currentSlide];
+        final currentSubChapterId = _pageSubChapterMap[currentPageObj.id];
+        if (currentSubChapterId != null) {
+          await _progressTracker.complete(currentSubChapterId);
         }
-      } else {
-        await _progressTracker.complete('thinking_machine');
       }
     }
   }
 
   void _completeLesson() {
-    final isDynamic = widget.subChapterId != null || widget.courseId != null;
     final completionFuture = _saveCompletionState();
 
     if (widget.isPreview) {
@@ -416,9 +348,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      isDynamic
-                          ? 'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!'
-                          : 'You have successfully completed "Thinking Like a Machine". You can now proceed to the next lesson sub-chapter!',
+                      'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
@@ -863,209 +793,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     );
   }
 
-  // ------------------------------------------
-  // MOCK SIDES RENDERING
-  // ------------------------------------------
-  Widget _buildReadingSlide() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Computational Thinking',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'In the previous lesson, you learned that computers are really good at performing tiny simple operations very fast. Complex modern tasks like video streaming or online banking transactions can be broken down into these simple calculations.',
-            style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
-          ),
-          const SizedBox(height: 28),
-          _buildCpuChipDiagram(),
-          const SizedBox(height: 28),
-          const Text(
-            'In this lesson, you\'ll learn how to think like a computer to bring you one step closer to becoming a human-machine hybrid.',
-            style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSingleChoiceSlide() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'How many different positions have the individual switches inside a computer?',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 24),
-          if (_slide2Checked) ...[
-            _buildCheckStatusBanner(_slide2Correct ?? false),
-            const SizedBox(height: 8),
-          ],
-          Column(
-            children: _slide2Options.asMap().entries.map((entry) {
-              final index = entry.key;
-              final text = entry.value;
-
-              final isSelected = _slide2SelectedIndex == index;
-              final isCorrectOption = index == _slide2CorrectIndex;
-
-              Color? cardColor;
-              BorderSide borderSide = BorderSide(color: Colors.grey.shade300);
-
-              if (_slide2Checked) {
-                if (isCorrectOption) {
-                  cardColor = Colors.green.shade200;
-                  borderSide = BorderSide(
-                    color: Colors.green.shade400,
-                    width: 2,
-                  );
-                } else if (isSelected) {
-                  cardColor = Colors.red.shade200;
-                  borderSide = BorderSide(color: Colors.red.shade400, width: 2);
-                }
-              } else if (isSelected) {
-                borderSide = const BorderSide(
-                  color: Colors.deepPurple,
-                  width: 2,
-                );
-              }
-
-              return Card(
-                color: cardColor,
-                margin: const EdgeInsets.symmetric(vertical: 8.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: borderSide,
-                ),
-                child: RadioListTile<int>(
-                  title: Text(
-                    text,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  value: index,
-                  groupValue: _slide2SelectedIndex,
-                  activeColor: Colors.deepPurple,
-                  onChanged: _slide2Checked
-                      ? null
-                      : (val) {
-                          if (val != null) {
-                            _checkSlide2Answer(val);
-                          }
-                        },
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMultipleChoiceSlide() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Computers use binary code to represent information. Binary means that there are only two possibilities for the state of a switch. To make things simpler, numbers are used to represent the OFF/ON states of a switch.',
-            style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
-          ),
-          const SizedBox(height: 24),
-          _buildBinarySwitchesDiagram(),
-          const SizedBox(height: 28),
-          const Text(
-            'Which numbers are used for the binary code?',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 24),
-          if (_slide3Checked) ...[
-            _buildCheckStatusBanner(_slide3Correct ?? false),
-            const SizedBox(height: 8),
-          ],
-          Column(
-            children: _slide3Options.asMap().entries.map((entry) {
-              final index = entry.key;
-              final text = entry.value;
-
-              final isSelected = _slide3SelectedIndices.contains(index);
-              final isCorrectOption = _slide3CorrectIndices.contains(index);
-
-              Color? cardColor;
-              BorderSide borderSide = BorderSide(color: Colors.grey.shade300);
-
-              if (_slide3Checked) {
-                if (isCorrectOption) {
-                  cardColor = Colors.green.shade200;
-                  borderSide = BorderSide(
-                    color: Colors.green.shade400,
-                    width: 2,
-                  );
-                } else if (isSelected) {
-                  cardColor = Colors.red.shade200;
-                  borderSide = BorderSide(color: Colors.red.shade400, width: 2);
-                }
-              } else if (isSelected) {
-                borderSide = const BorderSide(
-                  color: Colors.deepPurple,
-                  width: 2,
-                );
-              }
-
-              return Card(
-                color: cardColor,
-                margin: const EdgeInsets.symmetric(vertical: 6.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: borderSide,
-                ),
-                child: CheckboxListTile(
-                  title: Text(
-                    text,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  value: isSelected,
-                  activeColor: Colors.deepPurple,
-                  onChanged: _slide3Checked
-                      ? null
-                      : (val) {
-                          setState(() {
-                            if (val == true) {
-                              _slide3SelectedIndices.add(index);
-                            } else {
-                              _slide3SelectedIndices.remove(index);
-                            }
-                          });
-                        },
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
 
   Widget _buildCheckStatusBanner(bool isCorrect) {
     return Container(
@@ -1100,210 +828,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     );
   }
 
-  Widget _buildFooterActions() {
-    if (_currentSlide == 0) {
-      return Container(
-        padding: const EdgeInsets.all(24.0),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              _pageController.nextPage(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            },
-            child: const Text(
-              'Continue',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-        ),
-      );
-    } else if (_currentSlide == 1) {
-      if (_slide2Checked) {
-        final isCorrect = _slide2Correct ?? false;
-        if (!isCorrect) {
-          return _buildTryAgainButton(() {
-            setState(() {
-              _slide2Checked = false;
-              _slide2SelectedIndex = null;
-              _slide2Correct = null;
-            });
-          });
-        }
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () {
-                _pageController.nextPage(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              },
-              child: const Text(
-                'Continue',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-          ),
-        );
-      } else {
-        return const SizedBox(height: 24);
-      }
-    } else {
-      if (_slide3Checked) {
-        final isCorrect = _slide3Correct ?? false;
-        if (!isCorrect) {
-          return _buildTryAgainButton(() {
-            setState(() {
-              _slide3Checked = false;
-              _slide3SelectedIndices.clear();
-              _slide3Correct = null;
-            });
-          });
-        }
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: _completeLesson,
-              child: const Text(
-                'Continue',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-          ),
-        );
-      } else {
-        final hasSelection = _slide3SelectedIndices.isNotEmpty;
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: hasSelection ? _checkSlide3Answer : null,
-              child: const Text(
-                'Submit Answer',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  Widget _buildCpuChipDiagram() {
-    return Container(
-      height: 180,
-      decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.memory, size: 64, color: Colors.deepPurple.shade700),
-            const SizedBox(height: 8),
-            Text(
-              'CPU chip: executes billions of simple instructions per second',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.deepPurple.shade900,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBinarySwitchesDiagram() {
-    return Container(
-      height: 180,
-      decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.toggle_on,
-                  size: 56,
-                  color: Colors.deepPurple.shade700,
-                ),
-                const SizedBox(width: 24),
-                Icon(Icons.toggle_off, size: 56, color: Colors.grey.shade400),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Switch state inside computer: ON (1) vs OFF (0)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.deepPurple.shade900,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final isDynamic = widget.subChapterId != null || widget.courseId != null;
-    final totalSlides = isDynamic ? _dynamicPages.length : _totalSlides;
+    final totalSlides = _dynamicPages.length;
 
-    if (isDynamic && totalSlides == 0) {
+    if (totalSlides == 0) {
       return Scaffold(
         appBar: AppBar(title: const Text('Lesson Player')),
         body: Center(
@@ -1381,17 +914,14 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                   controller: _pageController,
                   physics: LessonScrollPhysics(
                     isPageUnlocked: (page) {
-                      if (!isDynamic) {
-                        if (page == 0) return true;
-                        if (page == 1) return _slide2Checked;
-                        return _slide3Checked;
-                      } else {
-                        final pageObj = _dynamicPages[page];
-                        final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
-                        final testBlocks = blocks.where((b) => b.blockType == 'test').toList();
-                        if (testBlocks.isEmpty) return true;
-                        return testBlocks.every((b) => _questionStates[b.id]?.checked == true);
-                      }
+                      if (widget.isPreview) return true;
+                      final pageObj = _dynamicPages[page];
+                      final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
+                      final testBlocks = blocks.where((b) => b.blockType == 'test').toList();
+                      if (testBlocks.isEmpty) return true;
+                      return testBlocks.every((b) =>
+                          _questionStates[b.id]?.checked == true &&
+                          _questionStates[b.id]?.isCorrect == true);
                     },
                   ),
                   onPageChanged: (page) {
@@ -1400,31 +930,21 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     });
                     _saveProgressStep(page);
                   },
-                  children: isDynamic
-                      ? _dynamicPages.asMap().entries.map((entry) {
-                          final idx = entry.key;
-                          final pageObj = entry.value;
-                          final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
-                          return _buildDynamicPage(pageObj, blocks, idx);
-                        }).toList()
-                      : [
-                          _buildReadingSlide(),
-                          _buildSingleChoiceSlide(),
-                          _buildMultipleChoiceSlide(),
-                        ],
+                  children: _dynamicPages.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final pageObj = entry.value;
+                    final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
+                    return _buildDynamicPage(pageObj, blocks, idx);
+                  }).toList(),
                 ),
               ),
-              isDynamic
-                  ? _buildDynamicFooter(
-                      _currentSlide,
-                      _dynamicPages.isNotEmpty
-                          ? _dynamicPageBlocks[_dynamicPages[_currentSlide]
-                                    .id] ??
-                                []
-                          : [],
-                      totalSlides,
-                    )
-                  : _buildFooterActions(),
+              _buildDynamicFooter(
+                _currentSlide,
+                _dynamicPages.isNotEmpty
+                    ? _dynamicPageBlocks[_dynamicPages[_currentSlide].id] ?? []
+                    : [],
+                totalSlides,
+              ),
             ],
           ),
         ),

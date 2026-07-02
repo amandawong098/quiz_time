@@ -15,7 +15,22 @@ class LessonProgress {
   Future<void> complete(String id) async {
     completedSubChapters.add(id);
     subChapterSlideProgress.remove(id); // Clear slide index since completed
-    await _saveToSupabase();
+    
+    int currentXp = 0;
+    int currentWeeklyXp = 0;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final metadata = user.userMetadata;
+      if (metadata != null && metadata.containsKey('xp')) {
+        currentXp = int.tryParse(metadata['xp'].toString()) ?? 0;
+      }
+      if (metadata != null && metadata.containsKey('weekly_xp')) {
+        currentWeeklyXp = int.tryParse(metadata['weekly_xp'].toString()) ?? 0;
+      }
+    }
+    final nextXp = currentXp + 10;
+    final nextWeeklyXp = currentWeeklyXp + 10;
+    await _saveToSupabase(nextXp, nextWeeklyXp);
   }
 
   Future<void> saveSlideIndex(String id, int index) async {
@@ -74,19 +89,39 @@ class LessonProgress {
     } catch (_) {}
   }
 
-  Future<void> _saveToSupabase() async {
+  Future<void> _saveToSupabase([int? nextXp, int? nextWeeklyXp]) async {
     try {
       final client = Supabase.instance.client;
       final user = client.auth.currentUser;
       if (user != null) {
+        int currentXp = 0;
+        int currentWeeklyXp = 0;
+        final metadata = user.userMetadata;
+        if (metadata != null && metadata.containsKey('xp')) {
+          currentXp = int.tryParse(metadata['xp'].toString()) ?? 0;
+        }
+        if (metadata != null && metadata.containsKey('weekly_xp')) {
+          currentWeeklyXp = int.tryParse(metadata['weekly_xp'].toString()) ?? 0;
+        }
+        final xpToSave = nextXp ?? currentXp;
+        final weeklyXpToSave = nextWeeklyXp ?? currentWeeklyXp;
+
         await client.auth.updateUser(
           UserAttributes(
             data: {
               'completed_sub_chapters': completedSubChapters.toList(),
               'lesson_slide_progress': subChapterSlideProgress,
+              'xp': xpToSave,
+              'weekly_xp': weeklyXpToSave,
             },
           ),
         );
+
+        // Also update profiles directly in public schema
+        await client.from('profiles').update({
+          'xp': xpToSave,
+          'weekly_xp': weeklyXpToSave,
+        }).eq('id', user.id);
       }
     } catch (_) {}
   }
