@@ -187,28 +187,73 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: Colors.deepPurple.shade50,
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                topic.tag.toUpperCase(),
-                                                style: const TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.deepPurple,
+                                            if (topic.subChapterTitle != null) ...[
+                                              Flexible(
+                                                child: InkWell(
+                                                  onTap: () {
+                                                    if (topic.subChapterId != null) {
+                                                      context.push('/lesson-player?subChapterId=${topic.subChapterId}&isPreview=true&initialPageId=${topic.pageId}');
+                                                    }
+                                                  },
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.deepPurple.shade50,
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      border: Border.all(color: Colors.deepPurple.shade200),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        const Icon(Icons.slideshow_rounded, size: 12, color: Colors.deepPurple),
+                                                        const SizedBox(width: 4),
+                                                        Flexible(
+                                                          child: Builder(
+                                                            builder: (context) {
+                                                              final slideNo = (topic.pagePosition ?? 0) + 1;
+                                                              return Text(
+                                                                '${topic.courseTitle ?? "Lesson"} > ${topic.chapterTitle ?? ""} > ${topic.subChapterTitle ?? ""} > Slide $slideNo',
+                                                                style: const TextStyle(
+                                                                  fontSize: 9,
+                                                                  fontWeight: FontWeight.bold,
+                                                                  color: Colors.deepPurple,
+                                                                ),
+                                                                overflow: TextOverflow.ellipsis,
+                                                              );
+                                                            }
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            const Spacer(),
+                                            ] else ...[
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade100,
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(color: Colors.grey.shade300),
+                                                ),
+                                                child: Text(
+                                                  topic.tag.toUpperCase(),
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.grey.shade700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                            const SizedBox(width: 8),
                                             Text(
                                               '$dateStr$editedStr',
                                               style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
                                             ),
-                                            const SizedBox(width: 8),
                                             // Edit/Delete options menu
                                             PopupMenuButton<String>(
                                               icon: const Icon(Icons.more_vert, size: 18, color: Colors.grey),

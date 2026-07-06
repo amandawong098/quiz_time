@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/models/discussion_models.dart';
+import '../../learn/models/lesson_models.dart';
 
 class PendingAttachment {
   final String? localPath;
@@ -24,7 +26,19 @@ class PendingAttachment {
 
 class CreateTopicScreen extends StatefulWidget {
   final DiscussionTopic? topic;
-  const CreateTopicScreen({super.key, this.topic});
+  final String? courseId;
+  final String? chapterId;
+  final String? subChapterId;
+  final String? pageId;
+
+  const CreateTopicScreen({
+    super.key,
+    this.topic,
+    this.courseId,
+    this.chapterId,
+    this.subChapterId,
+    this.pageId,
+  });
 
   @override
   State<CreateTopicScreen> createState() => _CreateTopicScreenState();
@@ -35,10 +49,21 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   
-  String _selectedTag = 'General';
-  final List<String> _tags = ['General', 'Architecture', 'UI Design', 'Database', 'Career'];
-
   bool _isLoading = false;
+  bool _isLoadingCourses = true;
+  bool _isLoadingMetadata = false;
+  List<LessonCourse> _courses = [];
+  String? _selectedCourseId;
+
+  // Linked metadata titles for read-only preview
+  String? _metaCourseTitle;
+  String? _metaChapterTitle;
+  String? _metaSubChapterTitle;
+  int? _metaPagePosition;
+
+  String? _resolvedCourseId;
+  String? _resolvedChapterId;
+  String? _resolvedSubChapterId;
 
   // List of pending attachments
   final List<PendingAttachment> _pendingAttachments = [];
@@ -46,10 +71,10 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCourses();
     if (widget.topic != null) {
       _titleController.text = widget.topic!.title;
       _contentController.text = widget.topic!.content;
-      _selectedTag = widget.topic!.tag;
       for (var att in widget.topic!.attachments) {
         _pendingAttachments.add(PendingAttachment(
           name: att.name,
@@ -58,6 +83,51 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
           remoteUrl: att.type != 'link' ? att.url : null,
         ));
       }
+    }
+  }
+
+  Future<void> _loadCourses() async {
+    setState(() {
+      _isLoadingCourses = true;
+      if (widget.pageId != null) {
+        _isLoadingMetadata = true;
+      }
+    });
+
+    try {
+      final courses = await LessonRepository().getCourses();
+      _courses = courses;
+      _isLoadingCourses = false;
+      if (widget.topic != null) {
+        _selectedCourseId = widget.topic!.courseId;
+      } else if (widget.courseId != null) {
+        _selectedCourseId = widget.courseId;
+      }
+      setState(() {});
+    } catch (_) {
+      setState(() => _isLoadingCourses = false);
+    }
+
+    if (widget.pageId != null) {
+      try {
+        final meta = await LessonRepository().getPageMetadata(widget.pageId!);
+        if (meta != null) {
+          final subData = meta['lesson_sub_chapters'] as Map<String, dynamic>?;
+          final chapData = subData?['lesson_chapters'] as Map<String, dynamic>?;
+          final courseData = chapData?['lesson_courses'] as Map<String, dynamic>?;
+          setState(() {
+            _metaCourseTitle = courseData?['title'] as String?;
+            _metaChapterTitle = chapData?['title'] as String?;
+            _metaSubChapterTitle = subData?['title'] as String?;
+            _metaPagePosition = meta['position'] as int?;
+
+            _resolvedCourseId = chapData?['course_id'] as String?;
+            _resolvedChapterId = subData?['chapter_id'] as String?;
+            _resolvedSubChapterId = meta['sub_chapter_id'] as String?;
+          });
+        }
+      } catch (_) {}
+      setState(() => _isLoadingMetadata = false);
     }
   }
 
@@ -263,20 +333,44 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
         }
       }
 
+      if (_isLoadingMetadata) {
+        _showSnackBar('Still loading lesson metadata, please wait...');
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final String finalTag;
+      if (widget.pageId != null && _metaCourseTitle != null) {
+        finalTag = _metaCourseTitle!;
+      } else if (_selectedCourseId != null) {
+        final match = _courses.firstWhere(
+          (c) => c.id == _selectedCourseId,
+          orElse: () => LessonCourse(id: '', title: widget.topic?.tag ?? 'General'),
+        );
+        finalTag = match.title;
+      } else {
+        finalTag = 'General';
+      }
+
       if (widget.topic != null) {
         await repo.updateTopic(
           topicId: widget.topic!.id,
           title: _titleController.text.trim(),
           content: _contentController.text.trim(),
-          tag: _selectedTag,
+          tag: finalTag,
           attachments: uploadedAttachments,
+          courseId: _resolvedCourseId ?? _selectedCourseId,
         );
       } else {
         await repo.createTopic(
           title: _titleController.text.trim(),
           content: _contentController.text.trim(),
-          tag: _selectedTag,
+          tag: finalTag,
           attachments: uploadedAttachments,
+          courseId: _resolvedCourseId ?? _selectedCourseId,
+          chapterId: _resolvedChapterId ?? widget.chapterId,
+          subChapterId: _resolvedSubChapterId ?? widget.subChapterId,
+          pageId: widget.pageId,
         );
       }
 
@@ -398,19 +492,74 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                           : null,
                     ),
                     const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Category Tag'),
-                      value: _selectedTag,
-                      items: _tags.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setState(() => _selectedTag = val!);
-                      },
-                    ),
+                    if (widget.pageId != null) ...[
+                      _isLoadingMetadata
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue.shade100),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.menu_book_rounded, size: 16, color: Colors.blue.shade800),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Linked Lesson Page Context',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 20),
+                                  _buildMetaRow('Lesson', _metaCourseTitle ?? 'Loading...'),
+                                  const SizedBox(height: 8),
+                                  _buildMetaRow('Chapter', _metaChapterTitle ?? 'Loading...'),
+                                  const SizedBox(height: 8),
+                                  _buildMetaRow('Sub-Chapter', _metaSubChapterTitle ?? 'Loading...'),
+                                  const SizedBox(height: 8),
+                                  _buildMetaRow('Current Slide', 'Slide ${(_metaPagePosition ?? 0) + 1}'),
+                                ],
+                              ),
+                            ),
+                    ] else ...[
+                      DropdownButtonFormField<String?>(
+                        decoration: InputDecoration(
+                          labelText: _isLoadingCourses ? 'Loading lessons...' : 'Associate Lesson',
+                        ),
+                        value: _selectedCourseId,
+                        onChanged: (widget.courseId != null || (widget.topic != null && widget.topic!.courseId != null))
+                            ? null
+                            : (val) {
+                                setState(() => _selectedCourseId = val);
+                              },
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('General Discussions (No Lesson)'),
+                          ),
+                          ..._courses.map((course) {
+                            return DropdownMenuItem<String?>(
+                              value: course.id,
+                              child: Text(course.title),
+                            );
+                          }),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _contentController,
@@ -454,6 +603,35 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildMetaRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.black54,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

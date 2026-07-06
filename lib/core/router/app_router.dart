@@ -155,7 +155,13 @@ final GoRouter appRouter = GoRouter(
       path: '/create-topic',
       builder: (context, state) {
         final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
-        return CreateTopicScreen(topic: extra?['topic']);
+        return CreateTopicScreen(
+          topic: extra?['topic'],
+          courseId: extra?['courseId'],
+          chapterId: extra?['chapterId'],
+          subChapterId: extra?['subChapterId'],
+          pageId: extra?['pageId'],
+        );
       },
     ),
     GoRoute(
@@ -168,11 +174,13 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final subChapterId = state.uri.queryParameters['subChapterId'];
         final courseId = state.uri.queryParameters['courseId'];
-        final isPreview = state.uri.queryParameters['preview'] == 'true';
+        final isPreview = state.uri.queryParameters['preview'] == 'true' || state.uri.queryParameters['isPreview'] == 'true';
+        final initialPageId = state.uri.queryParameters['initialPageId'];
         return LessonPlayerScreen(
           subChapterId: subChapterId,
           courseId: courseId,
           isPreview: isPreview,
+          initialPageId: initialPageId,
         );
       },
     ),

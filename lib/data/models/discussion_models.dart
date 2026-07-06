@@ -36,6 +36,18 @@ class DiscussionTopic {
   final DateTime createdAt;
   final DateTime? updatedAt;
   
+  // Lesson specific references (nullable)
+  final String? courseId;
+  final String? chapterId;
+  final String? subChapterId;
+  final String? pageId;
+
+  // Joined metadata titles and positions
+  final String? courseTitle;
+  final String? chapterTitle;
+  final String? subChapterTitle;
+  final int? pagePosition;
+
   // Computed properties
   final int upvotesCount;
   final int downvotesCount;
@@ -59,6 +71,14 @@ class DiscussionTopic {
     required this.downvotesCount,
     required this.userVoteType,
     this.updatedAt,
+    this.courseId,
+    this.chapterId,
+    this.subChapterId,
+    this.pageId,
+    this.courseTitle,
+    this.chapterTitle,
+    this.subChapterTitle,
+    this.pagePosition,
   });
 
   factory DiscussionTopic.fromJson(Map<String, dynamic> json, String currentUserId) {
@@ -100,6 +120,11 @@ class DiscussionTopic {
       ));
     }
 
+    final courseData = json['lesson_courses'] as Map<String, dynamic>?;
+    final chapterData = json['lesson_chapters'] as Map<String, dynamic>?;
+    final subChapterData = json['lesson_sub_chapters'] as Map<String, dynamic>?;
+    final pageData = json['lesson_pages'] as Map<String, dynamic>?;
+
     return DiscussionTopic(
       id: json['id'] as String,
       authorId: json['author_id'] as String,
@@ -114,6 +139,14 @@ class DiscussionTopic {
       downvotesCount: downvotes,
       userVoteType: currentUserVote,
       updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : null,
+      courseId: json['course_id'] as String?,
+      chapterId: json['chapter_id'] as String?,
+      subChapterId: json['sub_chapter_id'] as String?,
+      pageId: json['page_id'] as String?,
+      courseTitle: courseData?['title'] as String?,
+      chapterTitle: chapterData?['title'] as String?,
+      subChapterTitle: subChapterData?['title'] as String?,
+      pagePosition: pageData?['position'] as int?,
     );
   }
 }

@@ -118,9 +118,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Map<String, dynamic> _getLeagueStyle(String league) {
+    MaterialColor baseColor;
+    IconData icon;
+
+    switch (league) {
+      case 'Stargazer':
+        baseColor = Colors.amber;
+        icon = Icons.star;
+        break;
+      case 'Explorer':
+        baseColor = Colors.deepPurple;
+        icon = Icons.explore;
+        break;
+      case 'Voyager':
+        baseColor = Colors.green;
+        icon = Icons.public;
+        break;
+      case 'Stellar Scholar':
+        baseColor = Colors.indigo;
+        icon = Icons.school;
+        break;
+      case 'Galactic Sage':
+        baseColor = Colors.purple;
+        icon = Icons.psychology;
+        break;
+      case 'Cosmic Legend':
+        baseColor = Colors.cyan;
+        icon = Icons.auto_awesome;
+        break;
+      default:
+        baseColor = Colors.blue;
+        icon = Icons.shield;
+    }
+    return {
+      'bg': baseColor.shade50,
+      'border': baseColor.shade200,
+      'text': baseColor.shade900,
+      'iconColor': baseColor,
+      'labelColor': baseColor.shade700,
+      'icon': icon,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthRepository>().currentUser;
+    final profile = context.watch<FriendshipRepository>().currentUserProfile;
+    final leagueStyle = _getLeagueStyle(profile?.league ?? 'Stargazer');
 
     return Scaffold(
       appBar: AppBar(
@@ -200,31 +245,121 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color: Colors.grey.shade600,
                         ),
                   ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade50,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.amber.shade200),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.emoji_events, color: Colors.amber, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${user?.userMetadata?['xp'] ?? 0} XP',
-                            style: TextStyle(
-                              color: Colors.amber.shade900,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Lifetime XP
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.amber.shade200),
                           ),
-                        ],
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${profile?.xp ?? user?.userMetadata?['xp'] ?? 0}',
+                                style: TextStyle(
+                                  color: Colors.amber.shade900,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'Lifetime XP',
+                                style: TextStyle(
+                                  color: Colors.amber.shade700,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      // Weekly XP
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.deepPurple.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.deepPurple.shade200),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${profile?.weeklyXp ?? user?.userMetadata?['weekly_xp'] ?? 0}',
+                                style: TextStyle(
+                                  color: Colors.deepPurple.shade900,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'Weekly XP',
+                                style: TextStyle(
+                                  color: Colors.deepPurple.shade700,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Current League
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: leagueStyle['bg'],
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: leagueStyle['border']),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                leagueStyle['icon'] as IconData,
+                                color: leagueStyle['iconColor'] as Color,
+                                size: 16,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                profile?.league ?? 'Stargazer',
+                                style: TextStyle(
+                                  color: leagueStyle['text'] as Color,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                'Current League',
+                                style: TextStyle(
+                                  color: leagueStyle['labelColor'] as Color,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 32),
                   const Divider(),

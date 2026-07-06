@@ -221,4 +221,13 @@ class LessonRepository {
       await _supabase.from('lesson_blocks').insert(payload);
     }
   }
+
+  Future<Map<String, dynamic>?> getPageMetadata(String pageId) async {
+    final response = await _supabase
+        .from('lesson_pages')
+        .select('position, sub_chapter_id, lesson_sub_chapters(title, chapter_id, lesson_chapters(title, course_id, lesson_courses(title)))')
+        .eq('id', pageId)
+        .maybeSingle();
+    return response;
+  }
 }

@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/repositories/lesson_repository.dart';
+import '../../../data/repositories/discussion_repository.dart';
+import '../../../data/models/discussion_models.dart';
 import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
 import '../../../core/widgets/video_preview_widget.dart';
@@ -14,11 +16,14 @@ class LessonPlayerScreen extends StatefulWidget {
   final String? subChapterId;
   final String? courseId;
   final bool isPreview;
+  final String? initialPageId;
+
   const LessonPlayerScreen({
     super.key,
     this.subChapterId,
     this.courseId,
     this.isPreview = false,
+    this.initialPageId,
   });
 
   @override
@@ -43,6 +48,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Map<String, List<LessonBlock>> _dynamicPageBlocks = {};
   final Map<String, String> _pageSubChapterMap = {};
   final Map<String, SlideQuestionState> _questionStates = {};
+  Map<String, int> _pageDiscussionCounts = {};
 
   @override
   void initState() {
@@ -154,7 +160,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       }
 
       int initialPage = 0;
-      if (!widget.isPreview) {
+      if (widget.initialPageId != null) {
+        final matchIdx = pages.indexWhere((p) => p.id == widget.initialPageId);
+        if (matchIdx != -1) {
+          initialPage = matchIdx;
+        }
+      } else if (!widget.isPreview) {
         if (widget.subChapterId != null) {
           await _progressTracker.loadFromSupabase();
           initialPage = _progressTracker.getSavedSlideIndex(widget.subChapterId!);
@@ -178,9 +189,27 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         }
       }
 
+      Map<String, int> counts = {};
+      try {
+        final discRepo = context.read<DiscussionRepository>();
+        if (widget.subChapterId != null) {
+          counts = await discRepo.getPageDiscussionsCount(widget.subChapterId!);
+        } else if (widget.courseId != null) {
+          final chapters = await repo.getChapters(widget.courseId!);
+          for (var ch in chapters) {
+            final subs = await repo.getSubChapters(ch.id);
+            for (var sub in subs) {
+              final subCounts = await discRepo.getPageDiscussionsCount(sub.id);
+              counts.addAll(subCounts);
+            }
+          }
+        }
+      } catch (_) {}
+
       setState(() {
         _dynamicPages = pages;
         _dynamicPageBlocks = pageBlocks;
+        _pageDiscussionCounts = counts;
         _currentSlide = initialPage;
         _isLoading = false;
       });
@@ -200,6 +229,52 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         );
       }
     }
+  }
+
+  Future<void> _loadDiscussionCounts() async {
+    try {
+      final discRepo = context.read<DiscussionRepository>();
+      final repo = context.read<LessonRepository>();
+      final Map<String, int> allCounts = {};
+      if (widget.subChapterId != null) {
+        final subCounts = await discRepo.getPageDiscussionsCount(widget.subChapterId!);
+        allCounts.addAll(subCounts);
+      } else if (widget.courseId != null) {
+        final chapters = await repo.getChapters(widget.courseId!);
+        for (var ch in chapters) {
+          final subs = await repo.getSubChapters(ch.id);
+          for (var sub in subs) {
+            final subCounts = await discRepo.getPageDiscussionsCount(sub.id);
+            allCounts.addAll(subCounts);
+          }
+        }
+      }
+      setState(() {
+        _pageDiscussionCounts = allCounts;
+      });
+    } catch (_) {}
+  }
+
+  void _openDiscussionsForCurrentPage() {
+    if (_dynamicPages.isEmpty || _currentSlide >= _dynamicPages.length) return;
+    final page = _dynamicPages[_currentSlide];
+    final subChapterId = _pageSubChapterMap[page.id] ?? widget.subChapterId;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _PageDiscussionsSheet(
+          pageId: page.id,
+          subChapterId: subChapterId,
+          courseId: widget.courseId,
+          onTopicCreated: () {
+            _loadDiscussionCounts();
+          },
+        );
+      },
+    );
   }
 
   Future<void> _handleBackPress() async {
@@ -889,6 +964,29 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             icon: const Icon(Icons.close, size: 28),
             onPressed: _handleBackPress,
           ),
+          actions: [
+            if (_dynamicPages.isNotEmpty && _currentSlide < _dynamicPages.length) ...[
+              Builder(
+                builder: (context) {
+                  final page = _dynamicPages[_currentSlide];
+                  final count = _pageDiscussionCounts[page.id] ?? 0;
+                  return TextButton.icon(
+                    onPressed: _openDiscussionsForCurrentPage,
+                    icon: const Icon(Icons.chat_bubble_outline, size: 22, color: Colors.deepPurple),
+                    label: Text(
+                      '$count',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple,
+                        fontSize: 14,
+                      ),
+                    ),
+                  );
+                }
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(6),
             child: Padding(
@@ -1155,5 +1253,263 @@ class MarkdownRenderer extends StatelessWidget {
     }
 
     return TextSpan(children: spans, style: defaultStyle);
+  }
+}
+
+// ------------------------------------------
+// PAGE-LEVEL DISCUSSIONS PANEL OVERLAY
+// ------------------------------------------
+class _PageDiscussionsSheet extends StatefulWidget {
+  final String pageId;
+  final String? subChapterId;
+  final String? courseId;
+  final VoidCallback onTopicCreated;
+
+  const _PageDiscussionsSheet({
+    required this.pageId,
+    this.subChapterId,
+    this.courseId,
+    required this.onTopicCreated,
+  });
+
+  @override
+  State<_PageDiscussionsSheet> createState() => _PageDiscussionsSheetState();
+}
+
+class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
+  bool _isLoading = true;
+  List<DiscussionTopic> _topics = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTopics();
+  }
+
+  Future<void> _loadTopics() async {
+    setState(() => _isLoading = true);
+    try {
+      final repo = context.read<DiscussionRepository>();
+      final results = await repo.getTopics(pageId: widget.pageId);
+      if (mounted) {
+        setState(() {
+          _topics = results;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: mediaQuery.viewInsets.bottom,
+      ),
+      height: mediaQuery.size.height * 0.75,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Page Discussions',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple.shade900,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    String? chapterId;
+                    try {
+                      final lessonRepo = context.read<LessonRepository>();
+                      if (widget.subChapterId != null) {
+                        if (widget.courseId != null) {
+                          final chapters = await lessonRepo.getChapters(widget.courseId!);
+                          for (var ch in chapters) {
+                            final subs = await lessonRepo.getSubChapters(ch.id);
+                            if (subs.any((s) => s.id == widget.subChapterId)) {
+                              chapterId = ch.id;
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    } catch (_) {}
+
+                    if (!mounted) return;
+
+                    final created = await context.push<bool>(
+                      '/create-topic',
+                      extra: {
+                        'courseId': widget.courseId,
+                        'chapterId': chapterId,
+                        'subChapterId': widget.subChapterId,
+                        'pageId': widget.pageId,
+                      },
+                    );
+                    if (created == true) {
+                      _loadTopics();
+                      widget.onTopicCreated();
+                    }
+                  },
+                  icon: const Icon(Icons.add_comment_outlined, size: 18),
+                  label: const Text('Post Topic'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _topics.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No discussions on this page yet.\nAsk a question or start a discussion!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        itemCount: _topics.length,
+                        itemBuilder: (context, index) {
+                          final topic = _topics[index];
+                          final displayDate = topic.updatedAt ?? topic.createdAt;
+                          final dateStr = '${displayDate.day}/${displayDate.month}/${displayDate.year}';
+                          final editedStr = topic.updatedAt != null ? ' (edited)' : '';
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: Colors.grey.shade200),
+                            ),
+                            child: InkWell(
+                              onTap: () async {
+                                final result = await context.push('/discussion/${topic.id}');
+                                if (result == true || result == null) {
+                                  _loadTopics();
+                                  widget.onTopicCreated();
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 9,
+                                          backgroundColor: Colors.deepPurple.shade100,
+                                          backgroundImage: topic.authorAvatarUrl != null
+                                              ? NetworkImage(topic.authorAvatarUrl!)
+                                              : null,
+                                          child: topic.authorAvatarUrl == null
+                                              ? const Icon(Icons.person, size: 9)
+                                              : null,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          topic.authorName,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          '$dateStr$editedStr',
+                                          style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      topic.title,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      topic.content,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.arrow_upward_rounded, size: 14, color: Colors.grey.shade500),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${topic.score}',
+                                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Icon(Icons.mode_comment_outlined, size: 14, color: Colors.grey.shade500),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'View Thread',
+                                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
   }
 }

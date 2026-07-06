@@ -9,6 +9,9 @@ DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 DROP TRIGGER IF EXISTS update_quiz_question_count_trigger ON public.questions CASCADE;
 DROP FUNCTION IF EXISTS public.update_quiz_question_count() CASCADE;
 DROP FUNCTION IF EXISTS public.delete_user() CASCADE;
+DROP FUNCTION IF EXISTS public.test_adjust_user_xp(UUID, INTEGER) CASCADE;
+DROP FUNCTION IF EXISTS public.test_add_dummy_users(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.test_clear_dummy_users() CASCADE;
 
 DROP TABLE IF EXISTS public.options CASCADE;
 DROP TABLE IF EXISTS public.questions CASCADE;
@@ -761,56 +764,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Only trusted server-side jobs should run the real weekly rollover.
+REVOKE EXECUTE ON FUNCTION public.reset_weekly_leagues() FROM anon, authenticated;
+
 
 -- =======================================================
--- 14. LEADERBOARD SANDBOX TESTING RPC HELPERS (Bypass RLS)
+-- 14. LEADERBOARD SANDBOX SAFETY
 -- =======================================================
 
--- Adjust any user's weekly XP
-CREATE OR REPLACE FUNCTION public.test_adjust_user_xp(target_user_id UUID, xp_change INTEGER)
-RETURNS void AS $$
-BEGIN
-    UPDATE public.profiles
-    SET weekly_xp = GREATEST(0, LEAST(1000, weekly_xp + xp_change))
-    WHERE id = target_user_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Sandbox simulations are app-local and must not mutate real profiles.
+DROP FUNCTION IF EXISTS public.test_adjust_user_xp(UUID, INTEGER) CASCADE;
+DROP FUNCTION IF EXISTS public.test_add_dummy_users(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.test_clear_dummy_users() CASCADE;
 
--- Generate 5 mock profiles in target league
-CREATE OR REPLACE FUNCTION public.test_add_dummy_users(target_league TEXT)
-RETURNS void AS $$
-DECLARE
-    dummy_id UUID;
-    i INTEGER;
-BEGIN
-    FOR i IN 1..5 LOOP
-        dummy_id := ('00000000-0000-0000-0000-00000000000' || i)::uuid;
-        
-        -- Delete profile and auth user if exists
-        DELETE FROM public.profiles WHERE id = dummy_id;
-        DELETE FROM auth.users WHERE id = dummy_id;
-        
-        -- Insert into auth.users first to satisfy foreign key constraint
-        INSERT INTO auth.users (id, email, raw_user_meta_data, aud, role)
-        VALUES (dummy_id, 'dummy' || i || '@quiztime.com', jsonb_build_object('name', 'Test User ' || i), 'authenticated', 'authenticated');
-        
-        -- Update the created profile (which was automatically inserted by handle_new_user trigger)
-        UPDATE public.profiles
-        SET weekly_xp = i * 15,
-            xp = i * 100,
-            league = target_league
-        WHERE id = dummy_id;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- =======================================================
+-- 15. DISCUSSION TOPICS LESSON MAPPING
+-- =======================================================
 
--- Delete all test mock profiles
-CREATE OR REPLACE FUNCTION public.test_clear_dummy_users()
-RETURNS void AS $$
-BEGIN
-    -- Deleting from auth.users will automatically cascade delete from public.profiles
-    DELETE FROM auth.users WHERE email LIKE 'dummy%@quiztime.com';
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES public.lesson_courses(id) ON DELETE CASCADE;
+ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS chapter_id UUID REFERENCES public.lesson_chapters(id) ON DELETE CASCADE;
+ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS sub_chapter_id UUID REFERENCES public.lesson_sub_chapters(id) ON DELETE CASCADE;
+ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS page_id UUID REFERENCES public.lesson_pages(id) ON DELETE CASCADE;
 
-
+CREATE INDEX IF NOT EXISTS idx_discussion_topics_page_id ON public.discussion_topics(page_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_topics_sub_chapter_id ON public.discussion_topics(sub_chapter_id);

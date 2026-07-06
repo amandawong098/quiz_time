@@ -48,6 +48,20 @@ class LessonProgress {
     }
   }
 
+  Future<void> reset(String id) async {
+    completedSubChapters.remove(id);
+    subChapterSlideProgress.remove(id);
+    await _saveToSupabase();
+  }
+
+  Future<void> resetAll(List<String> ids) async {
+    completedSubChapters.removeAll(ids);
+    for (final id in ids) {
+      subChapterSlideProgress.remove(id);
+    }
+    await _saveToSupabase();
+  }
+
   void clear() {
     completedSubChapters.clear();
     subChapterSlideProgress.clear();

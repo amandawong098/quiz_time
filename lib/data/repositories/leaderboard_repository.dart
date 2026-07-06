@@ -43,6 +43,24 @@ class LeaderboardUser {
     required this.league,
   });
 
+  LeaderboardUser copyWith({
+    String? id,
+    String? name,
+    String? avatarUrl,
+    int? weeklyXp,
+    int? xp,
+    String? league,
+  }) {
+    return LeaderboardUser(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      weeklyXp: weeklyXp ?? this.weeklyXp,
+      xp: xp ?? this.xp,
+      league: league ?? this.league,
+    );
+  }
+
   factory LeaderboardUser.fromJson(Map<String, dynamic> json) {
     return LeaderboardUser(
       id: json['id'] as String,
@@ -92,28 +110,4 @@ class LeaderboardRepository {
     }
   }
 
-  /// Trigger the weekly reset (promotion/demotion and weekly XP clear)
-  Future<void> simulateWeeklyReset() async {
-    await _client.rpc('reset_weekly_leagues');
-  }
-
-  /// Generate 5 dummy users in the target league via RPC
-  Future<void> addDummyUsers(String targetLeague) async {
-    await _client.rpc('test_add_dummy_users', params: {
-      'target_league': targetLeague,
-    });
-  }
-
-  /// Delete all generated dummy users via RPC
-  Future<void> clearDummyUsers() async {
-    await _client.rpc('test_clear_dummy_users');
-  }
-
-  /// Adjust any user's weekly XP score via RPC
-  Future<void> adjustUserWeeklyXp(String userId, int change) async {
-    await _client.rpc('test_adjust_user_xp', params: {
-      'target_user_id': userId,
-      'xp_change': change,
-    });
-  }
 }

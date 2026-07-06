@@ -200,6 +200,65 @@ class LessonsTabState extends State<LessonsTab> {
     await loadDbLessons();
   }
 
+  Future<void> _confirmRelearnLesson(LessonCourse course) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Relearn Lesson?'),
+        content: const Text(
+          'Are you sure you want to relearn this lesson? Your progress will be reset but your XP will still be kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Relearn',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoadingDb = true);
+      try {
+        final chapters = _allChaptersMap[course.id] ?? [];
+        final List<String> subChapterIds = [];
+        for (var ch in chapters) {
+          final subs = _allSubChaptersMap[ch.id] ?? [];
+          for (var sub in subs) {
+            subChapterIds.add(sub.id);
+          }
+        }
+
+        await _progressTracker.resetAll(subChapterIds);
+        await loadDbLessons();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lesson "${course.title}" progress reset successfully!')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error resetting progress: $e')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() => _isLoadingDb = false);
+        }
+      }
+    }
+  }
+
   Widget _buildSection({
     required String title,
     required String subtitle,
@@ -1010,6 +1069,27 @@ class LessonsTabState extends State<LessonsTab> {
               ),
               const SizedBox(height: 16),
               _buildDbChapters(),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.deepPurple,
+                    side: const BorderSide(color: Colors.deepPurple, width: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.refresh, size: 20),
+                  label: const Text(
+                    'Relearn Lesson',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  onPressed: () => _confirmRelearnLesson(activeCourse),
+                ),
+              ),
+              const SizedBox(height: 32),
             ] else
               _buildDiscoveryView(),
           ],

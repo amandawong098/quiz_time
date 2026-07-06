@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
@@ -729,21 +730,64 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.deepPurple.shade50,
+                            if (_topic!.subChapterTitle != null) ...[
+                              InkWell(
+                                onTap: () {
+                                  if (_topic!.subChapterId != null) {
+                                    context.push('/lesson-player?subChapterId=${_topic!.subChapterId}&isPreview=true&initialPageId=${_topic!.pageId}');
+                                  }
+                                },
                                 borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                _topic!.tag.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.deepPurple,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepPurple.shade50,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.deepPurple.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.slideshow_rounded, size: 12, color: Colors.deepPurple),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Builder(
+                                          builder: (context) {
+                                            final slideNo = (_topic!.pagePosition ?? 0) + 1;
+                                            return Text(
+                                              '${_topic!.courseTitle ?? "Lesson"} > ${_topic!.chapterTitle ?? ""} > ${_topic!.subChapterTitle ?? ""} > Slide $slideNo',
+                                              style: const TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.deepPurple,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          }
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
+                            ] else ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: Text(
+                                  _topic!.tag.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 8),
                             Text(
                               _topic!.title,

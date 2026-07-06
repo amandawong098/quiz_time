@@ -6,6 +6,8 @@ import '../../../data/repositories/leaderboard_repository.dart';
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
 
+  static bool isSandboxEnv = false;
+
   @override
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();
 }
@@ -38,8 +40,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   ];
 
   bool _isTestMode = false;
-  int? _savedRealWeeklyXp;
-  String? _savedRealLeague;
+  final Map<String, List<LeaderboardUser>> _sandboxUsersByLeague = {};
+  String _sandboxUserLeague = 'Stargazer';
+  int _sandboxUserWeeklyXp = 0;
+  int _sandboxUserXp = 0;
+  int _sandboxDummyCounter = 0;
 
   @override
   void initState() {
@@ -86,11 +91,36 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Future<void> _loadLeaderboard() async {
+    if (_isTestMode) {
+      await _ensureSandboxLeagueLoaded(_selectedLeague);
+      final data = List<LeaderboardUser>.from(
+        _sandboxUsersByLeague[_selectedLeague] ?? const [],
+      )..sort(_compareLeaderboardUsers);
+      setState(() {
+        _users = data;
+        _isLoading = false;
+      });
+      return;
+    }
+
     final data = await _repository.getLeaderboard(_selectedLeague);
     setState(() {
       _users = data;
       _isLoading = false;
     });
+  }
+
+  int _compareLeaderboardUsers(LeaderboardUser a, LeaderboardUser b) {
+    final xpCompare = b.weeklyXp.compareTo(a.weeklyXp);
+    if (xpCompare != 0) return xpCompare;
+    return a.id.compareTo(b.id);
+  }
+
+  Future<void> _ensureSandboxLeagueLoaded(String league) async {
+    if (_sandboxUsersByLeague.containsKey(league)) return;
+    final data = await _repository.getLeaderboard(league);
+    _sandboxUsersByLeague[league] = List<LeaderboardUser>.from(data)
+      ..sort(_compareLeaderboardUsers);
   }
 
   LeagueConfig _getLeagueConfig(String leagueName) {
@@ -107,7 +137,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   bool _isLeagueLocked(String leagueName) {
-    final userConf = _getLeagueConfig(_userLeague);
+    final userConf = _getLeagueConfig(
+      _isTestMode ? _sandboxUserLeague : _userLeague,
+    );
     final targetConf = _getLeagueConfig(leagueName);
     return targetConf.rankOrder > userConf.rankOrder;
   }
@@ -127,75 +159,84 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Future<void> _triggerWeeklyReset() async {
+    if (!_isTestMode) return;
+
     setState(() => _isResetting = true);
     try {
-      final String oldLeague = _userLeague;
+      final String oldLeague = _sandboxUserLeague;
 
-      await _repository.simulateWeeklyReset();
-      
-      // Reload profile and user list
-      await _loadUserProfile();
-      _selectedLeague = _userLeague;
-      await _loadLeaderboard();
-      
-      if (!mounted) return;
+      for (final league in _leaguesOrder) {
+        await _ensureSandboxLeagueLoaded(league);
+      }
 
-      final String newLeague = _userLeague;
-      final int oldRankIdx = _leaguesOrder.indexOf(oldLeague);
-      final int newRankIdx = _leaguesOrder.indexOf(newLeague);
+      final updates = <String, String>{};
+      for (final league in _leaguesOrder) {
+        final users = List<LeaderboardUser>.from(
+          _sandboxUsersByLeague[league] ?? const [],
+        )..sort(_compareLeaderboardUsers);
+        if (users.isEmpty) continue;
 
-      showDialog(
-        context: context,
-        builder: (context) {
-          String title;
-          String content;
-          IconData icon;
-          Color color;
+        final config = _getLeagueConfig(league);
+        final promoCount = (users.length * config.promotionPct).ceil();
+        final demoCount = (users.length * config.demotionPct).ceil();
 
-          if (newRankIdx > oldRankIdx) {
-            title = 'League Promoted!';
-            content = 'Congratulations! You have been promoted from $oldLeague to $newLeague. Keep up the great work!';
-            icon = Icons.emoji_events;
-            color = Colors.amber;
-          } else if (newRankIdx < oldRankIdx) {
-            title = 'League Demoted';
-            content = 'Oops! You have been demoted from $oldLeague to $newLeague. Practice next week to level back up!';
-            icon = Icons.trending_down;
-            color = Colors.red;
-          } else {
-            title = 'Week Ended';
-            content = 'The week has ended. You remained in the $newLeague league. Earn more weekly XP next week to promote!';
-            icon = Icons.hourglass_empty;
-            color = Colors.blue;
+        for (var i = 0; i < users.length; i++) {
+          final user = users[i];
+          var newLeague = league;
+
+          if (i < promoCount && user.weeklyXp >= config.minWeeklyXp) {
+            final currentIndex = _leaguesOrder.indexOf(league);
+            if (currentIndex >= 0 && currentIndex < _leaguesOrder.length - 1) {
+              newLeague = _leaguesOrder[currentIndex + 1];
+            }
+          } else if (i >= users.length - demoCount &&
+              league != _leaguesOrder.first &&
+              user.weeklyXp < config.minWeeklyXp) {
+            final currentIndex = _leaguesOrder.indexOf(league);
+            if (currentIndex > 0) {
+              newLeague = _leaguesOrder[currentIndex - 1];
+            }
           }
 
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: Row(
-              children: [
-                Icon(icon, color: color, size: 28),
-                const SizedBox(width: 10),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: Text(
-              content,
-              style: const TextStyle(fontSize: 15, height: 1.4),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Awesome!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-            ],
-          );
-        },
-      );
+          updates[user.id] = newLeague;
+        }
+      }
+
+      final nextByLeague = <String, List<LeaderboardUser>>{
+        for (final league in _leaguesOrder) league: <LeaderboardUser>[],
+      };
+
+      for (final users in _sandboxUsersByLeague.values) {
+        for (final user in users) {
+          final newLeague = updates[user.id] ?? user.league;
+          final resetUser = user.copyWith(league: newLeague, weeklyXp: 0);
+          nextByLeague.putIfAbsent(newLeague, () => <LeaderboardUser>[]).add(resetUser);
+        }
+      }
+
+      for (final league in nextByLeague.keys) {
+        nextByLeague[league]!.sort(_compareLeaderboardUsers);
+      }
+
+      _sandboxUsersByLeague
+        ..clear()
+        ..addAll(nextByLeague);
+
+      if (_currentUserId != null) {
+        _sandboxUserLeague = updates[_currentUserId] ?? _sandboxUserLeague;
+        _sandboxUserWeeklyXp = 0;
+      }
+
+      _selectedLeague = _sandboxUserLeague;
+      await _loadLeaderboard();
+
+      if (!mounted) return;
+      _showResetResultDialog(oldLeague, _sandboxUserLeague);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to trigger reset: ${e.toString()}'),
+          content: Text('Failed to simulate reset: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -206,19 +247,97 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     }
   }
 
+  void _showResetResultDialog(String oldLeague, String newLeague) {
+    final int oldRankIdx = _leaguesOrder.indexOf(oldLeague);
+    final int newRankIdx = _leaguesOrder.indexOf(newLeague);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        String title;
+        String content;
+        IconData icon;
+        Color color;
+
+        if (newRankIdx > oldRankIdx) {
+          title = 'Sandbox Promotion';
+          content = 'Simulation result: you would move from $oldLeague to $newLeague. Your real league was not changed.';
+          icon = Icons.emoji_events;
+          color = Colors.amber;
+        } else if (newRankIdx < oldRankIdx) {
+          title = 'Sandbox Demotion';
+          content = 'Simulation result: you would move from $oldLeague to $newLeague. Your real league was not changed.';
+          icon = Icons.trending_down;
+          color = Colors.red;
+        } else {
+          title = 'Sandbox Week Ended';
+          content = 'Simulation result: you would remain in $newLeague. Your real weekly XP and league were not changed.';
+          icon = Icons.hourglass_empty;
+          color = Colors.blue;
+        }
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            content,
+            style: const TextStyle(fontSize: 15, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _addDummyUsers() async {
     setState(() => _isLoading = true);
     try {
-      await _repository.addDummyUsers(_selectedLeague);
+      await _ensureSandboxLeagueLoaded(_selectedLeague);
+      final users = List<LeaderboardUser>.from(
+        _sandboxUsersByLeague[_selectedLeague] ?? const [],
+      );
+
+      for (var i = 1; i <= 5; i++) {
+        _sandboxDummyCounter++;
+        users.add(
+          LeaderboardUser(
+            id: 'sandbox-dummy-$_sandboxDummyCounter',
+            name: 'Sandbox User $_sandboxDummyCounter',
+            weeklyXp: i * 15,
+            xp: i * 100,
+            league: _selectedLeague,
+          ),
+        );
+      }
+
+      users.sort(_compareLeaderboardUsers);
+      _sandboxUsersByLeague[_selectedLeague] = users;
       await _loadLeaderboard();
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added 5 dummy users to $_selectedLeague league!')),
+        SnackBar(content: Text('Added 5 sandbox users to $_selectedLeague.')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding dummy users: $e')),
+        SnackBar(content: Text('Error adding sandbox users: $e')),
       );
     } finally {
       if (mounted) {
@@ -230,16 +349,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   Future<void> _clearDummyUsers() async {
     setState(() => _isLoading = true);
     try {
-      await _repository.clearDummyUsers();
+      for (final entry in _sandboxUsersByLeague.entries) {
+        entry.value.removeWhere((user) => user.id.startsWith('sandbox-dummy-'));
+        entry.value.sort(_compareLeaderboardUsers);
+      }
       await _loadLeaderboard();
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cleared all dummy users!')),
+        const SnackBar(content: Text('Cleared sandbox users.')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error clearing dummy users: $e')),
+        SnackBar(content: Text('Error clearing sandbox users: $e')),
       );
     } finally {
       if (mounted) {
@@ -250,84 +373,91 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Future<void> _adjustUserWeeklyXp(String userId, int change) async {
     try {
-      await _repository.adjustUserWeeklyXp(userId, change);
-      
+      await _ensureSandboxLeagueLoaded(_selectedLeague);
+      final users = List<LeaderboardUser>.from(
+        _sandboxUsersByLeague[_selectedLeague] ?? const [],
+      );
+      final userIndex = users.indexWhere((u) => u.id == userId);
+      if (userIndex == -1) return;
+
+      final target = users[userIndex];
+      final newWeeklyXp = (target.weeklyXp + change).clamp(0, 1000).toInt();
+      users[userIndex] = target.copyWith(weeklyXp: newWeeklyXp);
+      users.sort(_compareLeaderboardUsers);
+      _sandboxUsersByLeague[_selectedLeague] = users;
+
       if (userId == _currentUserId) {
-        final client = Supabase.instance.client;
-        final target = _users.firstWhere((u) => u.id == userId);
-        final newWeeklyXp = (target.weeklyXp + change).clamp(0, 1000);
-        final currentMetadata = client.auth.currentUser?.userMetadata ?? {};
-        await client.auth.updateUser(
-          UserAttributes(
-            data: {
-              ...currentMetadata,
-              'weekly_xp': newWeeklyXp,
-            },
-          ),
-        );
-        await _loadUserProfile();
+        _sandboxUserWeeklyXp = newWeeklyXp;
       }
-      
+
       await _loadLeaderboard();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update XP: $e')),
+        SnackBar(content: Text('Failed to update sandbox XP: $e')),
       );
     }
   }
 
-  Future<void> _exitTestMode() async {
+  Future<void> _enterTestMode() async {
     setState(() => _isLoading = true);
     try {
-      await _repository.clearDummyUsers();
-      
-      if (_savedRealWeeklyXp != null && _savedRealLeague != null) {
-        final client = Supabase.instance.client;
-        final currentUserId = client.auth.currentUser?.id;
-        if (currentUserId != null) {
-          await client.from('profiles').update({
-            'weekly_xp': _savedRealWeeklyXp,
-            'league': _savedRealLeague,
-          }).eq('id', currentUserId);
-          
-          final currentMetadata = client.auth.currentUser?.userMetadata ?? {};
-          await client.auth.updateUser(
-            UserAttributes(
-              data: {
-                ...currentMetadata,
-                'weekly_xp': _savedRealWeeklyXp,
-                'league': _savedRealLeague,
-              },
-            ),
-          );
-        }
+      _sandboxUsersByLeague.clear();
+      _sandboxUserLeague = _userLeague;
+      _sandboxUserWeeklyXp = _userWeeklyXp;
+      _sandboxUserXp = _userXp;
+      _sandboxDummyCounter = 0;
+
+      for (final league in _leaguesOrder) {
+        final data = await _repository.getLeaderboard(league);
+        _sandboxUsersByLeague[league] = List<LeaderboardUser>.from(data)
+          ..sort(_compareLeaderboardUsers);
       }
-      
+
       setState(() {
-        _isTestMode = false;
-        _savedRealWeeklyXp = null;
-        _savedRealLeague = null;
+        _isTestMode = true;
+        LeaderboardScreen.isSandboxEnv = true;
+        _selectedLeague = _sandboxUserLeague;
       });
-      
-      await _loadUserProfile();
-      _selectedLeague = _userLeague;
       await _loadLeaderboard();
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sandbox environment cleared. Restored real stats.')),
+        const SnackBar(content: Text('Sandbox mode started. Real stats are protected.')),
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _isTestMode = false;
+        LeaderboardScreen.isSandboxEnv = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error restoring stats: $e')),
+        SnackBar(content: Text('Error starting sandbox: $e')),
       );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _exitTestMode() async {
+    setState(() {
+      _isTestMode = false;
+      LeaderboardScreen.isSandboxEnv = false;
+      _isLoading = true;
+      _sandboxUsersByLeague.clear();
+      _selectedLeague = _userLeague;
+    });
+
+    await _loadUserProfile();
+    _selectedLeague = _userLeague;
+    await _loadLeaderboard();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sandbox closed. Real stats were unchanged.')),
+    );
   }
 
   @override
@@ -351,11 +481,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               if (_isTestMode) {
                 _exitTestMode();
               } else {
-                setState(() {
-                  _isTestMode = true;
-                  _savedRealWeeklyXp = _userWeeklyXp;
-                  _savedRealLeague = _userLeague;
-                });
+                _enterTestMode();
               }
             },
           ),
@@ -388,7 +514,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                                 const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '$_userXp XP',
+                                  '${_isTestMode ? _sandboxUserXp : _userXp} XP',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
@@ -411,7 +537,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                                 const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '$_userWeeklyXp Weekly XP',
+                                  '${_isTestMode ? _sandboxUserWeeklyXp : _userWeeklyXp} Weekly XP',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
@@ -449,15 +575,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                               ),
                             ),
                           ],
-                        )
-                      else
-                        IconButton(
-                          icon: const Icon(Icons.refresh, color: Colors.grey),
-                          tooltip: 'Refresh',
-                          onPressed: () {
-                            setState(() => _isLoading = true);
-                            _loadLeaderboard();
-                          },
                         ),
                     ],
                   ),
@@ -585,7 +702,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
             icon: const Icon(Icons.group_add, size: 16),
-            label: const Text('Add 5 Dummy Users', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            label: const Text('Add 5 Sandbox Users', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             onPressed: _addDummyUsers,
           ),
           OutlinedButton.icon(
@@ -598,7 +715,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
             icon: const Icon(Icons.delete_outline, size: 16),
-            label: const Text('Clear Dummies', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            label: const Text('Clear Sandbox Users', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             onPressed: _clearDummyUsers,
           ),
         ],

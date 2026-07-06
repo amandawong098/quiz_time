@@ -8,13 +8,16 @@ class DiscussionRepository {
   String get _currentUserId => _supabase.auth.currentUser!.id;
 
   // Fetch topics joined with author profile and votes
-  Future<List<DiscussionTopic>> getTopics({String? query, String? tag, String? authorId}) async {
+  Future<List<DiscussionTopic>> getTopics({String? query, String? tag, String? authorId, String? pageId}) async {
     var req = _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*)');
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position)');
 
     if (authorId != null) {
       req = req.eq('author_id', authorId);
+    }
+    if (pageId != null) {
+      req = req.eq('page_id', pageId);
     }
     if (query != null && query.isNotEmpty) {
       req = req.or('title.ilike.%$query%,content.ilike.%$query%');
@@ -33,7 +36,7 @@ class DiscussionRepository {
   Future<DiscussionTopic> getTopicDetails(String topicId) async {
     final response = await _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*)')
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position)')
         .eq('id', topicId)
         .single();
 
@@ -59,6 +62,10 @@ class DiscussionRepository {
     required String content,
     required String tag,
     required List<DiscussionAttachment> attachments,
+    String? courseId,
+    String? chapterId,
+    String? subChapterId,
+    String? pageId,
   }) async {
     final response = await _supabase
         .from('discussion_topics')
@@ -68,11 +75,33 @@ class DiscussionRepository {
           'content': content,
           'tag': tag,
           'attachments': attachments.map((e) => e.toJson()).toList(),
+          'course_id': courseId,
+          'chapter_id': chapterId,
+          'sub_chapter_id': subChapterId,
+          'page_id': pageId,
         })
         .select()
         .single();
 
     return response['id'] as String;
+  }
+
+  // Get post counts for all pages inside a subchapter in a single query
+  Future<Map<String, int>> getPageDiscussionsCount(String subChapterId) async {
+    final response = await _supabase
+        .from('discussion_topics')
+        .select('page_id')
+        .eq('sub_chapter_id', subChapterId);
+    
+    final Map<String, int> counts = {};
+    final list = response as List;
+    for (var row in list) {
+      final pageId = row['page_id'] as String?;
+      if (pageId != null) {
+        counts[pageId] = (counts[pageId] ?? 0) + 1;
+      }
+    }
+    return counts;
   }
 
   // Insert reply row with multiple attachments support
@@ -216,6 +245,7 @@ class DiscussionRepository {
     required String content,
     required String tag,
     required List<DiscussionAttachment> attachments,
+    String? courseId,
   }) async {
     await _supabase
         .from('discussion_topics')
@@ -224,6 +254,7 @@ class DiscussionRepository {
           'content': content,
           'tag': tag,
           'attachments': attachments.map((e) => e.toJson()).toList(),
+          'course_id': courseId,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', topicId);

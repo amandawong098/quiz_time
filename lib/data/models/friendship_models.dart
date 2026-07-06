@@ -3,12 +3,18 @@ class UserProfile {
   final String email;
   final String name;
   final String? avatarUrl;
+  final int xp;
+  final int weeklyXp;
+  final String league;
 
   UserProfile({
     required this.id,
     required this.email,
     required this.name,
     this.avatarUrl,
+    required this.xp,
+    required this.weeklyXp,
+    required this.league,
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -17,6 +23,9 @@ class UserProfile {
       email: json['email'] as String? ?? '',
       name: json['name'] as String? ?? 'Anonymous',
       avatarUrl: json['avatar_url'] as String?,
+      xp: json['xp'] as int? ?? 0,
+      weeklyXp: json['weekly_xp'] as int? ?? 0,
+      league: json['league'] as String? ?? 'Stargazer',
     );
   }
 }
