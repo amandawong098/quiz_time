@@ -143,6 +143,7 @@ class QuizRepository {
             'question_text': q.questionText,
             'duration_seconds': q.durationSeconds,
             'order_index': i,
+            'explanation': q.explanation,
           })
           .select()
           .single();

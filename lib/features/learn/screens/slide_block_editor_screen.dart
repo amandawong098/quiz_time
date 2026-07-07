@@ -52,6 +52,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
   final Map<String, TextEditingController> _captionControllers = {};
   final Map<String, TextEditingController> _questionControllers = {};
   final Map<String, List<TextEditingController>> _optionControllers = {};
+  final Map<String, TextEditingController> _explanationControllers = {};
 
   // Block error messages mapping block ID -> error text
   final Map<String, String> _blockErrors = {};
@@ -86,6 +87,9 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
     for (var c in _questionControllers.values) {
       c.dispose();
     }
+    for (var c in _explanationControllers.values) {
+      c.dispose();
+    }
     for (var list in _optionControllers.values) {
       for (var c in list) {
         c.dispose();
@@ -95,6 +99,7 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
     _captionControllers.clear();
     _questionControllers.clear();
     _optionControllers.clear();
+    _explanationControllers.clear();
   }
 
   Future<void> _loadBlocks() async {
@@ -300,6 +305,9 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
           errors[b.id] = 'Question text cannot be empty.';
         }
         content['question'] = qCtrl?.text ?? (b.content['question'] ?? '');
+
+        final expCtrl = _explanationControllers[b.id];
+        content['explanation'] = expCtrl?.text.trim() ?? (b.content['explanation'] ?? '');
 
         // Options
         final optCtrls = _optionControllers[b.id] ?? [];
@@ -696,6 +704,17 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
             });
     }
     final qCtrl = _questionControllers[block.id]!;
+
+    if (!_explanationControllers.containsKey(block.id)) {
+      _explanationControllers[block.id] =
+          TextEditingController(text: block.content['explanation'] ?? '')
+            ..addListener(() {
+              _markChanged();
+              _clearError(block.id);
+            });
+    }
+    final expCtrl = _explanationControllers[block.id]!;
+
     final isMultipleChoice = block.content['is_multiple_choice'] as bool? ?? false;
     
     if (block.content['options'] == null) {
@@ -723,6 +742,16 @@ class _SlideBlockEditorScreenState extends State<SlideBlockEditorScreen> {
             labelText: 'Question Text',
             border: OutlineInputBorder(),
           ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: expCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Explanation (optional)',
+            hintText: 'Provide context or explanation for the correct answer',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: null,
         ),
         const SizedBox(height: 16),
         const Text(

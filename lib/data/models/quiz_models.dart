@@ -53,6 +53,7 @@ class Question {
   final String questionText;
   final int durationSeconds;
   final int orderIndex;
+  final String? explanation;
   final List<Option> options;
 
   Question({
@@ -61,6 +62,7 @@ class Question {
     required this.questionText,
     required this.durationSeconds,
     required this.orderIndex,
+    this.explanation,
     this.options = const [],
   });
 
@@ -71,6 +73,7 @@ class Question {
       questionText: json['question_text'],
       durationSeconds: json['duration_seconds'] ?? 30,
       orderIndex: json['order_index'],
+      explanation: json['explanation'] as String?,
       options: json['options'] != null
           ? (json['options'] as List).map((o) => Option.fromJson(o)).toList()
           : [],
@@ -83,6 +86,7 @@ class Question {
       'question_text': questionText,
       'duration_seconds': durationSeconds,
       'order_index': orderIndex,
+      'explanation': explanation,
     };
   }
 }

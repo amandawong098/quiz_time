@@ -8,16 +8,30 @@ class DiscussionRepository {
   String get _currentUserId => _supabase.auth.currentUser!.id;
 
   // Fetch topics joined with author profile and votes
-  Future<List<DiscussionTopic>> getTopics({String? query, String? tag, String? authorId, String? pageId}) async {
+  // Fetch topics joined with author profile and votes
+  Future<List<DiscussionTopic>> getTopics({
+    String? query,
+    String? tag,
+    String? authorId,
+    String? pageId,
+    String? quizId,
+    String? questionId,
+  }) async {
     var req = _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position)');
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index)');
 
     if (authorId != null) {
       req = req.eq('author_id', authorId);
     }
     if (pageId != null) {
       req = req.eq('page_id', pageId);
+    }
+    if (quizId != null) {
+      req = req.eq('quiz_id', quizId);
+    }
+    if (questionId != null) {
+      req = req.eq('question_id', questionId);
     }
     if (query != null && query.isNotEmpty) {
       req = req.or('title.ilike.%$query%,content.ilike.%$query%');
@@ -36,7 +50,7 @@ class DiscussionRepository {
   Future<DiscussionTopic> getTopicDetails(String topicId) async {
     final response = await _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position)')
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index)')
         .eq('id', topicId)
         .single();
 
@@ -66,6 +80,8 @@ class DiscussionRepository {
     String? chapterId,
     String? subChapterId,
     String? pageId,
+    String? quizId,
+    String? questionId,
   }) async {
     final response = await _supabase
         .from('discussion_topics')
@@ -79,6 +95,8 @@ class DiscussionRepository {
           'chapter_id': chapterId,
           'sub_chapter_id': subChapterId,
           'page_id': pageId,
+          'quiz_id': quizId,
+          'question_id': questionId,
         })
         .select()
         .single();
@@ -102,6 +120,43 @@ class DiscussionRepository {
       }
     }
     return counts;
+  }
+
+  // Get post counts for all questions inside a quiz in a single query
+  Future<Map<String, int>> getQuizQuestionsDiscussionsCount(String quizId) async {
+    final response = await _supabase
+        .from('discussion_topics')
+        .select('question_id')
+        .eq('quiz_id', quizId);
+    
+    final Map<String, int> counts = {};
+    final list = response as List;
+    for (var row in list) {
+      final qId = row['question_id'] as String?;
+      if (qId != null) {
+        counts[qId] = (counts[qId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  // Get general discussions count for a quiz (where question_id is null)
+  Future<int> getQuizGeneralDiscussionsCount(String quizId) async {
+    final response = await _supabase
+        .from('discussion_topics')
+        .select('id')
+        .eq('quiz_id', quizId)
+        .isFilter('question_id', null);
+    return (response as List).length;
+  }
+
+  // Get total discussions count for a quiz (both general and question-specific)
+  Future<int> getQuizTotalDiscussionsCount(String quizId) async {
+    final response = await _supabase
+        .from('discussion_topics')
+        .select('id')
+        .eq('quiz_id', quizId);
+    return (response as List).length;
   }
 
   // Insert reply row with multiple attachments support

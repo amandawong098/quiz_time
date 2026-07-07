@@ -73,6 +73,7 @@ CREATE TABLE public.questions (
     question_text TEXT NOT NULL,
     duration_seconds INTEGER DEFAULT 30,
     order_index INTEGER DEFAULT 0,
+    explanation TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

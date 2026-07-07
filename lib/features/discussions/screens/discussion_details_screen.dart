@@ -730,7 +730,7 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (_topic!.subChapterTitle != null) ...[
+                            if (_topic!.courseId != null) ...[
                               InkWell(
                                 onTap: () {
                                   if (_topic!.subChapterId != null) {
@@ -748,7 +748,7 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.slideshow_rounded, size: 12, color: Colors.deepPurple),
+                                      const Icon(Icons.menu_book_rounded, size: 12, color: Colors.deepPurple),
                                       const SizedBox(width: 4),
                                       Flexible(
                                         child: Builder(
@@ -756,6 +756,50 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                             final slideNo = (_topic!.pagePosition ?? 0) + 1;
                                             return Text(
                                               '${_topic!.courseTitle ?? "Lesson"} > ${_topic!.chapterTitle ?? ""} > ${_topic!.subChapterTitle ?? ""} > Slide $slideNo',
+                                              style: const TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.deepPurple,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          }
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ] else if (_topic!.quizId != null) ...[
+                              InkWell(
+                                onTap: () {
+                                  String path = '/quiz/${_topic!.quizId}/take?preview=true';
+                                  if (_topic!.questionId != null) {
+                                    path += '&initialQuestionId=${_topic!.questionId}';
+                                  }
+                                  context.push(path);
+                                },
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepPurple.shade50,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.deepPurple.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.assignment_turned_in_rounded, size: 12, color: Colors.deepPurple),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Builder(
+                                          builder: (context) {
+                                            final label = _topic!.questionId != null
+                                                ? '${_topic!.quizTitle ?? "Quiz"} > Question ${(_topic!.questionOrderIndex ?? 0) + 1}'
+                                                : (_topic!.quizTitle ?? "Quiz");
+                                            return Text(
+                                              label,
                                               style: const TextStyle(
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.bold,

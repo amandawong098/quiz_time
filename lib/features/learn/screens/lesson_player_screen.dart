@@ -713,6 +713,44 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             );
           }),
         ),
+        if (state.checked && block.content['explanation'] != null && (block.content['explanation'] as String).trim().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade100),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 14, color: Colors.orange.shade800),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Explanation',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  block.content['explanation'] as String,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange.shade900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

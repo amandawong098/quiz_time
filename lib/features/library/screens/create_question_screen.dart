@@ -9,6 +9,7 @@ class _QuestionFormData {
   final TextEditingController questionTextController;
   final TextEditingController durationController;
   final List<TextEditingController> optionControllers;
+  final TextEditingController explanationController;
   bool isMultipleChoice;
   Set<int> correctOptionIndices;
 
@@ -17,6 +18,7 @@ class _QuestionFormData {
     required this.questionTextController,
     required this.durationController,
     required this.optionControllers,
+    required this.explanationController,
     this.isMultipleChoice = false,
     Set<int>? correctOptionIndices,
   }) : correctOptionIndices = correctOptionIndices ?? {0};
@@ -24,6 +26,7 @@ class _QuestionFormData {
   void dispose() {
     questionTextController.dispose();
     durationController.dispose();
+    explanationController.dispose();
     for (var c in optionControllers) {
       c.dispose();
     }
@@ -209,6 +212,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       optionControllers: q.options
           .map((o) => TextEditingController(text: o.optionText))
           .toList(),
+      explanationController: TextEditingController(text: q.explanation ?? ''),
       isMultipleChoice: correctIndices.length > 1,
       correctOptionIndices: correctIndices,
     );
@@ -234,6 +238,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       optionControllers: optionsData
           .map((o) => TextEditingController(text: o['text'] ?? ''))
           .toList(),
+      explanationController: TextEditingController(text: qData['explanation'] ?? ''),
       isMultipleChoice: correctIndices.length > 1,
       correctOptionIndices: correctIndices,
     );
@@ -245,6 +250,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       questionTextController: TextEditingController(),
       durationController: TextEditingController(text: '30'),
       optionControllers: [TextEditingController(), TextEditingController()],
+      explanationController: TextEditingController(),
       isMultipleChoice: false,
       correctOptionIndices: {0},
     );
@@ -293,6 +299,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
           questionText: f.questionTextController.text.trim(),
           durationSeconds: duration,
           orderIndex: i,
+          explanation: f.explanationController.text.trim().isEmpty ? null : f.explanationController.text.trim(),
           options: opts,
         ),
       );
@@ -405,6 +412,15 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                 validator: (val) => val == null || val.trim().isEmpty
                     ? 'Question cannot be empty'
                     : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: formData.explanationController,
+                decoration: const InputDecoration(
+                  labelText: 'Explanation (optional)',
+                  hintText: 'Provide context or explanation for the correct answer',
+                ),
+                maxLines: null,
               ),
               const SizedBox(height: 32),
               const Text(

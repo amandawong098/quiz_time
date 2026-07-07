@@ -11,11 +11,15 @@ class TakeQuizScreen extends StatefulWidget {
   final String quizId;
   final String? challengeId;
   final bool shuffle;
+  final bool isPreview;
+  final String? initialQuestionId;
   const TakeQuizScreen({
     super.key,
     required this.quizId,
     this.challengeId,
     this.shuffle = false,
+    this.isPreview = false,
+    this.initialQuestionId,
   });
 
   static bool isActive = false;
@@ -72,8 +76,14 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       if (mounted) {
         setState(() {
           _questions = data['questions'] as List<Question>;
-          if (isShuffle || widget.shuffle) {
+          if ((isShuffle || widget.shuffle) && widget.initialQuestionId == null) {
             _questions.shuffle();
+          }
+          if (widget.initialQuestionId != null) {
+            final targetIdx = _questions.indexWhere((q) => q.id == widget.initialQuestionId);
+            if (targetIdx != -1) {
+              _currentIndex = targetIdx;
+            }
           }
           _isLoading = false;
         });
@@ -99,22 +109,24 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     _currentQuestionStartTime = DateTime.now().millisecondsSinceEpoch;
 
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_isPaused) return;
-
-      setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
-        } else {
-          _timer?.cancel();
-          _checkAnswer(); // Auto check if time is up
+    if (!widget.isPreview) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
         }
+        if (_isPaused) return;
+
+        setState(() {
+          if (_remainingSeconds > 0) {
+            _remainingSeconds--;
+          } else {
+            _timer?.cancel();
+            _checkAnswer(); // Auto check if time is up
+          }
+        });
       });
-    });
+    }
   }
 
   void _checkAnswer() {
@@ -151,7 +163,9 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       _lastAnswerCorrect = isCorrect;
 
       _userAnswers.add({
+        'question_id': currentQ.id,
         'question_text': currentQ.questionText,
+        'explanation': currentQ.explanation,
         'selected_option_ids': _selectedOptionIds.toList(),
         'selected_option_id': _selectedOptionIds.isNotEmpty
             ? _selectedOptionIds.first
@@ -188,6 +202,13 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   Future<void> _finishQuiz({bool isQuit = false}) async {
     _timer?.cancel();
 
+    if (widget.isPreview) {
+      if (mounted) {
+        context.pop();
+      }
+      return;
+    }
+
     double avgTime = 0;
     if (_timeTakenPerQuestion.isNotEmpty) {
       avgTime =
@@ -217,6 +238,47 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       final repo = context.read<QuizRepository>();
       final attemptId = await repo.saveQuizAttempt(attempt);
 
+      // Award XP points: 2 XP per correct answer (do not award in preview mode)
+      final int xpAwarded = _correctCount * 2;
+      if (!widget.isPreview && xpAwarded > 0) {
+        try {
+          final client = Supabase.instance.client;
+          final user = client.auth.currentUser;
+          if (user != null) {
+            int currentXp = 0;
+            int currentWeeklyXp = 0;
+            final metadata = user.userMetadata;
+            if (metadata != null && metadata.containsKey('xp')) {
+              currentXp = int.tryParse(metadata['xp'].toString()) ?? 0;
+            }
+            if (metadata != null && metadata.containsKey('weekly_xp')) {
+              currentWeeklyXp = int.tryParse(metadata['weekly_xp'].toString()) ?? 0;
+            }
+            final newXp = currentXp + xpAwarded;
+            final newWeeklyXp = currentWeeklyXp + xpAwarded;
+
+            // Update Auth user metadata
+            await client.auth.updateUser(
+              UserAttributes(
+                data: {
+                  ...metadata ?? {},
+                  'xp': newXp,
+                  'weekly_xp': newWeeklyXp,
+                },
+              ),
+            );
+
+            // Update profiles table in public schema
+            await client.from('profiles').update({
+              'xp': newXp,
+              'weekly_xp': newWeeklyXp,
+            }).eq('id', user.id);
+          }
+        } catch (e) {
+          debugPrint('Error updating XP: $e');
+        }
+      }
+
       if (widget.challengeId != null) {
         final client = Supabase.instance.client;
         final userId = client.auth.currentUser?.id;
@@ -238,7 +300,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
         final reviewPath = widget.challengeId != null
             ? '/quiz/${widget.quizId}/review?challengeId=${widget.challengeId}'
             : '/quiz/${widget.quizId}/review';
-        context.pushReplacement(reviewPath, extra: {'attemptId': attemptId});
+        context.go(reviewPath, extra: {'attemptId': attemptId});
       }
     } catch (e) {
       if (mounted) {
@@ -326,14 +388,15 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
         appBar: AppBar(
           title: Text('Question ${_currentIndex + 1} of ${_questions.length}'),
           actions: [
-            IconButton(
-              icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
-              onPressed: () {
-                setState(() {
-                  _isPaused = !_isPaused;
-                });
-              },
-            ),
+            if (!widget.isPreview)
+              IconButton(
+                icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+                onPressed: () {
+                  setState(() {
+                    _isPaused = !_isPaused;
+                  });
+                },
+              ),
           ],
         ),
         body: Padding(
@@ -403,18 +466,31 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: progress, end: progress),
-                      duration: const Duration(milliseconds: 500),
-                      builder: (context, value, child) {
-                        return LinearProgressIndicator(value: value);
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '00:${_remainingSeconds.toString().padLeft(2, '0')}',
-                      textAlign: TextAlign.right,
-                    ),
+                    if (!widget.isPreview) ...[
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(begin: progress, end: progress),
+                        duration: const Duration(milliseconds: 500),
+                        builder: (context, value, child) {
+                          return LinearProgressIndicator(value: value);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '00:${_remainingSeconds.toString().padLeft(2, '0')}',
+                        textAlign: TextAlign.right,
+                      ),
+                    ] else ...[
+                      const Center(
+                        child: Text(
+                          'Quiz Preview Mode (Non-Scored)',
+                          style: TextStyle(
+                            color: Colors.deepPurple,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 32),
                     Text(
                       question.questionText,

@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../data/repositories/discussion_repository.dart';
 import '../widgets/multiplayer_invite_dialog.dart';
+import '../widgets/quiz_discussions_sheet.dart';
 
 class QuizDetailsScreen extends StatefulWidget {
   final String quizId;
@@ -18,6 +20,8 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   Quiz? _quiz;
   List<Question> _questions = [];
   bool _shuffleQuestions = false;
+  int _totalDiscussionsCount = 0;
+  bool _hasPlayedBefore = false;
 
   @override
   void initState() {
@@ -29,10 +33,15 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
     try {
       final repo = context.read<QuizRepository>();
       final data = await repo.getQuizDetails(widget.quizId);
+      final attempts = await repo.getQuizAttempts(widget.quizId);
+      final discRepo = context.read<DiscussionRepository>();
+      final count = await discRepo.getQuizTotalDiscussionsCount(widget.quizId);
       if (mounted) {
         setState(() {
           _quiz = data['quiz'] as Quiz;
           _questions = data['questions'] as List<Question>;
+          _totalDiscussionsCount = count;
+          _hasPlayedBefore = attempts.isNotEmpty;
           _isLoading = false;
         });
       }
@@ -71,9 +80,38 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
             : IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
-                  context.go('/');
+                  context.go('/discover');
                 },
               ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => QuizDiscussionsSheet(
+                  quizId: widget.quizId,
+                  quizTitle: _quiz!.title,
+                  isLocked: !_hasPlayedBefore,
+                  onTopicCreated: () {
+                    _loadData();
+                  },
+                ),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
+            label: Text(
+              '$_totalDiscussionsCount',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,

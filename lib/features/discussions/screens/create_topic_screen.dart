@@ -5,7 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/lesson_repository.dart';
+import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/models/discussion_models.dart';
+import '../../../data/models/quiz_models.dart';
 import '../../learn/models/lesson_models.dart';
 
 class PendingAttachment {
@@ -30,6 +32,8 @@ class CreateTopicScreen extends StatefulWidget {
   final String? chapterId;
   final String? subChapterId;
   final String? pageId;
+  final String? quizId;
+  final String? questionId;
 
   const CreateTopicScreen({
     super.key,
@@ -38,6 +42,8 @@ class CreateTopicScreen extends StatefulWidget {
     this.chapterId,
     this.subChapterId,
     this.pageId,
+    this.quizId,
+    this.questionId,
   });
 
   @override
@@ -60,6 +66,10 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   String? _metaChapterTitle;
   String? _metaSubChapterTitle;
   int? _metaPagePosition;
+
+  // Linked quiz metadata titles
+  String? _metaQuizTitle;
+  int? _metaQuestionNumber;
 
   String? _resolvedCourseId;
   String? _resolvedChapterId;
@@ -89,7 +99,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   Future<void> _loadCourses() async {
     setState(() {
       _isLoadingCourses = true;
-      if (widget.pageId != null) {
+      if (widget.pageId != null || widget.quizId != null) {
         _isLoadingMetadata = true;
       }
     });
@@ -126,6 +136,23 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
             _resolvedSubChapterId = meta['sub_chapter_id'] as String?;
           });
         }
+      } catch (_) {}
+      setState(() => _isLoadingMetadata = false);
+    } else if (widget.quizId != null) {
+      try {
+        final quizRepo = context.read<QuizRepository>();
+        final quizData = await quizRepo.getQuizDetails(widget.quizId!);
+        final quiz = quizData['quiz'] as Quiz;
+        final questions = quizData['questions'] as List<Question>;
+        setState(() {
+          _metaQuizTitle = quiz.title;
+          if (widget.questionId != null) {
+            final targetIdx = questions.indexWhere((q) => q.id == widget.questionId);
+            if (targetIdx != -1) {
+              _metaQuestionNumber = targetIdx + 1;
+            }
+          }
+        });
       } catch (_) {}
       setState(() => _isLoadingMetadata = false);
     }
@@ -342,6 +369,8 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
       final String finalTag;
       if (widget.pageId != null && _metaCourseTitle != null) {
         finalTag = _metaCourseTitle!;
+      } else if (widget.quizId != null && _metaQuizTitle != null) {
+        finalTag = _metaQuizTitle!;
       } else if (_selectedCourseId != null) {
         final match = _courses.firstWhere(
           (c) => c.id == _selectedCourseId,
@@ -371,6 +400,8 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
           chapterId: _resolvedChapterId ?? widget.chapterId,
           subChapterId: _resolvedSubChapterId ?? widget.subChapterId,
           pageId: widget.pageId,
+          quizId: widget.quizId,
+          questionId: widget.questionId,
         );
       }
 
@@ -532,6 +563,47 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                   _buildMetaRow('Sub-Chapter', _metaSubChapterTitle ?? 'Loading...'),
                                   const SizedBox(height: 8),
                                   _buildMetaRow('Current Slide', 'Slide ${(_metaPagePosition ?? 0) + 1}'),
+                                ],
+                              ),
+                            ),
+                    ] else if (widget.quizId != null) ...[
+                      _isLoadingMetadata
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.orange.shade100),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.assignment_turned_in_rounded, size: 16, color: Colors.orange.shade800),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Linked Quiz Context',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 20),
+                                  _buildMetaRow('Quiz', _metaQuizTitle ?? 'Loading...'),
+                                  if (widget.questionId != null) ...[
+                                    const SizedBox(height: 8),
+                                    _buildMetaRow('Question', 'Question ${_metaQuestionNumber ?? ''}'),
+                                  ],
                                 ],
                               ),
                             ),

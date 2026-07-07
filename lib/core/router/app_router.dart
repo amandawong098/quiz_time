@@ -106,21 +106,25 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final challengeId = state.uri.queryParameters['challengeId'];
         final shuffle = state.uri.queryParameters['shuffle'] == 'true';
+        final isPreview = state.uri.queryParameters['preview'] == 'true' || state.uri.queryParameters['isPreview'] == 'true';
+        final initialQuestionId = state.uri.queryParameters['initialQuestionId'];
         return TakeQuizScreen(
           quizId: state.pathParameters['id']!,
           challengeId: challengeId,
           shuffle: shuffle,
+          isPreview: isPreview,
+          initialQuestionId: initialQuestionId,
         );
       },
     ),
     GoRoute(
       path: '/quiz/:id/review',
       builder: (context, state) {
-        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
         final challengeId = state.uri.queryParameters['challengeId'];
         return QuizReviewScreen(
           quizId: state.pathParameters['id']!,
-          attemptId: extra['attemptId'],
+          attemptId: extra?['attemptId'] ?? '',
           challengeId: challengeId,
         );
       },
@@ -161,6 +165,8 @@ final GoRouter appRouter = GoRouter(
           chapterId: extra?['chapterId'],
           subChapterId: extra?['subChapterId'],
           pageId: extra?['pageId'],
+          quizId: extra?['quizId'],
+          questionId: extra?['questionId'],
         );
       },
     ),
@@ -187,20 +193,20 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/my-lessons/sub-chapter/:id/slides',
       builder: (context, state) {
-        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
         return SubChapterSlidesScreen(
           subChapterId: state.pathParameters['id']!,
-          subChapterTitle: extra['subChapterTitle'] as String,
+          subChapterTitle: extra?['subChapterTitle'] as String? ?? '',
         );
       },
     ),
     GoRoute(
       path: '/my-lessons/page/:id/editor',
       builder: (context, state) {
-        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
         return SlideBlockEditorScreen(
           pageId: state.pathParameters['id']!,
-          pageTitle: extra['pageTitle'] as String,
+          pageTitle: extra?['pageTitle'] as String? ?? '',
         );
       },
     ),
@@ -218,20 +224,20 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/my-flashcards/deck/:id/cards',
       builder: (context, state) {
-        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
         return ManageCardsScreen(
           deckId: state.pathParameters['id']!,
-          deckTitle: extra['deckTitle'] as String,
+          deckTitle: extra?['deckTitle'] as String? ?? '',
         );
       },
     ),
     GoRoute(
       path: '/flashcard-deck/:id/play',
       builder: (context, state) {
-        final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+        final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
         return PlayFlashcardsScreen(
           deckId: state.pathParameters['id']!,
-          deckTitle: extra['deckTitle'] as String,
+          deckTitle: extra?['deckTitle'] as String? ?? '',
         );
       },
     ),

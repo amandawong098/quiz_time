@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../data/repositories/discussion_repository.dart';
+import '../widgets/quiz_discussions_sheet.dart';
 
 class QuizReviewScreen extends StatefulWidget {
   final String quizId;
@@ -26,6 +28,9 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
   QuizAttempt? _attempt;
   List<Map<String, dynamic>> _challengePlayers = [];
   RealtimeChannel? _playersChannel;
+  String? _quizTitle;
+  Map<String, int> _questionDiscussionCounts = {};
+  int _totalDiscussionsCount = 0;
 
   @override
   void initState() {
@@ -46,10 +51,17 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
   Future<void> _loadData() async {
     try {
       final repo = context.read<QuizRepository>();
+      final quizData = await repo.getQuizDetails(widget.quizId);
       final attempts = await repo.getQuizAttempts(widget.quizId);
+      final discRepo = context.read<DiscussionRepository>();
+      final counts = await discRepo.getQuizQuestionsDiscussionsCount(widget.quizId);
+      final totalCount = await discRepo.getQuizTotalDiscussionsCount(widget.quizId);
 
       if (mounted) {
         setState(() {
+          _quizTitle = (quizData['quiz'] as Quiz).title;
+          _questionDiscussionCounts = counts;
+          _totalDiscussionsCount = totalCount;
           try {
             _attempt = attempts.firstWhere((a) => a.id == widget.attemptId);
           } catch (e) {
@@ -155,6 +167,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
         const SizedBox(height: 16),
         ...List.generate(_attempt!.userAnswers.length, (index) {
           final answerData = _attempt!.userAnswers[index];
+          final questionId = answerData['question_id'] as String?;
           final questionText = answerData['question_text'] ?? 'Question';
           final List options = answerData['options'] ?? [];
           final selectedOptionIds = answerData['selected_option_ids'] as List? ?? 
@@ -181,9 +194,54 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Question ${index + 1}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      Row(
+                        children: [
+                          Text(
+                            'Question ${index + 1}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          if (questionId != null) ...[
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              style: TextButton.styleFrom(
+                                minimumSize: Size.zero,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => QuizDiscussionsSheet(
+                                    quizId: widget.quizId,
+                                    questionId: questionId,
+                                    quizTitle: _quizTitle ?? 'Quiz',
+                                    questionText: questionText,
+                                    questionNumber: index + 1,
+                                    isLocked: false,
+                                    onTopicCreated: () {
+                                      _loadData();
+                                    },
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 18,
+                                color: Colors.deepPurple,
+                              ),
+                              label: Text(
+                                '${_questionDiscussionCounts[questionId] ?? 0}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.deepPurple,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       if (isUnattempted)
                         const Text(
@@ -257,6 +315,44 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                       ),
                     );
                   }),
+                  if (answerData['explanation'] != null && (answerData['explanation'] as String).trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade100),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded, size: 14, color: Colors.orange.shade800),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Explanation',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            answerData['explanation'] as String,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -435,9 +531,38 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            context.go('/');
+            context.go('/discover');
           },
         ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => QuizDiscussionsSheet(
+                  quizId: widget.quizId,
+                  quizTitle: _quizTitle ?? 'Quiz',
+                  isLocked: false,
+                  onTopicCreated: () {
+                    _loadData();
+                  },
+                ),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
+            label: Text(
+              '$_totalDiscussionsCount',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -481,6 +606,15 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                             ? 'Try Again!'
                             : (_attempt!.score < 80 ? 'Good Job!' : 'Outstanding!'),
                         style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '+${_attempt!.correctAnswers * 2} XP Earned 🏆',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -538,6 +672,15 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                             : (_attempt!.score < 80 ? 'Good Job!' : 'Outstanding!'),
                         style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '+${_attempt!.correctAnswers * 2} XP Earned 🏆',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
                       const SizedBox(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -574,7 +717,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   onPressed: () {
-                    context.go('/');
+                    context.go('/discover');
                   },
                 ),
               ),

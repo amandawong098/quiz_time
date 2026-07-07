@@ -42,11 +42,20 @@ class DiscussionTopic {
   final String? subChapterId;
   final String? pageId;
 
+  // Quiz specific references (nullable)
+  final String? quizId;
+  final String? questionId;
+
   // Joined metadata titles and positions
   final String? courseTitle;
   final String? chapterTitle;
   final String? subChapterTitle;
   final int? pagePosition;
+
+  // Joined quiz metadata
+  final String? quizTitle;
+  final String? questionText;
+  final int? questionOrderIndex;
 
   // Computed properties
   final int upvotesCount;
@@ -75,10 +84,15 @@ class DiscussionTopic {
     this.chapterId,
     this.subChapterId,
     this.pageId,
+    this.quizId,
+    this.questionId,
     this.courseTitle,
     this.chapterTitle,
     this.subChapterTitle,
     this.pagePosition,
+    this.quizTitle,
+    this.questionText,
+    this.questionOrderIndex,
   });
 
   factory DiscussionTopic.fromJson(Map<String, dynamic> json, String currentUserId) {
@@ -124,6 +138,8 @@ class DiscussionTopic {
     final chapterData = json['lesson_chapters'] as Map<String, dynamic>?;
     final subChapterData = json['lesson_sub_chapters'] as Map<String, dynamic>?;
     final pageData = json['lesson_pages'] as Map<String, dynamic>?;
+    final quizData = json['quizzes'] as Map<String, dynamic>?;
+    final questionData = json['questions'] as Map<String, dynamic>?;
 
     return DiscussionTopic(
       id: json['id'] as String,
@@ -143,10 +159,15 @@ class DiscussionTopic {
       chapterId: json['chapter_id'] as String?,
       subChapterId: json['sub_chapter_id'] as String?,
       pageId: json['page_id'] as String?,
+      quizId: json['quiz_id'] as String?,
+      questionId: json['question_id'] as String?,
       courseTitle: courseData?['title'] as String?,
       chapterTitle: chapterData?['title'] as String?,
       subChapterTitle: subChapterData?['title'] as String?,
       pagePosition: pageData?['position'] as int?,
+      quizTitle: quizData?['title'] as String?,
+      questionText: questionData?['question_text'] as String?,
+      questionOrderIndex: questionData?['order_index'] as int?,
     );
   }
 }

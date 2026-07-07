@@ -189,7 +189,7 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
                                         Row(
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
-                                            if (topic.subChapterTitle != null) ...[
+                                            if (topic.courseId != null) ...[
                                               Flexible(
                                                 child: InkWell(
                                                   onTap: () {
@@ -208,7 +208,7 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
                                                     child: Row(
                                                       mainAxisSize: MainAxisSize.min,
                                                       children: [
-                                                        const Icon(Icons.slideshow_rounded, size: 12, color: Colors.deepPurple),
+                                                        const Icon(Icons.menu_book_rounded, size: 12, color: Colors.deepPurple),
                                                         const SizedBox(width: 4),
                                                         Flexible(
                                                           child: Builder(
@@ -216,6 +216,52 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
                                                               final slideNo = (topic.pagePosition ?? 0) + 1;
                                                               return Text(
                                                                 '${topic.courseTitle ?? "Lesson"} > ${topic.chapterTitle ?? ""} > ${topic.subChapterTitle ?? ""} > Slide $slideNo',
+                                                                style: const TextStyle(
+                                                                  fontSize: 9,
+                                                                  fontWeight: FontWeight.bold,
+                                                                  color: Colors.deepPurple,
+                                                                ),
+                                                                overflow: TextOverflow.ellipsis,
+                                                              );
+                                                            }
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ] else if (topic.quizId != null) ...[
+                                              Flexible(
+                                                child: InkWell(
+                                                  onTap: () {
+                                                    String path = '/quiz/${topic.quizId}/take?preview=true';
+                                                    if (topic.questionId != null) {
+                                                      path += '&initialQuestionId=${topic.questionId}';
+                                                    }
+                                                    context.push(path);
+                                                  },
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.deepPurple.shade50,
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      border: Border.all(color: Colors.deepPurple.shade200),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        const Icon(Icons.assignment_turned_in_rounded, size: 12, color: Colors.deepPurple),
+                                                        const SizedBox(width: 4),
+                                                        Flexible(
+                                                          child: Builder(
+                                                            builder: (context) {
+                                                              final label = topic.questionId != null
+                                                                  ? '${topic.quizTitle ?? "Quiz"} > Question ${(topic.questionOrderIndex ?? 0) + 1}'
+                                                                  : (topic.quizTitle ?? "Quiz");
+                                                              return Text(
+                                                                label,
                                                                 style: const TextStyle(
                                                                   fontSize: 9,
                                                                   fontWeight: FontWeight.bold,
