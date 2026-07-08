@@ -8,7 +8,8 @@ import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
 
 class LessonsTab extends StatefulWidget {
-  const LessonsTab({super.key});
+  final VoidCallback? onBrowseModeChanged;
+  const LessonsTab({super.key, this.onBrowseModeChanged});
 
   @override
   State<LessonsTab> createState() => LessonsTabState();
@@ -16,10 +17,11 @@ class LessonsTab extends StatefulWidget {
 
 class LessonsTabState extends State<LessonsTab> {
   final LessonProgress _progressTracker = LessonProgress();
+  final TextEditingController _searchController = TextEditingController();
   
   // State for active lesson and preview
   String? _selectedLessonCourseId;
-  LessonCourse? _previewCourse;
+  bool _isBrowsing = false;
 
   // State for database lessons
   bool _isLoadingDb = false;
@@ -29,10 +31,22 @@ class LessonsTabState extends State<LessonsTab> {
   Map<String, List<LessonChapter>> _allChaptersMap = {};
   Map<String, List<LessonSubChapter>> _allSubChaptersMap = {};
 
+  String _searchQuery = '';
+  String _activeTab = 'All';
+
+  // Public getter so parent can check if in browse mode vs active lesson
+  bool get isShowingBrowseMode => _isBrowsing || _selectedLessonCourseId == null;
+
   @override
   void initState() {
     super.initState();
     _loadInitialCourseAndLessons();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadInitialCourseAndLessons() async {
@@ -171,8 +185,9 @@ class LessonsTabState extends State<LessonsTab> {
   Future<void> _startLearningCourse(LessonCourse course) async {
     setState(() {
       _selectedLessonCourseId = course.id;
-      _previewCourse = null;
+      _isBrowsing = false;
     });
+    widget.onBrowseModeChanged?.call();
 
     try {
       final client = Supabase.instance.client;
@@ -259,151 +274,115 @@ class LessonsTabState extends State<LessonsTab> {
     }
   }
 
-  Widget _buildSection({
-    required String title,
-    required String subtitle,
-    required List<LessonCourse> courses,
-    required String emptyMessage,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+  void _showCongratulationsDialog(LessonCourse course) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: Padding(
+          padding: const EdgeInsets.all(28.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple.shade900,
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.deepPurple.shade700, Colors.indigo.shade500],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
                 ),
+                child: const Icon(Icons.emoji_events_rounded, size: 44, color: Colors.amber),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '🎉 Congratulations!',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'You\'ve completed',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
               Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
+                course.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "You've covered it all. Ready to tackle the next challenge?",
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    'Awesome!',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        if (courses.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Center(
-                child: Text(
-                  emptyMessage,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade500,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+      ),
+    );
+  }
+
+
+  Widget _buildEmptyPlaceholder(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.school_outlined,
+              size: 56,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            itemCount: courses.length,
-            itemBuilder: (context, index) {
-              final course = courses[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: Colors.grey.shade200),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      _previewCourse = course;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: Colors.deepPurple.shade50,
-                          ),
-                          child: course.imageUrl != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    course.imageUrl!,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.school_rounded,
-                                  color: Colors.deepPurple,
-                                  size: 32,
-                                ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                course.title,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              if (course.description != null &&
-                                  course.description!.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  course.description!,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: Colors.grey.shade400,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        const SizedBox(height: 12),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -456,191 +435,529 @@ class LessonsTabState extends State<LessonsTab> {
       return _getCourseCategory(c, progress) == 2;
     }).toList();
 
+    // Determine current displayed list
+    List<LessonCourse> displayedCourses = [];
+    if (_activeTab == 'All') {
+      displayedCourses = _dbCourses;
+    } else if (_activeTab == 'In Progress') {
+      displayedCourses = ongoing;
+    } else if (_activeTab == 'New') {
+      displayedCourses = unlearned;
+    } else if (_activeTab == 'Completed') {
+      displayedCourses = completed;
+    }
+
+    // Apply search query filter
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      displayedCourses = displayedCourses.where((c) {
+        return c.title.toLowerCase().contains(q) ||
+            (c.description ?? '').toLowerCase().contains(q);
+      }).toList();
+    }
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSection(
-          title: 'Your On-going Lessons',
-          subtitle: 'Continue where you left off to master these topics.',
-          courses: ongoing,
-          emptyMessage: 'No lessons in progress. Start a lesson below!',
+        // Header row with title and optional X (back to lesson) button
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 16, 0),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Browse Lessons',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepPurple,
+                  ),
+                ),
+              ),
+              if (_selectedLessonCourseId != null)
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _isBrowsing = false;
+                    });
+                    widget.onBrowseModeChanged?.call();
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: 'Back to current lesson',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey.shade100,
+                    foregroundColor: Colors.black87,
+                  ),
+                ),
+            ],
+          ),
         ),
-        _buildSection(
-          title: 'Explore New Lessons',
-          subtitle: 'Discover new subjects and expand your knowledge.',
-          courses: unlearned,
-          emptyMessage: 'No new lessons to explore.',
+        const SizedBox(height: 4),
+        // 1. Search Bar (Fixed at top)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+          child: TextField(
+            controller: _searchController,
+            style: const TextStyle(fontSize: 14),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search lessons...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+              ),
+            ),
+            onChanged: (val) {
+              setState(() {
+                _searchQuery = val;
+              });
+            },
+          ),
         ),
-        _buildSection(
-          title: 'Your Completed Lessons',
-          subtitle: 'Great job! You have fully completed these lessons.',
-          courses: completed,
-          emptyMessage: 'No completed lessons yet. Complete a lesson to see it here!',
+
+        // 2. Segmented Tab Selector Row (Fixed at top)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+          child: Row(
+            children: [
+              _buildTabPill('All', _dbCourses.length, isDark),
+              const SizedBox(width: 8),
+              _buildTabPill('In Progress', ongoing.length, isDark),
+              const SizedBox(width: 8),
+              _buildTabPill('New', unlearned.length, isDark),
+              const SizedBox(width: 8),
+              _buildTabPill('Completed', completed.length, isDark),
+            ],
+          ),
+        ),
+
+        // 3. Scrollable List/Content Area
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+
+                if (displayedCourses.isEmpty)
+                  _buildEmptyPlaceholder(
+                    _searchQuery.isNotEmpty
+                        ? 'No matching lessons found for "$_searchQuery".'
+                        : 'No lessons available in this tab.',
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                    itemCount: displayedCourses.length,
+                    itemBuilder: (context, index) {
+                      final course = displayedCourses[index];
+                      final progress = _getCourseProgress(course, _allChaptersMap, _allSubChaptersMap);
+                      final progressPct = (progress * 100).toInt();
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: Colors.grey.shade200),
+                        ),
+                        child: InkWell(
+                          onTap: () => _showCoursePreviewSheet(course),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 72,
+                                  height: 72,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    color: Colors.deepPurple.shade50,
+                                  ),
+                                  child: course.imageUrl != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(16),
+                                          child: Image.network(
+                                            course.imageUrl!,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.school_rounded,
+                                          color: Colors.deepPurple,
+                                          size: 36,
+                                        ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              course.title,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                          if (!course.isPublic)
+                                            const Padding(
+                                              padding: EdgeInsets.only(left: 6.0),
+                                              child: Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      if (course.description != null &&
+                                          course.description!.isNotEmpty) ...[
+                                        Text(
+                                          course.description!,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: progress == 1.0
+                                                  ? Colors.green.shade50
+                                                  : (progress > 0
+                                                      ? Colors.deepPurple.shade50
+                                                      : Colors.grey.shade100),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              progress == 1.0
+                                                  ? 'Completed'
+                                                  : (progress > 0 ? 'Ongoing' : 'New'),
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: progress == 1.0
+                                                    ? Colors.green.shade700
+                                                    : (progress > 0
+                                                        ? Colors.deepPurple.shade700
+                                                        : Colors.grey.shade700),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          if (progress > 0 && progress < 1.0) ...[
+                                            Expanded(
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: LinearProgressIndicator(
+                                                  value: progress,
+                                                  minHeight: 6,
+                                                  backgroundColor: Colors.grey.shade100,
+                                                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '$progressPct%',
+                                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
         ),
       ],
     );
   }
 
-
-  Widget _buildIntroView(LessonCourse course) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  _previewCourse = null;
-                });
-              },
-              icon: const Icon(Icons.arrow_back, color: Colors.deepPurple),
-              label: const Text(
-                'Back to Explore',
+  Widget _buildTabPill(String title, int count, bool isDark) {
+    final isSelected = _activeTab == title;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _activeTab = title;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.deepPurple
+              : (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? Colors.deepPurple
+                : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
                 style: TextStyle(
-                  color: Colors.deepPurple,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
+                  color: isSelected
+                      ? Colors.white
+                      : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                 ),
               ),
             ),
-          ),
+          ],
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-          child: Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: Colors.grey.shade200),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  Container(
-                    width: 140,
-                    height: 140,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      color: Colors.deepPurple.shade50,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+      ),
+    );
+  }
+
+
+  void _showCoursePreviewSheet(LessonCourse course) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.only(top: 8, bottom: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Swipe indicator handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Close button at top right
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: IconButton(
+                    icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black87),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.75,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: Colors.deepPurple.shade50,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: course.imageUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Image.network(
+                                    course.imageUrl!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.school_rounded,
+                                  color: Colors.deepPurple,
+                                  size: 56,
+                                ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          course.title,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: course.isPublic
+                                ? Colors.green.shade50
+                                : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: course.isPublic
+                                  ? Colors.green.shade300
+                                  : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+                            ),
+                          ),
+                          child: Text(
+                            course.isPublic ? 'Public Lesson' : 'Private Lesson',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: course.isPublic
+                                  ? (isDark ? Colors.green.shade300 : Colors.green.shade700)
+                                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (course.description != null &&
+                            course.description!.isNotEmpty) ...[
+                          const Divider(),
+                          const SizedBox(height: 12),
+                          Text(
+                            course.description!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.5,
+                              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                            ),
+                          ),
+                        ] else ...[
+                          const Divider(),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No description provided for this lesson.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: () {
+                              Navigator.pop(context); // Close sheet
+                              _startLearningCourse(course); // Start course learning
+                            },
+                            child: const Text(
+                              'Start Learning',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    child: course.imageUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: Image.network(
-                              course.imageUrl!,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.school_rounded,
-                            color: Colors.deepPurple,
-                            size: 64,
-                          ),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    course.title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: course.isPublic
-                          ? Colors.green.shade50
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: course.isPublic
-                            ? Colors.green.shade300
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Text(
-                      course.isPublic ? 'Public Lesson' : 'Private Lesson',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: course.isPublic
-                            ? Colors.green.shade700
-                            : Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (course.description != null &&
-                      course.description!.isNotEmpty) ...[
-                    const Divider(),
-                    const SizedBox(height: 16),
-                    Text(
-                      course.description!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.5,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ] else ...[
-                    const Divider(),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No description provided for this lesson.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontStyle: FontStyle.italic,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: () => _startLearningCourse(course),
-                      child: const Text(
-                        'Start Learning',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -854,7 +1171,18 @@ class LessonsTabState extends State<LessonsTab> {
                               '/lesson-player?subChapterId=${sub.id}',
                             );
                             if (result == true) {
-                              loadDbLessons();
+                              await loadDbLessons();
+                              // Check if lesson is now fully completed
+                              if (mounted && _selectedLessonCourseId != null) {
+                                final courseIdx = _dbCourses.indexWhere((c) => c.id == _selectedLessonCourseId);
+                                if (courseIdx != -1) {
+                                  final completedCourse = _dbCourses[courseIdx];
+                                  final courseProgress = _getCourseProgress(completedCourse, _allChaptersMap, _allSubChaptersMap);
+                                  if (courseProgress >= 1.0) {
+                                    _showCongratulationsDialog(completedCourse);
+                                  }
+                                }
+                              }
                             }
                           }
                         },
@@ -998,24 +1326,19 @@ class LessonsTabState extends State<LessonsTab> {
       progress = totalSubs > 0 ? completedSubs / totalSubs : 0.0;
     }
 
-    return RefreshIndicator(
-      onRefresh: loadDbLessons,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_isLoadingDb)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 64.0),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (_previewCourse != null)
-              _buildIntroView(_previewCourse!)
-            else if (isViewingActiveLesson) ...[
+    if (_isLoadingDb) {
+      return const Center(child: CircularProgressIndicator(color: Colors.deepPurple));
+    }
+
+    if (isViewingActiveLesson && !_isBrowsing) {
+      return RefreshIndicator(
+        onRefresh: loadDbLessons,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               // Active Lesson Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
@@ -1034,8 +1357,9 @@ class LessonsTabState extends State<LessonsTab> {
                     TextButton.icon(
                       onPressed: () {
                         setState(() {
-                          _selectedLessonCourseId = null;
+                          _isBrowsing = true;
                         });
+                        widget.onBrowseModeChanged?.call();
                       },
                       icon: const Icon(Icons.explore_outlined, size: 18),
                       label: const Text('Browse All'),
@@ -1090,11 +1414,15 @@ class LessonsTabState extends State<LessonsTab> {
                 ),
               ),
               const SizedBox(height: 32),
-            ] else
-              _buildDiscoveryView(),
-          ],
+            ],
+          ),
         ),
-      ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: loadDbLessons,
+      child: _buildDiscoveryView(),
     );
   }
 }

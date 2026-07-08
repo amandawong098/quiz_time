@@ -61,11 +61,17 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
       body: TabBarView(
         controller: _tabController,
         children: [
-          LessonsTab(key: _lessonsTabKey),
+          LessonsTab(
+            key: _lessonsTabKey,
+            onBrowseModeChanged: () {
+              if (mounted) setState(() {});
+            },
+          ),
           const FlashcardsTab(),
         ],
       ),
-      floatingActionButton: _tabController.index == 0
+      floatingActionButton: _tabController.index == 0 &&
+              (_lessonsTabKey.currentState?.isShowingBrowseMode ?? true)
           ? FloatingActionButton(
               onPressed: () async {
                 final result = await context.push<bool>('/create-lesson');

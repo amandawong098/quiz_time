@@ -35,7 +35,6 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
   int _startSecondsRemaining = 3;
   Timer? _countdownTimer;
   RealtimeChannel? _playersChannel;
-  RealtimeChannel? _profilesChannel;
   List<Map<String, dynamic>> _playerStatuses = [];
 
   @override
@@ -48,34 +47,7 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
   void dispose() {
     _countdownTimer?.cancel();
     _unsubscribePlayers();
-    _unsubscribeProfiles();
     super.dispose();
-  }
-
-  void _unsubscribeProfiles() {
-    if (_profilesChannel != null) {
-      Supabase.instance.client.removeChannel(_profilesChannel!);
-      _profilesChannel = null;
-    }
-  }
-
-  void _subscribeProfiles(List<String> friendIds) {
-    if (_profilesChannel != null || friendIds.isEmpty) return;
-    final client = Supabase.instance.client;
-    _profilesChannel = client.channel('public:profiles_presence')
-      ..onPostgresChanges(
-        event: PostgresChangeEvent.update,
-        schema: 'public',
-        table: 'profiles',
-        callback: (payload) {
-          final updatedRow = payload.newRecord;
-          final updatedId = updatedRow['id'] as String?;
-          if (updatedId != null && friendIds.contains(updatedId)) {
-            _loadAvailableFriends();
-          }
-        },
-      )
-      ..subscribe();
   }
 
   Future<void> _loadAvailableFriends() async {
@@ -96,8 +68,6 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
         }
         return;
       }
-
-      _subscribeProfiles(friendIds);
 
       // Query database for recent presence
       final response = await client
