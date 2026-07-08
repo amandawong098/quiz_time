@@ -33,10 +33,11 @@ class QuizDiscussionsSheet extends StatefulWidget {
 class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
   bool _isLoading = true;
   List<Question> _questions = [];
+  Quiz? _quiz;
   List<DiscussionTopic> _allTopics = [];
   List<DiscussionTopic> _filteredTopics = [];
   String _selectedFilter = 'All';
-  String _sortBy = 'Latest';
+  String _sortBy = 'Top Upvotes';
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -66,6 +67,7 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
       if (mounted) {
         setState(() {
           _questions = data['questions'] as List<Question>;
+          _quiz = data['quiz'] as Quiz;
         });
       }
     } catch (e) {
@@ -119,7 +121,7 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
         final dateB = b.updatedAt ?? b.createdAt;
         return dateB.compareTo(dateA);
       });
-    } else if (_sortBy == 'Top Voted') {
+    } else if (_sortBy == 'Top Upvotes') {
       list.sort((a, b) => b.score.compareTo(a.score));
     }
 
@@ -156,8 +158,8 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
         child: Text('Latest'),
       ),
       DropdownMenuItem(
-        value: 'Top Voted',
-        child: Text('Top Voted'),
+        value: 'Top Upvotes',
+        child: Text('Top Upvotes'),
       ),
     ];
   }
@@ -170,7 +172,7 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
 
     final sheetTitle = widget.questionNumber != null
         ? 'Question ${widget.questionNumber} Discussions'
-        : 'Quiz General Discussions';
+        : 'Quiz Discussions';
 
     return Container(
       decoration: BoxDecoration(
@@ -200,129 +202,201 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        sheetTitle,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple.shade900,
-                        ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            sheetTitle,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepPurple.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.quizTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.quizTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    ),
+                    if (!widget.isLocked) ...[
+                      if (_quiz != null && _quiz!.isPublic == false)
+                        TextButton.icon(
+                          onPressed: null, // Disabled
+                          icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
+                          label: Text(
+                            'Post Topic (Disabled)',
+                            style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        )
+                      else
+                        TextButton.icon(
+                          onPressed: () async {
+                            if (!mounted) return;
+                            final created = await context.push<bool>(
+                              '/create-topic',
+                              extra: {
+                                'quizId': widget.quizId,
+                                'questionId': widget.questionId,
+                              },
+                            );
+                            if (created == true && mounted) {
+                              _loadTopics();
+                              widget.onTopicCreated?.call();
+                            }
+                          },
+                          icon: const Icon(Icons.add_comment_outlined, size: 18),
+                          label: const Text('Post Topic'),
+                          style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
                         ),
-                      ),
                     ],
-                  ),
+                  ],
                 ),
-                if (!widget.isLocked)
-                  TextButton.icon(
-                    onPressed: () async {
-                      if (!mounted) return;
-                      final created = await context.push<bool>(
-                        '/create-topic',
-                        extra: {
-                          'quizId': widget.quizId,
-                          'questionId': widget.questionId,
-                        },
-                      );
-                      if (created == true && mounted) {
-                        _loadTopics();
-                        widget.onTopicCreated?.call();
-                      }
-                    },
-                    icon: const Icon(Icons.add_comment_outlined, size: 18),
-                    label: const Text('Post Topic'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                if (!widget.isLocked && _quiz != null && _quiz!.isPublic == false) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'Discussions are turned off for private quizzes.',
+                      style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
+                    ),
                   ),
+                ],
               ],
             ),
           ),
           if (!widget.isLocked) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search discussions...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 18),
-                          onPressed: () {
-                            _searchController.clear();
-                            _applyFiltersAndSort();
-                          },
-                        )
-                      : null,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 38,
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'Search...',
+                          prefixIcon: const Icon(Icons.search, size: 16),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 14),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _applyFiltersAndSort();
+                                  },
+                                )
+                              : null,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onChanged: (_) => _applyFiltersAndSort(),
+                      ),
+                    ),
                   ),
-                ),
-                onChanged: (_) => _applyFiltersAndSort(),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.deepPurple),
+                    tooltip: 'Reset Filters',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      setState(() {
+                        _searchController.clear();
+                        _selectedFilter = 'All';
+                        _sortBy = 'Top Upvotes';
+                      });
+                      _applyFiltersAndSort();
+                    },
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
               child: Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _selectedFilter,
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 38,
+                      child: DropdownButtonFormField<String>(
+                        key: ValueKey('scope_dropdown_$_selectedFilter'),
+                        initialValue: _selectedFilter,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          labelText: 'Scope',
+                          labelStyle: const TextStyle(fontSize: 10),
                         ),
-                        labelText: 'Scope',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                        items: _buildFilterOptions(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedFilter = val);
+                            _applyFiltersAndSort();
+                          }
+                        },
                       ),
-                      items: _buildFilterOptions(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _selectedFilter = val);
-                          _applyFiltersAndSort();
-                        }
-                      },
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _sortBy,
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 38,
+                      child: DropdownButtonFormField<String>(
+                        key: ValueKey('sort_dropdown_$_sortBy'),
+                        initialValue: _sortBy,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          labelText: 'Sort By',
+                          labelStyle: const TextStyle(fontSize: 10),
                         ),
-                        labelText: 'Sort By',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                        items: _buildSortOptions(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _sortBy = val);
+                            _applyFiltersAndSort();
+                          }
+                        },
                       ),
-                      items: _buildSortOptions(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _sortBy = val);
-                          _applyFiltersAndSort();
-                        }
-                      },
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
           ],
           const Divider(),
           Expanded(
@@ -370,10 +444,11 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                 : _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _filteredTopics.isEmpty
-                    ? Center(
+                    ? SingleChildScrollView(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            const SizedBox(height: 32),
                             Icon(
                               Icons.chat_bubble_outline_rounded,
                               size: 48,
@@ -382,11 +457,12 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                             const SizedBox(height: 12),
                             Text(
                               widget.questionId == null
-                                  ? 'No general discussions for this quiz yet.\nStart the conversation!'
+                                  ? 'No discussions for this quiz yet.\nStart the conversation!'
                                   : 'No discussions on this question yet.\nAsk a question or start a discussion!',
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.grey, fontSize: 13),
                             ),
+                            const SizedBox(height: 32),
                           ],
                         ),
                       )

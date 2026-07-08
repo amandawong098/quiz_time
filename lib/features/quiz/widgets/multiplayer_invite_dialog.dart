@@ -35,6 +35,7 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
   int _startSecondsRemaining = 3;
   Timer? _countdownTimer;
   RealtimeChannel? _playersChannel;
+  RealtimeChannel? _profilesChannel;
   List<Map<String, dynamic>> _playerStatuses = [];
 
   @override
@@ -47,7 +48,34 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
   void dispose() {
     _countdownTimer?.cancel();
     _unsubscribePlayers();
+    _unsubscribeProfiles();
     super.dispose();
+  }
+
+  void _unsubscribeProfiles() {
+    if (_profilesChannel != null) {
+      Supabase.instance.client.removeChannel(_profilesChannel!);
+      _profilesChannel = null;
+    }
+  }
+
+  void _subscribeProfiles(List<String> friendIds) {
+    if (_profilesChannel != null || friendIds.isEmpty) return;
+    final client = Supabase.instance.client;
+    _profilesChannel = client.channel('public:profiles_presence')
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'profiles',
+        callback: (payload) {
+          final updatedRow = payload.newRecord;
+          final updatedId = updatedRow['id'] as String?;
+          if (updatedId != null && friendIds.contains(updatedId)) {
+            _loadAvailableFriends();
+          }
+        },
+      )
+      ..subscribe();
   }
 
   Future<void> _loadAvailableFriends() async {
@@ -69,6 +97,8 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
         return;
       }
 
+      _subscribeProfiles(friendIds);
+
       // Query database for recent presence
       final response = await client
           .from('profiles')
@@ -86,8 +116,8 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
         final lastSeen = DateTime.parse(lastSeenStr).toUtc();
         final diffSeconds = now.difference(lastSeen).inSeconds.abs();
         
-        // Online if seen in the last 20 seconds
-        return diffSeconds <= 20;
+        // Online if seen in the last 120 seconds (2 minutes) to account for client clock drift
+        return diffSeconds <= 120;
       }).toList();
 
       if (mounted) {
@@ -157,6 +187,7 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
         'name': f.name,
         'status': 'pending',
         'id': f.id,
+        'avatarUrl': f.avatarUrl,
       }).toList();
 
       // 3. Subscribe to realtime updates on players
@@ -340,12 +371,25 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
           )
         else
           Container(
-            constraints: const BoxConstraints(maxHeight: 200),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.3),
             child: SingleChildScrollView(
               child: Column(
                 children: _availableFriends.map((friend) {
                   final isSelected = _selectedFriends.contains(friend);
                   return CheckboxListTile(
+                    secondary: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.deepPurple.shade100,
+                      backgroundImage: friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty
+                          ? NetworkImage(friend.avatarUrl!)
+                          : null,
+                      child: friend.avatarUrl == null || friend.avatarUrl!.isEmpty
+                          ? Text(
+                              friend.name.isNotEmpty ? friend.name[0].toUpperCase() : '?',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                            )
+                          : null,
+                    ),
                     title: Text(friend.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(friend.email, style: const TextStyle(fontSize: 12)),
                     value: isSelected,
@@ -378,9 +422,11 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
           children: [
             const Icon(Icons.timer_outlined, color: Colors.redAccent),
             const SizedBox(width: 8),
-            Text(
-              'Waiting for responses: $_inviteSecondsRemaining s',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.redAccent),
+            Flexible(
+              child: Text(
+                'Waiting for responses: $_inviteSecondsRemaining s',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.redAccent),
+              ),
             ),
           ],
         ),
@@ -390,35 +436,72 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        ..._playerStatuses.map((p) {
-          IconData icon;
-          Color color;
-          switch (p['status']) {
-            case 'accepted':
-              icon = Icons.check_circle_rounded;
-              color = Colors.green;
-              break;
-            case 'rejected':
-              icon = Icons.cancel_rounded;
-              color = Colors.red;
-              break;
-            case 'timeout':
-              icon = Icons.hourglass_disabled_rounded;
-              color = Colors.grey;
-              break;
-            default:
-              icon = Icons.hourglass_top_rounded;
-              color = Colors.orange;
-          }
-          return ListTile(
-            leading: Icon(icon, color: color),
-            title: Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
-            trailing: Text(
-              (p['status'] as String).toUpperCase(),
-              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+        Container(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.3),
+          child: SingleChildScrollView(
+            child: Column(
+              children: _playerStatuses.map((p) {
+                IconData icon;
+                Color color;
+                switch (p['status']) {
+                  case 'accepted':
+                    icon = Icons.check_circle_rounded;
+                    color = Colors.green;
+                    break;
+                  case 'rejected':
+                    icon = Icons.cancel_rounded;
+                    color = Colors.red;
+                    break;
+                  case 'timeout':
+                    icon = Icons.hourglass_disabled_rounded;
+                    color = Colors.grey;
+                    break;
+                  default:
+                    icon = Icons.hourglass_top_rounded;
+                    color = Colors.orange;
+                }
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.deepPurple.shade100,
+                        backgroundImage: p['avatarUrl'] != null && (p['avatarUrl'] as String).isNotEmpty
+                            ? NetworkImage(p['avatarUrl'] as String)
+                            : null,
+                        child: p['avatarUrl'] == null || (p['avatarUrl'] as String).isEmpty
+                            ? Text(
+                                (p['name'] as String).isNotEmpty ? (p['name'] as String)[0].toUpperCase() : '?',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple, fontSize: 12),
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(1),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: Icon(icon, color: color, size: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                  title: Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  trailing: Text(
+                    (p['status'] as String).toUpperCase(),
+                    style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                );
+              }).toList(),
             ),
-          );
-        }),
+          ),
+        ),
       ],
     );
   }
@@ -514,7 +597,7 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      content: body,
+      content: SingleChildScrollView(child: body),
       actions: actions,
       actionsAlignment: MainAxisAlignment.end,
     );

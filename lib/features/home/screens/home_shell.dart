@@ -128,8 +128,9 @@ class HomeShell extends StatelessWidget {
           onTap: (index) => _onItemTapped(index, context),
           type: BottomNavigationBarType.fixed,
           elevation: 0,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          showUnselectedLabels: true,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.school_rounded),

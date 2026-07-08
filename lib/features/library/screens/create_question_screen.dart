@@ -520,29 +520,25 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Text('Multiple Choice (Checkbox)', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 8),
-                  Switch(
-                    value: formData.isMultipleChoice,
-                    activeThumbColor: Colors.deepPurple,
-                    onChanged: (val) {
-                      setState(() {
-                        formData.isMultipleChoice = val;
-                        if (!val) {
-                          // Enforce single selection: keep only the first correct option (or default to 0)
-                          if (formData.correctOptionIndices.isNotEmpty) {
-                            final first = formData.correctOptionIndices.first;
-                            formData.correctOptionIndices = {first};
-                          } else {
-                            formData.correctOptionIndices = {0};
-                          }
-                        }
-                      });
-                    },
-                  ),
-                ],
+              SwitchListTile(
+                title: const Text('Multiple Choice (Checkbox)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                value: formData.isMultipleChoice,
+                activeThumbColor: Colors.deepPurple,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (val) {
+                  setState(() {
+                    formData.isMultipleChoice = val;
+                    if (!val) {
+                      // Enforce single selection: keep only the first correct option (or default to 0)
+                      if (formData.correctOptionIndices.isNotEmpty) {
+                        final first = formData.correctOptionIndices.first;
+                        formData.correctOptionIndices = {first};
+                      } else {
+                        formData.correctOptionIndices = {0};
+                      }
+                    }
+                  });
+                },
               ),
             ],
           ),
@@ -605,15 +601,10 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                       ),
                     ),
                   )
-                : TextButton(
+                : IconButton(
+                    icon: const Icon(Icons.save_rounded, color: Colors.white),
                     onPressed: _saveAllToDatabase,
-                    child: const Text(
-                      'Save Quiz',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    tooltip: 'Save Quiz',
                   ),
           ],
         ),

@@ -478,16 +478,17 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
             try {
               final challengeData = await _supabase
                   .from('quiz_challenges')
-                  .select('*, quizzes(title), profiles!host_id(name)')
+                  .select('*, quizzes(title), profiles!host_id(name, avatar_url)')
                   .eq('id', challengeId)
                   .single();
 
               final quizTitle = challengeData['quizzes']['title'] as String;
               final hostName = challengeData['profiles']['name'] as String;
+              final hostAvatarUrl = challengeData['profiles']['avatar_url'] as String?;
               final quizId = challengeData['quiz_id'] as String;
               final shuffle = challengeData['shuffle'] as bool? ?? false;
 
-              _showInvitationDialog(challengeId, hostName, quizTitle, quizId, shuffle);
+              _showInvitationDialog(challengeId, hostName, hostAvatarUrl, quizTitle, quizId, shuffle);
             } catch (e) {
               debugPrint('Error loading challenge details: $e');
             }
@@ -505,7 +506,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _showInvitationDialog(
-      String challengeId, String hostName, String quizTitle, String quizId, bool shuffle) {
+      String challengeId, String hostName, String? hostAvatarUrl, String quizTitle, String quizId, bool shuffle) {
     final context = rootNavigatorKey.currentContext;
     if (context == null) return;
 
@@ -515,6 +516,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
       builder: (ctx) => ChallengeInvitationDialog(
         challengeId: challengeId,
         hostName: hostName,
+        hostAvatarUrl: hostAvatarUrl,
         quizTitle: quizTitle,
         quizId: quizId,
         shuffle: shuffle,

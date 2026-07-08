@@ -641,28 +641,31 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                                         .where((o) => o.isCorrect)
                                         .length >
                                     1)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 16.0),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.deepPurple,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
+                              SafeArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 56.0),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.deepPurple,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
                                       ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    onPressed: _selectedOptionIds.isEmpty
-                                        ? null
-                                        : _checkAnswer,
-                                    child: const Text(
-                                      'Submit Answer',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
+                                      onPressed: _selectedOptionIds.isEmpty
+                                          ? null
+                                          : _checkAnswer,
+                                      child: const Text(
+                                        'Submit Answer',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ),
                                   ),

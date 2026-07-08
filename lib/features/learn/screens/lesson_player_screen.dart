@@ -811,71 +811,77 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         final canSubmit = uncheckedCheckboxes.every((b) =>
             (_questionStates[b.id]?.selectedIndices.isNotEmpty) == true);
 
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 56.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-              ),
-              onPressed: canSubmit
-                  ? () {
-                      setState(() {
-                        for (var b in uncheckedCheckboxes) {
-                          final state = _questionStates[b.id]!;
-                          state.checked = true;
-                          final options = b.content['options'] as List<dynamic>? ?? [];
-                          final correctIndices = <int>{};
-                          for (int k = 0; k < options.length; k++) {
-                            if ((options[k] as Map)['is_correct'] == true) {
-                              correctIndices.add(k);
+                onPressed: canSubmit
+                    ? () {
+                        setState(() {
+                          for (var b in uncheckedCheckboxes) {
+                            final state = _questionStates[b.id]!;
+                            state.checked = true;
+                            final options = b.content['options'] as List<dynamic>? ?? [];
+                            final correctIndices = <int>{};
+                            for (int k = 0; k < options.length; k++) {
+                              if ((options[k] as Map)['is_correct'] == true) {
+                                correctIndices.add(k);
+                              }
                             }
+                            state.isCorrect =
+                                state.selectedIndices.length == correctIndices.length &&
+                                state.selectedIndices.every((i) => correctIndices.contains(i));
                           }
-                          state.isCorrect =
-                              state.selectedIndices.length == correctIndices.length &&
-                              state.selectedIndices.every((i) => correctIndices.contains(i));
-                        }
-                      });
-                    }
-                  : null,
-              child: const Text(
-                'Submit Answer',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        });
+                      }
+                    : null,
+                child: const Text(
+                  'Submit Answer',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ),
             ),
           ),
         );
       } else {
         // Only radio tests left to answer (which auto-submit upon tapping), so just show empty space
-        return const SizedBox(height: 24);
+        return const SafeArea(
+          child: SizedBox(height: 56),
+        );
       }
     }
   }
 
   Widget _buildTryAgainButton(VoidCallback onPressed) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 56.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-          ),
-          onPressed: onPressed,
-          child: const Text(
-            'Try Again',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            onPressed: onPressed,
+            child: const Text(
+              'Try Again',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ),
         ),
       ),
@@ -883,23 +889,25 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Widget _buildContinueButton(VoidCallback onPressed) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 56.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-          ),
-          onPressed: onPressed,
-          child: const Text(
-            'Continue',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            onPressed: onPressed,
+            child: const Text(
+              'Continue',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ),
         ),
       ),
@@ -1317,11 +1325,44 @@ class _PageDiscussionsSheet extends StatefulWidget {
 class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
   bool _isLoading = true;
   List<DiscussionTopic> _topics = [];
+  bool _isPublic = true;
 
   @override
   void initState() {
     super.initState();
+    _checkCourseVisibility();
     _loadTopics();
+  }
+
+  Future<void> _checkCourseVisibility() async {
+    try {
+      final client = Supabase.instance.client;
+      String? targetCourseId = widget.courseId;
+
+      if (targetCourseId == null && widget.subChapterId != null) {
+        final subRes = await client
+            .from('lesson_sub_chapters')
+            .select('*, lesson_chapters(course_id)')
+            .eq('id', widget.subChapterId!)
+            .single();
+        targetCourseId = subRes['lesson_chapters']['course_id'] as String?;
+      }
+
+      if (targetCourseId != null) {
+        final courseRes = await client
+            .from('lesson_courses')
+            .select('is_public')
+            .eq('id', targetCourseId)
+            .single();
+        if (mounted) {
+          setState(() {
+            _isPublic = courseRes['is_public'] as bool? ?? false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking course visibility: $e');
+    }
   }
 
   Future<void> _loadTopics() async {
@@ -1373,57 +1414,82 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text(
-                    'Page Discussions',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple.shade900,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Page Discussions',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple.shade900,
+                        ),
+                      ),
+                    ),
+                    if (!_isPublic)
+                      TextButton.icon(
+                        onPressed: null, // Disabled
+                        icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
+                        label: Text(
+                          'Post Topic (Disabled)',
+                          style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      )
+                    else
+                      TextButton.icon(
+                        onPressed: () async {
+                          String? chapterId;
+                          try {
+                            final lessonRepo = context.read<LessonRepository>();
+                            if (widget.subChapterId != null) {
+                              if (widget.courseId != null) {
+                                final chapters = await lessonRepo.getChapters(widget.courseId!);
+                                for (var ch in chapters) {
+                                  final subs = await lessonRepo.getSubChapters(ch.id);
+                                  if (subs.any((s) => s.id == widget.subChapterId)) {
+                                    chapterId = ch.id;
+                                    break;
+                                  }
+                                }
+                              }
+                            }
+                          } catch (_) {}
+
+                          if (!mounted) return;
+
+                          final created = await context.push<bool>(
+                            '/create-topic',
+                            extra: {
+                              'courseId': widget.courseId,
+                              'chapterId': chapterId,
+                              'subChapterId': widget.subChapterId,
+                              'pageId': widget.pageId,
+                            },
+                          );
+                          if (created == true) {
+                            _loadTopics();
+                            widget.onTopicCreated();
+                          }
+                        },
+                        icon: const Icon(Icons.add_comment_outlined, size: 18),
+                        label: const Text('Post Topic'),
+                        style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                      ),
+                  ],
+                ),
+                if (!_isPublic) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'Discussions are turned off for private lessons.',
+                      style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
                     ),
                   ),
-                ),
-                TextButton.icon(
-                  onPressed: () async {
-                    String? chapterId;
-                    try {
-                      final lessonRepo = context.read<LessonRepository>();
-                      if (widget.subChapterId != null) {
-                        if (widget.courseId != null) {
-                          final chapters = await lessonRepo.getChapters(widget.courseId!);
-                          for (var ch in chapters) {
-                            final subs = await lessonRepo.getSubChapters(ch.id);
-                            if (subs.any((s) => s.id == widget.subChapterId)) {
-                              chapterId = ch.id;
-                              break;
-                            }
-                          }
-                        }
-                      }
-                    } catch (_) {}
-
-                    if (!mounted) return;
-
-                    final created = await context.push<bool>(
-                      '/create-topic',
-                      extra: {
-                        'courseId': widget.courseId,
-                        'chapterId': chapterId,
-                        'subChapterId': widget.subChapterId,
-                        'pageId': widget.pageId,
-                      },
-                    );
-                    if (created == true) {
-                      _loadTopics();
-                      widget.onTopicCreated();
-                    }
-                  },
-                  icon: const Icon(Icons.add_comment_outlined, size: 18),
-                  label: const Text('Post Topic'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
-                ),
+                ],
               ],
             ),
           ),

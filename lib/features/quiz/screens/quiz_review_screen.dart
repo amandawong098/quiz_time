@@ -450,6 +450,9 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                 final isQuit = player['is_quit'] as bool? ?? false;
                 final accuracy = (player['accuracy'] as num?)?.toDouble() ?? 0.0;
                 final accuracyInt = accuracy.round();
+                final int totalQ = _attempt?.totalQuestions ?? 1;
+                final int playerCorrect = ((accuracy / 100.0) * totalQ).round();
+                final int playerXp = isQuit ? 0 : playerCorrect * 2;
 
                 Widget leading;
                 if (index == 0) {
@@ -469,13 +472,28 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                 return ListTile(
                   leading: leading,
                   title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: Text(
-                    isQuit ? 'QUIT (0%)' : '$accuracyInt%',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isQuit ? Colors.redAccent : Colors.deepPurple,
-                      fontSize: 14,
-                    ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        isQuit ? 'QUIT (0%)' : '$accuracyInt%',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isQuit ? Colors.redAccent : Colors.deepPurple,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (!isQuit && player['completed_at'] != null)
+                        Text(
+                          '+$playerXp XP 🏆',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade700,
+                          ),
+                        ),
+                    ],
                   ),
                 );
               }),
@@ -610,10 +628,10 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                       const SizedBox(height: 8),
                       Text(
                         '+${_attempt!.correctAnswers * 2} XP Earned 🏆',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green,
+                          color: Colors.amber.shade700,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -675,10 +693,10 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                       const SizedBox(height: 8),
                       Text(
                         '+${_attempt!.correctAnswers * 2} XP Earned 🏆',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green,
+                          color: Colors.amber.shade700,
                         ),
                       ),
                       const SizedBox(height: 24),

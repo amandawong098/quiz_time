@@ -6,6 +6,7 @@ import '../../../core/router/app_router.dart';
 class ChallengeInvitationDialog extends StatefulWidget {
   final String challengeId;
   final String hostName;
+  final String? hostAvatarUrl;
   final String quizTitle;
   final String quizId;
   final bool shuffle;
@@ -14,6 +15,7 @@ class ChallengeInvitationDialog extends StatefulWidget {
     super.key,
     required this.challengeId,
     required this.hostName,
+    this.hostAvatarUrl,
     required this.quizTitle,
     required this.quizId,
     this.shuffle = false,
@@ -231,60 +233,82 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
           Expanded(child: Text('Quiz Challenge!')),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            '${widget.hostName} has challenged you to play:',
-            style: const TextStyle(fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.quizTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepPurple),
-            textAlign: TextAlign.center,
-          ),
-          if (widget.shuffle) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.deepPurple.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.deepPurple.shade200),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.shuffle, size: 16, color: Colors.deepPurple),
-                  SizedBox(width: 6),
-                  Text(
-                    'Shuffle Questions Mode is ON',
-                    style: TextStyle(
-                      color: Colors.deepPurple,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.deepPurple.shade100,
+                  backgroundImage: widget.hostAvatarUrl != null && widget.hostAvatarUrl!.isNotEmpty
+                      ? NetworkImage(widget.hostAvatarUrl!)
+                      : null,
+                  child: widget.hostAvatarUrl == null || widget.hostAvatarUrl!.isEmpty
+                      ? Text(
+                          widget.hostName.isNotEmpty ? widget.hostName[0].toUpperCase() : '?',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '${widget.hostName} has challenged you to play:',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.timer, color: Colors.redAccent, size: 20),
-              const SizedBox(width: 6),
-              Text(
-                'Responding in $_secondsRemaining seconds...',
-                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            const SizedBox(height: 16),
+            Text(
+              widget.quizTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepPurple),
+              textAlign: TextAlign.center,
+            ),
+            if (widget.shuffle) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.deepPurple.shade200),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.shuffle, size: 16, color: Colors.deepPurple),
+                    SizedBox(width: 6),
+                    Text(
+                      'Shuffle Questions Mode is ON',
+                      style: TextStyle(
+                        color: Colors.deepPurple,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
-          ),
-        ],
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.timer, color: Colors.redAccent, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  'Responding in $_secondsRemaining seconds...',
+                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
       actionsAlignment: MainAxisAlignment.spaceEvenly,
       actions: [
