@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../models/flashcard_models.dart';
 
 class PlayFlashcardsScreen extends StatefulWidget {
   final String deckId;
   final String deckTitle;
+  final bool shuffle;
   const PlayFlashcardsScreen({
     super.key,
     required this.deckId,
     required this.deckTitle,
+    this.shuffle = false,
   });
 
   @override
@@ -21,6 +24,11 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
   bool _isLoading = true;
   List<FlashcardItem> _cards = [];
   int _currentIndex = 0;
+  bool _isCardFlipped = false;
+  int _correctCount = 0;
+  int _wrongCount = 0;
+  int _xpEarned = 0;
+  bool _isSessionEnded = false;
   final GlobalKey<_PlayFlipCardState> _cardKey = GlobalKey<_PlayFlipCardState>();
 
   @override
@@ -34,6 +42,9 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
     try {
       final repo = context.read<FlashcardRepository>();
       final cards = await repo.getFlashcards(widget.deckId);
+      if (widget.shuffle) {
+        cards.shuffle();
+      }
       if (mounted) {
         setState(() {
           _cards = cards;
@@ -50,168 +61,395 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
     }
   }
 
-  void _nextCard() {
-    if (_cards.isEmpty) return;
-    _cardKey.currentState?.resetCard();
-    setState(() {
-      _currentIndex = (_currentIndex + 1) % _cards.length;
-    });
+  void _onAnswered(bool correct) {
+    if (correct) {
+      _correctCount++;
+    } else {
+      _wrongCount++;
+    }
+
+    if (_currentIndex < _cards.length - 1) {
+      _cardKey.currentState?.resetCard();
+      setState(() {
+        _isCardFlipped = false;
+        _currentIndex++;
+      });
+    } else {
+      _endSession();
+    }
   }
 
-  void _prevCard() {
-    if (_cards.isEmpty) return;
-    _cardKey.currentState?.resetCard();
-    setState(() {
-      _currentIndex = (_currentIndex - 1 + _cards.length) % _cards.length;
-    });
+  Future<void> _endSession() async {
+    setState(() => _isLoading = true);
+    final int xpAwarded = _correctCount * 2;
+    _xpEarned = xpAwarded;
+
+    if (xpAwarded > 0) {
+      try {
+        final client = Supabase.instance.client;
+        final user = client.auth.currentUser;
+        if (user != null) {
+          int currentXp = 0;
+          int currentWeeklyXp = 0;
+          final metadata = user.userMetadata;
+          if (metadata != null && metadata.containsKey('xp')) {
+            currentXp = int.tryParse(metadata['xp'].toString()) ?? 0;
+          }
+          if (metadata != null && metadata.containsKey('weekly_xp')) {
+            currentWeeklyXp = int.tryParse(metadata['weekly_xp'].toString()) ?? 0;
+          }
+          final newXp = currentXp + xpAwarded;
+          final newWeeklyXp = currentWeeklyXp + xpAwarded;
+
+          // Update Auth user metadata
+          await client.auth.updateUser(
+            UserAttributes(
+              data: {
+                ...metadata ?? {},
+                'xp': newXp,
+                'weekly_xp': newWeeklyXp,
+              },
+            ),
+          );
+
+          // Update profiles table in public schema
+          await client.from('profiles').update({
+            'xp': newXp,
+            'weekly_xp': newWeeklyXp,
+          }).eq('id', user.id);
+        }
+      } catch (e) {
+        debugPrint('Error updating XP: $e');
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _isSessionEnded = true;
+      });
+    }
+  }
+
+  Widget _buildReviewScreen() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(32.0),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.stars_rounded,
+              size: 100,
+              color: Colors.amber,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Revision Completed!',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Great job finishing this study session.',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade50,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '+$_xpEarned XP Earned 🏆',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 28),
+                          const SizedBox(height: 6),
+                          Text(
+                            '$_correctCount Correct',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Icon(Icons.cancel_outlined, color: Colors.red, size: 28),
+                          const SizedBox(height: 6),
+                          Text(
+                            '$_wrongCount Wrong',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 48),
+            SizedBox(
+              width: 240,
+              child: ElevatedButton(
+                onPressed: () {
+                  context.pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text('Revise Again', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.deckTitle,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    if (_isSessionEnded) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Results'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => context.pop(),
+          ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-      ),
-      body: Container(
-        color: Colors.white,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _cards.isEmpty
-                ? Center(
-                    child: Padding(
+        body: _buildReviewScreen(),
+      );
+    }
+
+    return PopScope(
+      canPop: _isSessionEnded || _cards.isEmpty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final goRouter = GoRouter.of(context);
+        final shouldPop = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exit Session?'),
+            content: const Text(
+              'Are you sure you want to exit this revision session? Your progress will be lost.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Yes', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldPop == true && mounted) {
+          goRouter.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.deckTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+        ),
+        body: Container(
+          color: Colors.white,
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _cards.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.style_outlined,
+                              size: 72,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No cards in this deck yet.',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => context.pop(),
+                              child: const Text('Go Back'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Icon(
-                            Icons.style_outlined,
-                            size: 72,
-                            color: Colors.grey.shade400,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Study Session',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                '${_currentIndex + 1} / ${_cards.length}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.deepPurple),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'No cards in this deck yet.',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
+                          const SizedBox(height: 24),
+                          PlayFlipCard(
+                            key: _cardKey,
+                            card: _cards[_currentIndex],
+                            deckTitle: widget.deckTitle,
+                            onFlipped: (isFront) {
+                              setState(() {
+                                _isCardFlipped = !isFront;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 32),
+                          // Answer input actions / flip
+                          _isCardFlipped
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: () => _onAnswered(false),
+                                      icon: const Icon(Icons.cancel_outlined),
+                                      label: const Text('Wrong'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                    ),
+                                    ElevatedButton.icon(
+                                      onPressed: () => _onAnswered(true),
+                                      icon: const Icon(Icons.check_circle_outline_rounded),
+                                      label: const Text('Correct'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Center(
+                                  child: SizedBox(
+                                    width: 200,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        _cardKey.currentState?.flip();
+                                      },
+                                      icon: const Icon(Icons.flip_camera_android_rounded),
+                                      label: const Text('Flip Card'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.deepPurple,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(24),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          const SizedBox(height: 36),
+                          Card(
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: Colors.grey.shade100),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () => context.pop(),
-                            child: const Text('Go Back'),
+                            color: Colors.grey.shade50,
+                            child: const Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.lightbulb_outline_rounded, color: Colors.amber, size: 24),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Pro Tip: Try to recall the answer on the back before flipping the card to build stronger retention.',
+                                      style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black87),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  )
-                : SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Cards tracker
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Study Session',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            Text(
-                              '${_currentIndex + 1} / ${_cards.length}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.deepPurple,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Animated Flip Card
-                        PlayFlipCard(
-                          key: _cardKey,
-                          card: _cards[_currentIndex],
-                          deckTitle: widget.deckTitle,
-                        ),
-                        const SizedBox(height: 32),
-
-                        // Interactive controls
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            IconButton(
-                              onPressed: _prevCard,
-                              iconSize: 44,
-                              color: Colors.deepPurple,
-                              icon: const Icon(Icons.arrow_circle_left_rounded),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                _cardKey.currentState?.flip();
-                              },
-                              icon: const Icon(Icons.flip_camera_android_rounded),
-                              label: const Text('Flip Card'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: _nextCard,
-                              iconSize: 44,
-                              color: Colors.deepPurple,
-                              icon: const Icon(Icons.arrow_circle_right_rounded),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 36),
-
-                        // Memorize Tip Card
-                        Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(color: Colors.grey.shade100),
-                          ),
-                          color: Colors.grey.shade50,
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Row(
-                              children: [
-                                Icon(Icons.lightbulb_outline_rounded, color: Colors.amber, size: 24),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Pro Tip: Try to recall the answer on the back before flipping the card to build stronger retention.',
-                                    style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black87),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+        ),
       ),
     );
   }
@@ -220,10 +458,12 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
 class PlayFlipCard extends StatefulWidget {
   final FlashcardItem card;
   final String deckTitle;
+  final Function(bool isFront)? onFlipped;
   const PlayFlipCard({
     super.key,
     required this.card,
     required this.deckTitle,
+    this.onFlipped,
   });
 
   @override
@@ -258,6 +498,9 @@ class _PlayFlipCardState extends State<PlayFlipCard> with SingleTickerProviderSt
     setState(() {
       _isFront = true;
     });
+    if (widget.onFlipped != null) {
+      widget.onFlipped!(true);
+    }
   }
 
   void flip() {
@@ -269,6 +512,9 @@ class _PlayFlipCardState extends State<PlayFlipCard> with SingleTickerProviderSt
     setState(() {
       _isFront = !_isFront;
     });
+    if (widget.onFlipped != null) {
+      widget.onFlipped!(_isFront);
+    }
   }
 
   @override
@@ -284,7 +530,7 @@ class _PlayFlipCardState extends State<PlayFlipCard> with SingleTickerProviderSt
 
           return Transform(
             transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001) // perspective
+              ..setEntry(3, 2, 0.001)
               ..rotateY(angle),
             alignment: Alignment.center,
             child: isBack

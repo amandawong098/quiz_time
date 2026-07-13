@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../models/flashcard_models.dart';
 
@@ -19,11 +21,13 @@ class ManageCardsScreen extends StatefulWidget {
 class _ManageCardsScreenState extends State<ManageCardsScreen> {
   bool _isLoading = true;
   List<FlashcardItem> _cards = [];
+  FlashcardDeck? _deck;
 
   @override
   void initState() {
     super.initState();
     _loadCards();
+    _loadDeckDetails();
   }
 
   Future<void> _loadCards() async {
@@ -44,6 +48,24 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
           SnackBar(content: Text('Error loading cards: ${e.toString()}')),
         );
       }
+    }
+  }
+
+  Future<void> _loadDeckDetails() async {
+    try {
+      final client = Supabase.instance.client;
+      final response = await client
+          .from('flashcard_decks')
+          .select('*, flashcards(id)')
+          .eq('id', widget.deckId)
+          .single();
+      if (mounted) {
+        setState(() {
+          _deck = FlashcardDeck.fromJson(response);
+        });
+      }
+    } catch (e) {
+      // ignore
     }
   }
 
@@ -114,6 +136,7 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
                 if (!formKey.currentState!.validate()) return;
                 
                 final repo = context.read<FlashcardRepository>();
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context); // Dismiss dialog
                 
                 setState(() => _isLoading = true);
@@ -137,7 +160,7 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
                 } catch (e) {
                   if (mounted) {
                     setState(() => _isLoading = false);
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(content: Text('Error saving card: ${e.toString()}')),
                     );
                   }
@@ -152,6 +175,8 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
   }
 
   Future<void> _deleteCard(FlashcardItem card) async {
+    final repo = context.read<FlashcardRepository>();
+    final messenger = ScaffoldMessenger.of(context);
     final confirm = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -175,13 +200,12 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
     if (confirm && mounted) {
       setState(() => _isLoading = true);
       try {
-        final repo = context.read<FlashcardRepository>();
         await repo.deleteFlashcard(card.id);
         _loadCards();
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(content: Text('Error deleting card: ${e.toString()}')),
           );
         }
@@ -193,21 +217,85 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.deckTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const Text(
-              'Manage Flashcards',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
+        title: Text(
+          _deck?.title ?? widget.deckTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'edit' && _deck != null) {
+                final result = await context.push(
+                  '/create-flashcard-deck',
+                  extra: {'deck': _deck},
+                );
+                if (result == true && mounted) {
+                  _loadDeckDetails();
+                }
+              } else if (value == 'delete' && _deck != null) {
+                final repo = context.read<FlashcardRepository>();
+                final goRouter = GoRouter.of(context);
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+                final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Deck'),
+                        content: Text('Are you sure you want to delete "${_deck!.title}"? This will delete all cards inside it.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    ) ??
+                    false;
+
+                if (confirm && mounted) {
+                  try {
+                    await repo.deleteDeck(_deck!.id);
+                    goRouter.pop(true);
+                  } catch (e) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error deleting deck: ${e.toString()}')),
+                    );
+                  }
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 20, color: Colors.deepPurple),
+                    SizedBox(width: 8),
+                    Text('Edit Deck Details'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete Deck', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+        backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
       ),
       body: Container(
@@ -260,12 +348,13 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
                     itemBuilder: (context, index) {
                       final card = _cards[index];
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 0,
+                        margin: const EdgeInsets.only(bottom: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           side: BorderSide(color: Colors.grey.shade200),
                         ),
+                        elevation: 0,
+                        color: Colors.white,
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Column(
@@ -274,14 +363,14 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
                               Row(
                                 children: [
                                   CircleAvatar(
-                                    radius: 12,
+                                    radius: 14,
                                     backgroundColor: Colors.deepPurple.shade50,
                                     child: Text(
-                                      '${index + 1}',
-                                      style: const TextStyle(
-                                        fontSize: 11,
+                                      '${card.position}',
+                                      style: TextStyle(
+                                        fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.deepPurple,
+                                        color: Colors.deepPurple.shade700,
                                       ),
                                     ),
                                   ),

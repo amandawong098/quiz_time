@@ -29,6 +29,7 @@ import '../../features/learn/screens/my_flashcards_screen.dart';
 import '../../features/learn/screens/create_flashcard_deck_screen.dart';
 import '../../features/learn/screens/manage_cards_screen.dart';
 import '../../features/learn/screens/play_flashcards_screen.dart';
+import '../../features/learn/screens/flashcard_details_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -241,9 +242,19 @@ final GoRouter appRouter = GoRouter(
       path: '/flashcard-deck/:id/play',
       builder: (context, state) {
         final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;
+        final shuffle = state.uri.queryParameters['shuffle'] == 'true';
         return PlayFlashcardsScreen(
           deckId: state.pathParameters['id']!,
           deckTitle: extra?['deckTitle'] as String? ?? '',
+          shuffle: shuffle,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/flashcard-deck/:id/details',
+      builder: (context, state) {
+        return FlashcardDetailsScreen(
+          deckId: state.pathParameters['id']!,
         );
       },
     ),

@@ -105,13 +105,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               ),
                             ],
                           )
-                        : ListView.builder(
+                        : GridView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 0.78,
+                            ),
                             itemCount: _quizzes.length,
                             itemBuilder: (context, index) {
                               final quiz = _quizzes[index];
                               return Card(
-                                margin: const EdgeInsets.only(bottom: 16),
+                                margin: EdgeInsets.zero,
                                 clipBehavior: Clip.antiAlias,
                                 elevation: 2,
                                 shape: RoundedRectangleBorder(
@@ -126,7 +132,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                     children: [
                                       // Cover Image or Gradient Banner
                                       Container(
-                                        height: 140,
+                                        height: 80,
                                         decoration: BoxDecoration(
                                           gradient: quiz.imageUrl == null
                                               ? LinearGradient(
@@ -151,85 +157,97 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                             ? const Center(
                                                 child: Icon(
                                                   Icons.quiz_rounded,
-                                                  size: 48,
+                                                  size: 28,
                                                   color: Colors.white70,
                                                 ),
                                               )
                                             : null,
                                       ),
                                       // Content Area
-                                      Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              quiz.title,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    quiz.title,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  if (quiz.description != null &&
+                                                      quiz.description!
+                                                          .trim()
+                                                          .isNotEmpty) ...[
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      quiz.description!,
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: Colors.grey.shade600,
+                                                        height: 1.2,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
                                               ),
-                                            ),
-                                            if (quiz.description != null &&
-                                                quiz.description!
-                                                    .trim()
-                                                    .isNotEmpty) ...[
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                quiz.description!,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey.shade600,
-                                                  height: 1.3,
+                                              // Dynamic badge below details
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      Colors.deepPurple.shade50,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      _getQuestionBadgeEmoji(
+                                                        quiz.questionCount,
+                                                      ),
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '${quiz.questionCount} Qs',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors
+                                                            .deepPurple
+                                                            .shade700,
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
                                             ],
-                                            const SizedBox(height: 14),
-                                            // Dynamic badge below details
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 6,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    Colors.deepPurple.shade50,
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    _getQuestionBadgeEmoji(
-                                                      quiz.questionCount,
-                                                    ),
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    '${quiz.questionCount} Questions',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Colors
-                                                          .deepPurple
-                                                          .shade700,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
+                                          ),
                                         ),
                                       ),
                                     ],

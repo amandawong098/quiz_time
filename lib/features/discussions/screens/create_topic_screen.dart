@@ -60,15 +60,9 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   bool _isLoadingMetadata = false;
   List<LessonCourse> _courses = [];
   String? _selectedCourseId;
-  List<LessonChapter> _chapters = [];
-  List<LessonSubChapter> _subChapters = [];
-  List<LessonPage> _pages = [];
   String? _selectedChapterId;
   String? _selectedSubChapterId;
   String? _selectedPageId;
-  bool _isLoadingChapters = false;
-  bool _isLoadingSubChapters = false;
-  bool _isLoadingPages = false;
 
   // Linked metadata titles for read-only preview
   String? _metaCourseTitle;
@@ -106,6 +100,9 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   }
 
   Future<void> _loadCourses() async {
+    // Capture context references before async gaps
+    final quizRepo = context.read<QuizRepository>();
+
     setState(() {
       _isLoadingCourses = true;
       if (widget.pageId != null || widget.quizId != null) {
@@ -122,15 +119,11 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
         _selectedChapterId = widget.topic!.chapterId;
         _selectedSubChapterId = widget.topic!.subChapterId;
         _selectedPageId = widget.topic!.pageId;
-        if (_selectedCourseId != null) _loadChapters(_selectedCourseId!);
-        if (_selectedChapterId != null) _loadSubChapters(_selectedChapterId!);
-        if (_selectedSubChapterId != null) _loadPages(_selectedSubChapterId!);
       } else if (widget.courseId != null) {
         _selectedCourseId = widget.courseId;
         final matchingCourse =
             _courses.where((c) => c.id == widget.courseId).firstOrNull;
         _metaCourseTitle = matchingCourse?.title;
-        _loadChapters(widget.courseId!);
       }
       setState(() {});
     } catch (_) {
@@ -159,7 +152,6 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
       setState(() => _isLoadingMetadata = false);
     } else if (widget.quizId != null) {
       try {
-        final quizRepo = context.read<QuizRepository>();
         final quizData = await quizRepo.getQuizDetails(widget.quizId!);
         final quiz = quizData['quiz'] as Quiz;
         final questions = quizData['questions'] as List<Question>;
@@ -177,47 +169,6 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
     }
   }
 
-  Future<void> _loadChapters(String courseId) async {
-    setState(() => _isLoadingChapters = true);
-    try {
-      final chaps = await LessonRepository().getChapters(courseId);
-      setState(() {
-        _chapters = chaps;
-        _isLoadingChapters = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading chapters: $e');
-      setState(() => _isLoadingChapters = false);
-    }
-  }
-
-  Future<void> _loadSubChapters(String chapterId) async {
-    setState(() => _isLoadingSubChapters = true);
-    try {
-      final subs = await LessonRepository().getSubChapters(chapterId);
-      setState(() {
-        _subChapters = subs;
-        _isLoadingSubChapters = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading subchapters: $e');
-      setState(() => _isLoadingSubChapters = false);
-    }
-  }
-
-  Future<void> _loadPages(String subChapterId) async {
-    setState(() => _isLoadingPages = true);
-    try {
-      final pgs = await LessonRepository().getPages(subChapterId);
-      setState(() {
-        _pages = pgs;
-        _isLoadingPages = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading pages: $e');
-      setState(() => _isLoadingPages = false);
-    }
-  }
 
   @override
   void dispose() {
@@ -722,13 +673,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                   _selectedChapterId = null;
                                   _selectedSubChapterId = null;
                                   _selectedPageId = null;
-                                  _chapters = [];
-                                  _subChapters = [];
-                                  _pages = [];
                                 });
-                                if (val != null) {
-                                  _loadChapters(val);
-                                }
                               },
                         items: [
                           const DropdownMenuItem<String?>(
@@ -744,111 +689,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                         ],
                       ),
                     ],
-                    if (widget.pageId == null && widget.quizId == null && _selectedCourseId != null) ...[
-                      const SizedBox(height: 16),
-                      _isLoadingChapters
-                          ? const Center(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8.0),
-                                child: CircularProgressIndicator(),
-                              ),
-                            )
-                          : DropdownButtonFormField<String?>(
-                              decoration: const InputDecoration(
-                                labelText: 'Associate Chapter (Optional)',
-                              ),
-                              initialValue: _selectedChapterId,
-                              items: [
-                                const DropdownMenuItem<String?>(
-                                  value: null,
-                                  child: Text('General (Entire Lesson)'),
-                                ),
-                                ..._chapters.map((ch) => DropdownMenuItem<String?>(
-                                  value: ch.id,
-                                  child: Text(ch.title),
-                                )),
-                              ],
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedChapterId = val;
-                                  _selectedSubChapterId = null;
-                                  _selectedPageId = null;
-                                  _subChapters = [];
-                                  _pages = [];
-                                });
-                                if (val != null) {
-                                  _loadSubChapters(val);
-                                }
-                              },
-                            ),
-                      if (_selectedChapterId != null) ...[
-                        const SizedBox(height: 16),
-                        _isLoadingSubChapters
-                            ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            : DropdownButtonFormField<String?>(
-                                decoration: const InputDecoration(
-                                  labelText: 'Associate Sub-Chapter (Optional)',
-                                ),
-                                initialValue: _selectedSubChapterId,
-                                items: [
-                                  const DropdownMenuItem<String?>(
-                                    value: null,
-                                    child: Text('Entire Chapter'),
-                                  ),
-                                  ..._subChapters.map((sub) => DropdownMenuItem<String?>(
-                                    value: sub.id,
-                                    child: Text(sub.title),
-                                  )),
-                                ],
-                                onChanged: (val) {
-                                  setState(() {
-                                    _selectedSubChapterId = val;
-                                    _selectedPageId = null;
-                                    _pages = [];
-                                  });
-                                  if (val != null) {
-                                    _loadPages(val);
-                                  }
-                                },
-                              ),
-                      ],
-                      if (_selectedSubChapterId != null) ...[
-                        const SizedBox(height: 16),
-                        _isLoadingPages
-                            ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            : DropdownButtonFormField<String?>(
-                                decoration: const InputDecoration(
-                                  labelText: 'Associate Slide / Page (Optional)',
-                                ),
-                                initialValue: _selectedPageId,
-                                items: [
-                                  const DropdownMenuItem<String?>(
-                                    value: null,
-                                    child: Text('Entire Sub-Chapter'),
-                                  ),
-                                  ..._pages.map((pg) => DropdownMenuItem<String?>(
-                                    value: pg.id,
-                                    child: Text('Slide ${pg.position + 1}'),
-                                  )),
-                                ],
-                                onChanged: (val) {
-                                  setState(() {
-                                    _selectedPageId = val;
-                                  });
-                                },
-                              ),
-                      ],
-                    ],
+
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _contentController,

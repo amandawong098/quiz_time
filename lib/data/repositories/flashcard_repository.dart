@@ -12,7 +12,7 @@ class FlashcardRepository {
   Future<List<FlashcardDeck>> getDecks() async {
     final response = await _supabase
         .from('flashcard_decks')
-        .select()
+        .select('*, flashcards(id)')
         .order('created_at', ascending: false);
     return (response as List).map((e) => FlashcardDeck.fromJson(e)).toList();
   }
@@ -24,7 +24,7 @@ class FlashcardRepository {
     
     final response = await _supabase
         .from('flashcard_decks')
-        .select()
+        .select('*, flashcards(id)')
         .eq('creator_id', user.id)
         .order('created_at', ascending: false);
     return (response as List).map((e) => FlashcardDeck.fromJson(e)).toList();
