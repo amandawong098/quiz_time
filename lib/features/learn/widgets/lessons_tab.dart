@@ -4,12 +4,15 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
+import '../../../data/repositories/discussion_repository.dart';
 import '../models/lesson_models.dart';
+import './lesson_discussions_sheet.dart';
 import '../models/lesson_progress.dart';
 
 class LessonsTab extends StatefulWidget {
+  final String? initialCourseId;
   final VoidCallback? onBrowseModeChanged;
-  const LessonsTab({super.key, this.onBrowseModeChanged});
+  const LessonsTab({super.key, this.initialCourseId, this.onBrowseModeChanged});
 
   @override
   State<LessonsTab> createState() => LessonsTabState();
@@ -34,6 +37,18 @@ class LessonsTabState extends State<LessonsTab> {
   String _searchQuery = '';
   String _activeTab = 'All';
 
+  // Cache for course discussion count futures to prevent constant recreation on rebuilds
+  final Map<String, Future<int>> _courseDiscussionCountFutures = {};
+
+  Future<int> _getDiscussionCountFuture(String courseId) {
+    return _courseDiscussionCountFutures.putIfAbsent(
+      courseId,
+      () => context
+          .read<DiscussionRepository>()
+          .getCourseTotalDiscussionsCount(courseId),
+    );
+  }
+
   // Public getter so parent can check if in browse mode vs active lesson
   bool get isShowingBrowseMode => _isBrowsing || _selectedLessonCourseId == null;
 
@@ -50,28 +65,66 @@ class LessonsTabState extends State<LessonsTab> {
   }
 
   Future<void> _loadInitialCourseAndLessons() async {
-    String? storedId;
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      try {
-        final metadata = user.userMetadata;
-        if (metadata != null && metadata.containsKey('current_lesson_course_id')) {
-          storedId = metadata['current_lesson_course_id'] as String?;
-        }
-      } catch (_) {}
-
-      if (storedId == null) {
+    String? storedId = widget.initialCourseId;
+    if (storedId == null) {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
         try {
-          final prefs = await SharedPreferences.getInstance();
-          storedId = prefs.getString('current_lesson_course_id_${user.id}');
+          final metadata = user.userMetadata;
+          if (metadata != null && metadata.containsKey('current_lesson_course_id')) {
+            storedId = metadata['current_lesson_course_id'] as String?;
+          }
         } catch (_) {}
+
+        if (storedId == null) {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            storedId = prefs.getString('current_lesson_course_id_${user.id}');
+          } catch (_) {}
+        }
       }
+    } else {
+      // If initialized with a specific course, start in browse mode to display its preview
+      _isBrowsing = true;
     }
 
     setState(() {
       _selectedLessonCourseId = storedId;
     });
     await loadDbLessons();
+
+    // If an initialCourseId was specified, open the preview sheet after build completes
+    if (widget.initialCourseId != null && mounted) {
+      final courseIdx = _dbCourses.indexWhere((c) => c.id == widget.initialCourseId);
+      if (courseIdx != -1) {
+        final course = _dbCourses[courseIdx];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showCoursePreviewSheet(course);
+          }
+        });
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant LessonsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialCourseId != null && widget.initialCourseId != oldWidget.initialCourseId) {
+      setState(() {
+        _isBrowsing = true;
+      });
+      widget.onBrowseModeChanged?.call();
+      final courseIdx = _dbCourses.indexWhere((c) => c.id == widget.initialCourseId);
+      if (courseIdx != -1) {
+        final course = _dbCourses[courseIdx];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showCoursePreviewSheet(course);
+          }
+        });
+      }
+    }
   }
 
   double _getCourseProgress(LessonCourse course, Map<String, List<LessonChapter>> chaptersMap, Map<String, List<LessonSubChapter>> subChaptersMap) {
@@ -114,6 +167,7 @@ class LessonsTabState extends State<LessonsTab> {
     if (!mounted) return;
     setState(() => _isLoadingDb = true);
     try {
+      _courseDiscussionCountFutures.clear(); // Clear cache on reload
       await _progressTracker.loadFromSupabase();
       if (!mounted) return;
       final repo = context.read<LessonRepository>();
@@ -785,7 +839,9 @@ class LessonsTabState extends State<LessonsTab> {
   void _showCoursePreviewSheet(LessonCourse course) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+    // Get the cached future to avoid recreating it
+    final discussionCountFuture = _getDiscussionCountFuture(course.id);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -948,6 +1004,54 @@ class LessonsTabState extends State<LessonsTab> {
                               ),
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        FutureBuilder<int>(
+                          future: discussionCountFuture,
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            return SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  side: const BorderSide(
+                                    color: Colors.deepPurple,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (context) =>
+                                        LessonDiscussionsSheet(
+                                      courseId: course.id,
+                                      courseTitle: course.title,
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.chat_bubble_outline_rounded,
+                                  color: Colors.deepPurple,
+                                  size: 20,
+                                ),
+                                label: Text(
+                                  'View Discussion ($count)',
+                                  style: const TextStyle(
+                                    color: Colors.deepPurple,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -1394,6 +1498,46 @@ class LessonsTabState extends State<LessonsTab> {
               const SizedBox(height: 16),
               _buildDbChapters(),
               const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: FutureBuilder<int>(
+                  future: _getDiscussionCountFuture(activeCourse.id),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => LessonDiscussionsSheet(
+                              courseId: activeCourse.id,
+                              courseTitle: activeCourse.title,
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                        label: Text(
+                          'View Discussion ($count)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: OutlinedButton.icon(

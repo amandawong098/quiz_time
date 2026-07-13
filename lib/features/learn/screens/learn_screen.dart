@@ -5,7 +5,8 @@ import '../widgets/lessons_tab.dart';
 import '../widgets/flashcards_tab.dart';
 
 class LearnScreen extends StatefulWidget {
-  const LearnScreen({super.key});
+  final String? selectedCourseId;
+  const LearnScreen({super.key, this.selectedCourseId});
 
   @override
   State<LearnScreen> createState() => _LearnScreenState();
@@ -25,6 +26,14 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
         setState(() {});
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant LearnScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedCourseId != null && widget.selectedCourseId != oldWidget.selectedCourseId) {
+      _tabController.animateTo(0);
+    }
   }
 
   @override
@@ -63,6 +72,7 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
         children: [
           LessonsTab(
             key: _lessonsTabKey,
+            initialCourseId: widget.selectedCourseId,
             onBrowseModeChanged: () {
               if (mounted) setState(() {});
             },

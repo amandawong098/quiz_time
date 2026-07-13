@@ -733,8 +733,10 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                             if (_topic!.courseId != null) ...[
                               InkWell(
                                 onTap: () {
-                                  if (_topic!.subChapterId != null) {
+                                  if (_topic!.pageId != null && _topic!.subChapterId != null) {
                                     context.push('/lesson-player?subChapterId=${_topic!.subChapterId}&isPreview=true&initialPageId=${_topic!.pageId}');
+                                  } else {
+                                    context.go('/?selectedCourseId=${_topic!.courseId}');
                                   }
                                 },
                                 borderRadius: BorderRadius.circular(6),
@@ -753,9 +755,19 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                       Flexible(
                                         child: Builder(
                                           builder: (context) {
-                                            final slideNo = (_topic!.pagePosition ?? 0) + 1;
+                                            final String label;
+                                            if (_topic!.pageId != null) {
+                                              final slideNo = (_topic!.pagePosition ?? 0) + 1;
+                                              label = '${_topic!.courseTitle ?? "Lesson"} > ${_topic!.chapterTitle ?? ""} > ${_topic!.subChapterTitle ?? ""} > Slide $slideNo';
+                                            } else if (_topic!.subChapterId != null) {
+                                              label = '${_topic!.courseTitle ?? "Lesson"} > ${_topic!.chapterTitle ?? ""} > ${_topic!.subChapterTitle ?? ""}';
+                                            } else if (_topic!.chapterId != null) {
+                                              label = '${_topic!.courseTitle ?? "Lesson"} > ${_topic!.chapterTitle ?? ""}';
+                                            } else {
+                                              label = _topic!.courseTitle ?? 'Lesson';
+                                            }
                                             return Text(
-                                              '${_topic!.courseTitle ?? "Lesson"} > ${_topic!.chapterTitle ?? ""} > ${_topic!.subChapterTitle ?? ""} > Slide $slideNo',
+                                              label,
                                               style: const TextStyle(
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.bold,

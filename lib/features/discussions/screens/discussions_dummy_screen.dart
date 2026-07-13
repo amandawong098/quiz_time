@@ -80,9 +80,11 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Vote failed: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vote failed: $e')),
+        );
+      }
     }
   }
 
@@ -305,14 +307,16 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                                               Row(
                                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                 children: [
-                                                  if (topic.courseId != null) ...[
+                                                   if (topic.courseId != null) ...[
                                                     Expanded(
                                                       child: Padding(
                                                         padding: const EdgeInsets.only(right: 8.0),
                                                         child: InkWell(
                                                           onTap: () {
-                                                            if (topic.subChapterId != null) {
+                                                            if (topic.pageId != null && topic.subChapterId != null) {
                                                               context.push('/lesson-player?subChapterId=${topic.subChapterId}&isPreview=true&initialPageId=${topic.pageId}');
+                                                            } else {
+                                                              context.go('/?selectedCourseId=${topic.courseId}');
                                                             }
                                                           },
                                                           borderRadius: BorderRadius.circular(6),
@@ -331,9 +335,19 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                                                                 Flexible(
                                                                   child: Builder(
                                                                     builder: (context) {
-                                                                      final slideNo = (topic.pagePosition ?? 0) + 1;
+                                                                      final String label;
+                                                                      if (topic.pageId != null) {
+                                                                        final slideNo = (topic.pagePosition ?? 0) + 1;
+                                                                        label = '${topic.courseTitle ?? "Lesson"} > ${topic.chapterTitle ?? ""} > ${topic.subChapterTitle ?? ""} > Slide $slideNo';
+                                                                      } else if (topic.subChapterId != null) {
+                                                                        label = '${topic.courseTitle ?? "Lesson"} > ${topic.chapterTitle ?? ""} > ${topic.subChapterTitle ?? ""}';
+                                                                      } else if (topic.chapterId != null) {
+                                                                        label = '${topic.courseTitle ?? "Lesson"} > ${topic.chapterTitle ?? ""}';
+                                                                      } else {
+                                                                        label = topic.courseTitle ?? "Lesson";
+                                                                      }
                                                                       return Text(
-                                                                        '${topic.courseTitle ?? "Lesson"} > ${topic.chapterTitle ?? ""} > ${topic.subChapterTitle ?? ""} > Slide $slideNo',
+                                                                        label,
                                                                         style: const TextStyle(
                                                                           fontSize: 9,
                                                                           fontWeight: FontWeight.bold,

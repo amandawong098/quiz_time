@@ -54,7 +54,13 @@ final GoRouter appRouter = GoRouter(
       navigatorKey: _shellNavigatorKey,
       builder: (context, state, child) => HomeShell(child: child),
       routes: [
-        GoRoute(path: '/', builder: (context, state) => const LearnScreen()),
+        GoRoute(
+          path: '/',
+          builder: (context, state) {
+            final courseId = state.uri.queryParameters['selectedCourseId'];
+            return LearnScreen(selectedCourseId: courseId);
+          },
+        ),
         GoRoute(
           path: '/discover',
           builder: (context, state) => const DiscoverScreen(),

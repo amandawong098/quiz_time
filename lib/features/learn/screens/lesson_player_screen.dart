@@ -1325,7 +1325,16 @@ class _PageDiscussionsSheet extends StatefulWidget {
 class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
   bool _isLoading = true;
   List<DiscussionTopic> _topics = [];
+  List<DiscussionTopic> _filteredTopics = [];
   bool _isPublic = true;
+  String _sortBy = 'Top Upvotes';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -1375,12 +1384,36 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
           _topics = results;
           _isLoading = false;
         });
+        _applyFilters();
       }
     } catch (_) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _applyFilters() {
+    final query = _searchController.text.toLowerCase();
+    var list = List<DiscussionTopic>.from(_topics);
+
+    if (query.isNotEmpty) {
+      list = list.where((t) =>
+          t.title.toLowerCase().contains(query) ||
+          t.content.toLowerCase().contains(query)).toList();
+    }
+
+    if (_sortBy == 'Latest') {
+      list.sort((a, b) {
+        final dateA = a.updatedAt ?? a.createdAt;
+        final dateB = b.updatedAt ?? b.createdAt;
+        return dateB.compareTo(dateA);
+      });
+    } else {
+      list.sort((a, b) => b.score.compareTo(a.score));
+    }
+
+    setState(() => _filteredTopics = list);
   }
 
   @override
@@ -1441,9 +1474,11 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                     else
                       TextButton.icon(
                         onPressed: () async {
+                          // Capture context-dependent objects before any async gap
+                          final lessonRepo = context.read<LessonRepository>();
+                          final router = GoRouter.of(context);
                           String? chapterId;
                           try {
-                            final lessonRepo = context.read<LessonRepository>();
                             if (widget.subChapterId != null) {
                               if (widget.courseId != null) {
                                 final chapters = await lessonRepo.getChapters(widget.courseId!);
@@ -1460,7 +1495,7 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
 
                           if (!mounted) return;
 
-                          final created = await context.push<bool>(
+                          final created = await router.push<bool>(
                             '/create-topic',
                             extra: {
                               'courseId': widget.courseId,
@@ -1490,6 +1525,77 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 8),
+                // Search field
+                TextField(
+                  controller: _searchController,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'Search discussions...',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () {
+                              _searchController.clear();
+                              _applyFilters();
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (_) => _applyFilters(),
+                ),
+                const SizedBox(height: 6),
+                // Sort By + Refresh
+                Row(
+                  children: [
+                    Expanded(
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          labelText: 'Sort By',
+                          labelStyle: const TextStyle(fontSize: 12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isExpanded: true,
+                            value: _sortBy,
+                            isDense: true,
+                            style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            items: const [
+                              DropdownMenuItem(value: 'Latest', child: Text('Latest')),
+                              DropdownMenuItem(value: 'Top Upvotes', child: Text('Top Upvotes')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _sortBy = val);
+                                _applyFilters();
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.deepPurple),
+                      tooltip: 'Reset',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                          _sortBy = 'Top Upvotes';
+                        });
+                        _applyFilters();
+                      },
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1497,11 +1603,12 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _topics.isEmpty
-                    ? Center(
+                : _filteredTopics.isEmpty
+                    ? SingleChildScrollView(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            const SizedBox(height: 32),
                             Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Colors.grey.shade400),
                             const SizedBox(height: 12),
                             const Text(
@@ -1509,14 +1616,15 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                               textAlign: TextAlign.center,
                               style: TextStyle(color: Colors.grey, fontSize: 13),
                             ),
+                            const SizedBox(height: 32),
                           ],
                         ),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        itemCount: _topics.length,
+                        itemCount: _filteredTopics.length,
                         itemBuilder: (context, index) {
-                          final topic = _topics[index];
+                          final topic = _filteredTopics[index];
                           final displayDate = topic.updatedAt ?? topic.createdAt;
                           final dateStr = '${displayDate.day}/${displayDate.month}/${displayDate.year}';
                           final editedStr = topic.updatedAt != null ? ' (edited)' : '';

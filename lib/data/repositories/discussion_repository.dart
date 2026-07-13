@@ -14,6 +14,7 @@ class DiscussionRepository {
     String? tag,
     String? authorId,
     String? pageId,
+    String? courseId,
     String? quizId,
     String? questionId,
   }) async {
@@ -26,6 +27,9 @@ class DiscussionRepository {
     }
     if (pageId != null) {
       req = req.eq('page_id', pageId);
+    }
+    if (courseId != null) {
+      req = req.eq('course_id', courseId);
     }
     if (quizId != null) {
       req = req.eq('quiz_id', quizId);
@@ -140,13 +144,24 @@ class DiscussionRepository {
     return counts;
   }
 
-  // Get general discussions count for a quiz (where question_id is null)
-  Future<int> getQuizGeneralDiscussionsCount(String quizId) async {
+  // Get general discussions count for a lesson/course (where page_id, chapter_id, sub_chapter_id are null)
+  Future<int> getCourseGeneralDiscussionsCount(String courseId) async {
     final response = await _supabase
         .from('discussion_topics')
         .select('id')
-        .eq('quiz_id', quizId)
-        .isFilter('question_id', null);
+        .eq('course_id', courseId)
+        .isFilter('page_id', null)
+        .isFilter('chapter_id', null)
+        .isFilter('sub_chapter_id', null);
+    return (response as List).length;
+  }
+
+  // Get total discussions count for a lesson/course (both general and page-specific)
+  Future<int> getCourseTotalDiscussionsCount(String courseId) async {
+    final response = await _supabase
+        .from('discussion_topics')
+        .select('id')
+        .eq('course_id', courseId);
     return (response as List).length;
   }
 
@@ -301,6 +316,9 @@ class DiscussionRepository {
     required String tag,
     required List<DiscussionAttachment> attachments,
     String? courseId,
+    String? chapterId,
+    String? subChapterId,
+    String? pageId,
   }) async {
     await _supabase
         .from('discussion_topics')
@@ -310,6 +328,9 @@ class DiscussionRepository {
           'tag': tag,
           'attachments': attachments.map((e) => e.toJson()).toList(),
           'course_id': courseId,
+          'chapter_id': chapterId,
+          'sub_chapter_id': subChapterId,
+          'page_id': pageId,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', topicId);
