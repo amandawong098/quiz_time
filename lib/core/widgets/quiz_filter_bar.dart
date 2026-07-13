@@ -2,28 +2,16 @@ import 'package:flutter/material.dart';
 
 class QuizFilterBar extends StatelessWidget {
   final String searchQuery;
-  final String? selectedGrade;
-  final String? selectedSubject;
   final String? selectedQuestionRange;
-  final List<String> grades;
-  final List<String> subjects;
   final Function(String) onSearchChanged;
-  final Function(String?) onGradeChanged;
-  final Function(String?) onSubjectChanged;
   final Function(String?) onQuestionRangeChanged;
   final VoidCallback onReset;
 
   const QuizFilterBar({
     super.key,
     required this.searchQuery,
-    required this.selectedGrade,
-    required this.selectedSubject,
     required this.selectedQuestionRange,
-    this.grades = const [],
-    this.subjects = const [],
     required this.onSearchChanged,
-    required this.onGradeChanged,
-    required this.onSubjectChanged,
     required this.onQuestionRangeChanged,
     required this.onReset,
   });
@@ -47,44 +35,6 @@ class QuizFilterBar extends StatelessWidget {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                initialValue: selectedGrade,
-                decoration: const InputDecoration(labelText: 'Grade'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All Grades')),
-                  ...grades.map(
-                    (g) => DropdownMenuItem(
-                      value: g,
-                      child: Text(g),
-                    ),
-                  ),
-                ],
-                onChanged: onGradeChanged,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue: selectedSubject,
-                decoration: const InputDecoration(labelText: 'Subject'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All Subjects')),
-                  ...subjects.map(
-                    (s) => DropdownMenuItem(
-                      value: s,
-                      child: Text(s),
-                    ),
-                  ),
-                ],
-                onChanged: onSubjectChanged,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
                 initialValue: selectedQuestionRange,
                 decoration: const InputDecoration(labelText: 'No. of Questions'),
                 items: const [
@@ -98,10 +48,11 @@ class QuizFilterBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            TextButton.icon(
+            IconButton(
               onPressed: onReset,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reset'),
+              icon: const Icon(Icons.refresh_rounded),
+              color: Colors.deepPurple,
+              tooltip: 'Reset filters',
             ),
           ],
         ),

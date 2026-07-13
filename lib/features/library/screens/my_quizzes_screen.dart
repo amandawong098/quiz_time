@@ -14,12 +14,8 @@ class MyQuizzesScreen extends StatefulWidget {
 
 class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
   String _searchQuery = '';
-  String? _selectedGrade;
-  String? _selectedSubject;
   String? _selectedQuestionRange;
   List<Quiz> _myQuizzes = [];
-  List<String> _grades = [];
-  List<String> _subjects = [];
   bool _isLoading = true;
   String _visibilityFilter = 'All'; // All, Public, Private
 
@@ -33,17 +29,9 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = context.read<QuizRepository>();
-      
-      // Fetch categories if empty
-      if (_grades.isEmpty || _subjects.isEmpty) {
-        _grades = await repo.getGrades();
-        _subjects = await repo.getSubjects();
-      }
 
       final quizzes = await repo.getMyQuizzes(
         query: _searchQuery,
-        grade: _selectedGrade,
-        subject: _selectedSubject,
         questionRange: _selectedQuestionRange,
         isPublic: _visibilityFilter == 'All' ? null : _visibilityFilter == 'Public',
       );
@@ -63,6 +51,13 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
     }
   }
 
+  String _getQuestionBadgeEmoji(int count) {
+    if (count <= 5) return '🌱';
+    if (count <= 10) return '⚡';
+    if (count <= 20) return '🔥';
+    return '🧠';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,21 +70,9 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
           children: [
             QuizFilterBar(
               searchQuery: _searchQuery,
-              selectedGrade: _selectedGrade,
-              selectedSubject: _selectedSubject,
               selectedQuestionRange: _selectedQuestionRange,
-              grades: _grades,
-              subjects: _subjects,
               onSearchChanged: (v) {
                 _searchQuery = v;
-                _loadMyQuizzes();
-              },
-              onGradeChanged: (v) {
-                setState(() => _selectedGrade = v);
-                _loadMyQuizzes();
-              },
-              onSubjectChanged: (v) {
-                setState(() => _selectedSubject = v);
                 _loadMyQuizzes();
               },
               onQuestionRangeChanged: (v) {
@@ -99,49 +82,50 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
               onReset: () {
                 setState(() {
                   _searchQuery = '';
-                  _selectedGrade = null;
-                  _selectedSubject = null;
                   _selectedQuestionRange = null;
                 });
                 _loadMyQuizzes();
               },
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                FilterChip(
-                  label: const Text('All'),
-                  selected: _visibilityFilter == 'All',
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _visibilityFilter = 'All');
-                      _loadMyQuizzes();
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: const Text('Public'),
-                  selected: _visibilityFilter == 'Public',
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _visibilityFilter = 'Public');
-                      _loadMyQuizzes();
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: const Text('Private'),
-                  selected: _visibilityFilter == 'Private',
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _visibilityFilter = 'Private');
-                      _loadMyQuizzes();
-                    }
-                  },
-                ),
-              ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8.0,
+                runSpacing: 8.0,
+                children: [
+                  ChoiceChip(
+                    label: const Text('All'),
+                    selected: _visibilityFilter == 'All',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _visibilityFilter = 'All');
+                        _loadMyQuizzes();
+                      }
+                    },
+                  ),
+                  ChoiceChip(
+                    label: const Text('Public'),
+                    selected: _visibilityFilter == 'Public',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _visibilityFilter = 'Public');
+                        _loadMyQuizzes();
+                      }
+                    },
+                  ),
+                  ChoiceChip(
+                    label: const Text('Private'),
+                    selected: _visibilityFilter == 'Private',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _visibilityFilter = 'Private');
+                        _loadMyQuizzes();
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -166,81 +150,253 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                               final quiz = _myQuizzes[index];
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 16),
-                                child: ListTile(
-                                  leading:
-                                      quiz.imageUrl != null
-                                          ? CircleAvatar(
-                                            backgroundImage: NetworkImage(
-                                              quiz.imageUrl!,
-                                            ),
-                                          )
-                                          : const CircleAvatar(
-                                            child: Icon(Icons.quiz),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(color: Colors.grey.shade200),
+                                ),
+                                child: InkWell(
+                                  onTap: () {
+                                    context.push('/quiz/${quiz.id}');
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Row(
+                                      children: [
+                                        // Left Thumbnail (Slightly larger, rounded)
+                                        Container(
+                                          width: 60,
+                                          height: 60,
+                                          decoration: BoxDecoration(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            gradient: quiz.imageUrl == null
+                                                ? LinearGradient(
+                                                    colors: [
+                                                      Colors.deepPurple.shade600,
+                                                      Colors.indigo.shade400,
+                                                    ],
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                  )
+                                                : null,
+                                            image: quiz.imageUrl != null
+                                                ? DecorationImage(
+                                                    image: NetworkImage(
+                                                      quiz.imageUrl!,
+                                                    ),
+                                                    fit: BoxFit.cover,
+                                                  )
+                                                : null,
                                           ),
-                                  title: Text(
-                                    quiz.title,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${quiz.grade} • ${quiz.subject} • ${quiz.isPublic ? 'Public' : 'Private'}',
-                                  ),
-                                  trailing: IconButton(
-                                    icon: const Icon(
-                                      Icons.delete,
-                                      color: Colors.red,
-                                    ),
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder:
-                                            (ctx) => AlertDialog(
-                                              title: const Text('Delete Quiz'),
-                                              content: const Text(
-                                                'Are you sure you want to delete this quiz?',
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed:
-                                                      () => Navigator.pop(
-                                                        ctx,
-                                                        false,
+                                          child: quiz.imageUrl == null
+                                              ? const Icon(
+                                                  Icons.quiz_rounded,
+                                                  size: 30,
+                                                  color: Colors.white70,
+                                                )
+                                              : null,
+                                        ),
+                                        const SizedBox(width: 16),
+                                        // Title & Meta Info
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      quiz.title,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.black87,
                                                       ),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                                TextButton(
-                                                  onPressed:
-                                                      () => Navigator.pop(
-                                                        ctx,
-                                                        true,
-                                                      ),
-                                                  child: const Text(
-                                                    'Delete',
-                                                    style: TextStyle(
-                                                      color: Colors.red,
                                                     ),
                                                   ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 6),
+                                              if (quiz.description != null &&
+                                                  quiz.description!
+                                                      .trim()
+                                                      .isNotEmpty) ...[
+                                                Text(
+                                                  quiz.description!,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey.shade600,
+                                                  ),
                                                 ),
+                                                const SizedBox(height: 8),
                                               ],
+                                              // Visibility Label (green for public, gray for private)
+                                              Container(
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: quiz.isPublic
+                                                      ? Colors.green.shade50
+                                                      : Colors.grey.shade100,
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                    color: quiz.isPublic
+                                                        ? Colors.green.shade300
+                                                        : Colors.grey.shade300,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  quiz.isPublic ? 'Public' : 'Private',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: quiz.isPublic
+                                                        ? Colors.green.shade700
+                                                        : Colors.grey.shade700,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              // Dynamic Badge count
+                                              Container(
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      Colors.deepPurple.shade50,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  '${_getQuestionBadgeEmoji(quiz.questionCount)}  ${quiz.questionCount} Questions',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors
+                                                        .deepPurple
+                                                        .shade700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        // Inline actions
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.edit_rounded,
+                                                size: 22,
+                                              ),
+                                              color: Colors.deepPurple.shade600,
+                                              tooltip: 'Edit quiz',
+                                              onPressed: () {
+                                                context
+                                                    .push(
+                                                      '/create-quiz',
+                                                      extra: {'quiz': quiz},
+                                                    )
+                                                    .then(
+                                                      (_) => _loadMyQuizzes(),
+                                                    );
+                                              },
                                             ),
-                                      );
-                                      if (confirm == true) {
-                                        await context
-                                            .read<QuizRepository>()
-                                            .deleteQuiz(quiz.id);
-                                        _loadMyQuizzes();
-                                      }
-                                    },
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete_rounded,
+                                                size: 22,
+                                              ),
+                                              color: Colors.red.shade600,
+                                              tooltip: 'Delete quiz',
+                                              onPressed: () async {
+                                                final repo =
+                                                    context.read<
+                                                      QuizRepository
+                                                    >();
+                                                final confirm =
+                                                    await showDialog<bool>(
+                                                      context: context,
+                                                      builder:
+                                                          (ctx) => AlertDialog(
+                                                            title: const Text(
+                                                              'Delete Quiz',
+                                                            ),
+                                                            content: const Text(
+                                                              'Are you sure you want to delete this quiz?',
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed:
+                                                                    () =>
+                                                                        Navigator
+                                                                            .pop(
+                                                                              ctx,
+                                                                              false,
+                                                                            ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Cancel',
+                                                                    ),
+                                                              ),
+                                                              TextButton(
+                                                                onPressed:
+                                                                    () =>
+                                                                        Navigator
+                                                                            .pop(
+                                                                              ctx,
+                                                                              true,
+                                                                            ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Delete',
+                                                                      style:
+                                                                          TextStyle(
+                                                                            color:
+                                                                                Colors
+                                                                                    .red,
+                                                                          ),
+                                                                    ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                    );
+                                                if (confirm == true) {
+                                                  await repo.deleteQuiz(
+                                                    quiz.id,
+                                                  );
+                                                  _loadMyQuizzes();
+                                                }
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  onTap: () {
-                                    context
-                                        .push(
-                                          '/create-quiz',
-                                          extra: {'quiz': quiz},
-                                        )
-                                        .then((_) => _loadMyQuizzes());
-                                  },
                                 ),
                               );
                             },

@@ -95,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Icon(Icons.quiz, size: 80),
                 const SizedBox(height: 24),
                 Text(
-                  _isLogin ? 'Login to QuizTime' : 'Create an Account',
+                  _isLogin ? 'Login to LearnByte' : 'Create an Account',
                   style: Theme.of(context).textTheme.headlineMedium,
                   textAlign: TextAlign.center,
                 ),

@@ -7,8 +7,6 @@ class QuizRepository {
   // Fetch all public quizzes AND user's own private quizzes (for Discover)
   Future<List<Quiz>> getPublicQuizzes({
     String? query,
-    String? grade,
-    String? subject,
     String? questionRange,
   }) async {
     var req = _supabase
@@ -20,12 +18,6 @@ class QuizRepository {
 
     if (query != null && query.isNotEmpty) {
       req = req.ilike('title', '%$query%');
-    }
-    if (grade != null && grade.isNotEmpty && grade != 'All') {
-      req = req.eq('grade', grade);
-    }
-    if (subject != null && subject.isNotEmpty && subject != 'All') {
-      req = req.eq('subject', subject);
     }
     if (questionRange != null &&
         questionRange.isNotEmpty &&
@@ -48,8 +40,6 @@ class QuizRepository {
   // Fetch quizzes created by current user
   Future<List<Quiz>> getMyQuizzes({
     String? query,
-    String? grade,
-    String? subject,
     String? questionRange,
     bool? isPublic,
   }) async {
@@ -64,12 +54,6 @@ class QuizRepository {
 
     if (query != null && query.isNotEmpty) {
       req = req.ilike('title', '%$query%');
-    }
-    if (grade != null && grade.isNotEmpty && grade != 'All') {
-      req = req.eq('grade', grade);
-    }
-    if (subject != null && subject.isNotEmpty && subject != 'All') {
-      req = req.eq('subject', subject);
     }
     if (questionRange != null &&
         questionRange.isNotEmpty &&
@@ -174,8 +158,6 @@ class QuizRepository {
   // Fetch all attempts for the current user across all quizzes
   Future<List<Map<String, dynamic>>> getAllQuizAttempts({
     String? query,
-    String? grade,
-    String? subject,
     String? questionRange,
   }) async {
     var req = _supabase
@@ -185,12 +167,6 @@ class QuizRepository {
 
     if (query != null && query.isNotEmpty) {
       req = req.ilike('quizzes.title', '%$query%');
-    }
-    if (grade != null && grade.isNotEmpty && grade != 'All') {
-      req = req.eq('quizzes.grade', grade);
-    }
-    if (subject != null && subject.isNotEmpty && subject != 'All') {
-      req = req.eq('quizzes.subject', subject);
     }
     if (questionRange != null &&
         questionRange.isNotEmpty &&
@@ -234,13 +210,28 @@ class QuizRepository {
     return response['id'];
   }
 
-  Future<List<String>> getGrades() async {
-    final response = await _supabase.from('grades').select('name');
+  // Search subjects by name (for autocomplete)
+  Future<List<String>> searchSubjects(String query) async {
+    final response = await _supabase
+        .from('subjects')
+        .select('name')
+        .ilike('name', '%$query%')
+        .order('name')
+        .limit(10);
     return (response as List).map((e) => e['name'] as String).toList();
   }
 
+  // Get all subjects (for initial load / filter bar)
   Future<List<String>> getSubjects() async {
-    final response = await _supabase.from('subjects').select('name');
+    final response = await _supabase
+        .from('subjects')
+        .select('name')
+        .order('name');
     return (response as List).map((e) => e['name'] as String).toList();
+  }
+
+  // Create a new subject
+  Future<void> createSubject(String name) async {
+    await _supabase.from('subjects').insert({'name': name.trim()});
   }
 }

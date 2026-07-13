@@ -32,9 +32,9 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   Future<void> _loadData() async {
     try {
       final repo = context.read<QuizRepository>();
+      final discRepo = context.read<DiscussionRepository>();
       final data = await repo.getQuizDetails(widget.quizId);
       final attempts = await repo.getQuizAttempts(widget.quizId);
-      final discRepo = context.read<DiscussionRepository>();
       final count = await discRepo.getQuizTotalDiscussionsCount(widget.quizId);
       if (mounted) {
         setState(() {
@@ -151,12 +151,6 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    Chip(
-                      label: Text(_quiz!.grade),
-                    ),
-                    Chip(
-                      label: Text(_quiz!.subject),
-                    ),
                     Chip(label: Text('${_questions.length} Questions')),
                   ],
                 ),

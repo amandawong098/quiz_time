@@ -58,8 +58,6 @@ CREATE TABLE public.quizzes (
     creator_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
-    grade TEXT,
-    subject TEXT,
     is_public BOOLEAN DEFAULT FALSE,
     image_url TEXT,
     question_count INTEGER DEFAULT 0,
@@ -169,17 +167,6 @@ BEGIN
     DELETE FROM auth.users WHERE id = auth.uid();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 4. INITIAL DATA SEEDING
-
-INSERT INTO public.subjects (name) VALUES 
-('Maths'), ('Science'), ('Computing'), ('History'), ('Geography'), ('Art'), ('Other')
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO public.grades (name) VALUES 
-('Kindergarten'), ('Grade 1'), ('Grade 2'), ('Grade 3'), ('Grade 4'), ('Grade 5'), ('Grade 6'), 
-('Grade 7'), ('Grade 8'), ('Grade 9'), ('Grade 10'), ('Grade 11'), ('Grade 12'), ('University')
-ON CONFLICT (name) DO NOTHING;
 
 -- 5. ROW LEVEL SECURITY (RLS)
 

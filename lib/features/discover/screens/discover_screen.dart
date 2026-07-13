@@ -15,12 +15,8 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   String _searchQuery = '';
-  String? _selectedGrade;
-  String? _selectedSubject;
   String? _selectedQuestionRange;
   List<Quiz> _quizzes = [];
-  List<String> _grades = [];
-  List<String> _subjects = [];
   bool _isLoading = true;
 
   @override
@@ -34,15 +30,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     try {
       final repo = context.read<QuizRepository>();
 
-      if (_grades.isEmpty || _subjects.isEmpty) {
-        _grades = await repo.getGrades();
-        _subjects = await repo.getSubjects();
-      }
-
       final results = await repo.getPublicQuizzes(
         query: _searchQuery,
-        grade: _selectedGrade,
-        subject: _selectedSubject,
         questionRange: _selectedQuestionRange,
       );
       if (mounted) {
@@ -63,6 +52,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
+  String _getQuestionBadgeEmoji(int count) {
+    if (count <= 5) return '🌱';
+    if (count <= 10) return '⚡';
+    if (count <= 20) return '🔥';
+    return '🧠';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,21 +72,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           children: [
             QuizFilterBar(
               searchQuery: _searchQuery,
-              selectedGrade: _selectedGrade,
-              selectedSubject: _selectedSubject,
               selectedQuestionRange: _selectedQuestionRange,
-              grades: _grades,
-              subjects: _subjects,
               onSearchChanged: (v) {
                 _searchQuery = v;
-                _loadQuizzes();
-              },
-              onGradeChanged: (v) {
-                setState(() => _selectedGrade = v);
-                _loadQuizzes();
-              },
-              onSubjectChanged: (v) {
-                setState(() => _selectedSubject = v);
                 _loadQuizzes();
               },
               onQuestionRangeChanged: (v) {
@@ -100,8 +84,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               onReset: () {
                 setState(() {
                   _searchQuery = '';
-                  _selectedGrade = null;
-                  _selectedSubject = null;
                   _selectedQuestionRange = null;
                 });
                 _loadQuizzes();
@@ -129,29 +111,129 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             itemBuilder: (context, index) {
                               final quiz = _quizzes[index];
                               return Card(
-                                child: ListTile(
-                                  leading:
-                                      quiz.imageUrl != null
-                                          ? CircleAvatar(
-                                            backgroundImage: NetworkImage(
-                                              quiz.imageUrl!,
-                                            ),
-                                          )
-                                          : const CircleAvatar(
-                                            child: Icon(Icons.quiz),
-                                          ),
-                                  title: Text(
-                                    quiz.title,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${quiz.grade} • ${quiz.subject}',
-                                  ),
+                                margin: const EdgeInsets.only(bottom: 16),
+                                clipBehavior: Clip.antiAlias,
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: InkWell(
                                   onTap: () {
                                     context.push('/quiz/${quiz.id}');
                                   },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      // Cover Image or Gradient Banner
+                                      Container(
+                                        height: 140,
+                                        decoration: BoxDecoration(
+                                          gradient: quiz.imageUrl == null
+                                              ? LinearGradient(
+                                                  colors: [
+                                                    Colors.deepPurple.shade700,
+                                                    Colors.indigo.shade500,
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                )
+                                              : null,
+                                          image: quiz.imageUrl != null
+                                              ? DecorationImage(
+                                                  image: NetworkImage(
+                                                    quiz.imageUrl!,
+                                                  ),
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : null,
+                                        ),
+                                        child: quiz.imageUrl == null
+                                            ? const Center(
+                                                child: Icon(
+                                                  Icons.quiz_rounded,
+                                                  size: 48,
+                                                  color: Colors.white70,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      // Content Area
+                                      Padding(
+                                        padding: const EdgeInsets.all(16.0),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              quiz.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            if (quiz.description != null &&
+                                                quiz.description!
+                                                    .trim()
+                                                    .isNotEmpty) ...[
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                quiz.description!,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.grey.shade600,
+                                                  height: 1.3,
+                                                ),
+                                              ),
+                                            ],
+                                            const SizedBox(height: 14),
+                                            // Dynamic badge below details
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    Colors.deepPurple.shade50,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    _getQuestionBadgeEmoji(
+                                                      quiz.questionCount,
+                                                    ),
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    '${quiz.questionCount} Questions',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors
+                                                          .deepPurple
+                                                          .shade700,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               );
                             },

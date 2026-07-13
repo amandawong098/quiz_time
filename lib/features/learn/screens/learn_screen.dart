@@ -71,7 +71,7 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
         ],
       ),
       floatingActionButton: _tabController.index == 0 &&
-              (_lessonsTabKey.currentState?.isShowingBrowseMode ?? true)
+              (_lessonsTabKey.currentState?.isShowingBrowseMode ?? false)
           ? FloatingActionButton(
               onPressed: () async {
                 final result = await context.push<bool>('/create-lesson');

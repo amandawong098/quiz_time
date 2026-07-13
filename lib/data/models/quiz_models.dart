@@ -3,22 +3,20 @@ class Quiz {
   final String creatorId;
   final String title;
   final String? description;
-  final String grade;
-  final String subject;
   final bool isPublic;
   final String? imageUrl;
   final DateTime createdAt;
+  final int questionCount;
 
   Quiz({
     required this.id,
     required this.creatorId,
     required this.title,
     this.description,
-    required this.grade,
-    required this.subject,
     required this.isPublic,
     this.imageUrl,
     required this.createdAt,
+    this.questionCount = 0,
   });
 
   factory Quiz.fromJson(Map<String, dynamic> json) {
@@ -27,11 +25,10 @@ class Quiz {
       creatorId: json['creator_id'],
       title: json['title'],
       description: json['description'],
-      grade: json['grade'],
-      subject: json['subject'],
       isPublic: json['is_public'] ?? false,
       imageUrl: json['image_url'],
       createdAt: DateTime.parse(json['created_at']),
+      questionCount: json['question_count'] ?? 0,
     );
   }
 
@@ -39,10 +36,9 @@ class Quiz {
     return {
       'title': title,
       'description': description,
-      'grade': grade,
-      'subject': subject,
       'is_public': isPublic,
       'image_url': imageUrl,
+      'question_count': questionCount,
     };
   }
 }

@@ -20,57 +20,30 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
 
-  String? _selectedGrade;
-  String? _selectedSubject;
   bool _isPublic = false;
-  bool _isLoading = true;
+  bool _isLoading = false;
 
   File? _imageFile;
   String? _imageUrl;
 
   List<dynamic>? _generatedQuestions;
-  List<String> _grades = [];
-  List<String> _subjects = [];
 
   @override
   void initState() {
     super.initState();
-    _loadInitialData();
+    if (widget.quiz != null) {
+      _titleController.text = widget.quiz!.title;
+      _descController.text = widget.quiz!.description ?? '';
+      _isPublic = widget.quiz!.isPublic;
+      _imageUrl = widget.quiz!.imageUrl;
+    }
   }
 
-  Future<void> _loadInitialData() async {
-    try {
-      final repo = context.read<QuizRepository>();
-      final grades = await repo.getGrades();
-      final subjects = await repo.getSubjects();
-
-      if (mounted) {
-        setState(() {
-          _grades = grades;
-          _subjects = subjects;
-
-          if (widget.quiz != null) {
-            _titleController.text = widget.quiz!.title;
-            _descController.text = widget.quiz!.description ?? '';
-            _selectedGrade = widget.quiz!.grade;
-            _selectedSubject = widget.quiz!.subject;
-            _isPublic = widget.quiz!.isPublic;
-            _imageUrl = widget.quiz!.imageUrl;
-          } else {
-            if (_grades.isNotEmpty) _selectedGrade = _grades.first;
-            if (_subjects.isNotEmpty) _selectedSubject = _subjects.first;
-          }
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading categories: $e')));
-      }
-    }
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -83,11 +56,13 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error picking image: ${e.toString()}'),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: ${e.toString()}'),
+          ),
+        );
+      }
     }
   }
 
@@ -121,11 +96,10 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
     );
   }
 
-
-
   Future<void> _proceedToQuestions() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final repo = context.read<QuizRepository>();
     setState(() => _isLoading = true);
 
     try {
@@ -145,15 +119,13 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
         creatorId: '',
         title: _titleController.text.trim(),
         description: _descController.text.trim(),
-        grade: _selectedGrade ?? 'Grade 1',
-        subject: _selectedSubject ?? 'Maths',
         isPublic: _isPublic,
         imageUrl: _imageUrl,
         createdAt: widget.quiz?.createdAt ?? DateTime.now(),
       );
 
       if (widget.quiz != null) {
-        await context.read<QuizRepository>().updateQuiz(quizData);
+        await repo.updateQuiz(quizData);
       }
 
       if (mounted) {
@@ -187,7 +159,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading && _grades.isEmpty) {
+    if (_isLoading && widget.quiz == null && _titleController.text.isEmpty) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
@@ -219,8 +191,8 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
           ),
         );
 
-        if (shouldPop == true) {
-          if (mounted) context.pop();
+        if (shouldPop == true && context.mounted) {
+          context.pop();
         }
       },
       child: Scaffold(
@@ -299,35 +271,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                   decoration: const InputDecoration(labelText: 'Quiz Description (optional)'),
                   maxLines: 3,
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Grade'),
-                  initialValue: _selectedGrade,
-                  items: _grades.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() => _selectedGrade = val!);
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Subject'),
-                  initialValue: _selectedSubject,
-                  items: _subjects.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() => _selectedSubject = val!);
-                  },
-                ),
-                const SizedBox(height: 16),
+                 const SizedBox(height: 16),
                 SwitchListTile(
                   title: const Text('Make this quiz public'),
                   value: _isPublic,
