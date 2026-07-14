@@ -174,6 +174,8 @@ final GoRouter appRouter = GoRouter(
           pageId: extra?['pageId'],
           quizId: extra?['quizId'],
           questionId: extra?['questionId'],
+          deckId: extra?['deckId'],
+          cardId: extra?['cardId'],
         );
       },
     ),

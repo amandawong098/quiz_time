@@ -773,6 +773,28 @@ ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS course_id UUID REF
 ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS chapter_id UUID REFERENCES public.lesson_chapters(id) ON DELETE CASCADE;
 ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS sub_chapter_id UUID REFERENCES public.lesson_sub_chapters(id) ON DELETE CASCADE;
 ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS page_id UUID REFERENCES public.lesson_pages(id) ON DELETE CASCADE;
+ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS deck_id UUID REFERENCES public.flashcard_decks(id) ON DELETE CASCADE;
+ALTER TABLE public.discussion_topics ADD COLUMN IF NOT EXISTS card_id UUID REFERENCES public.flashcards(id) ON DELETE CASCADE;
 
 CREATE INDEX IF NOT EXISTS idx_discussion_topics_page_id ON public.discussion_topics(page_id);
 CREATE INDEX IF NOT EXISTS idx_discussion_topics_sub_chapter_id ON public.discussion_topics(sub_chapter_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_topics_deck_id ON public.discussion_topics(deck_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_topics_card_id ON public.discussion_topics(card_id);
+
+-- =======================================================
+-- 16. FLASHCARD DECK ATTEMPTS (Spoilers prevention)
+-- =======================================================
+
+CREATE TABLE IF NOT EXISTS public.flashcard_deck_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    deck_id UUID REFERENCES public.flashcard_decks(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.flashcard_deck_attempts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own deck attempts" ON public.flashcard_deck_attempts FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own deck attempts" ON public.flashcard_deck_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_flashcard_deck_attempts_user_deck ON public.flashcard_deck_attempts(user_id, deck_id);

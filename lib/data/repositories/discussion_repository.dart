@@ -17,10 +17,12 @@ class DiscussionRepository {
     String? courseId,
     String? quizId,
     String? questionId,
+    String? deckId,
+    String? cardId,
   }) async {
     var req = _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index)');
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index), flashcard_decks(title), flashcards(front)');
 
     if (authorId != null) {
       req = req.eq('author_id', authorId);
@@ -36,6 +38,12 @@ class DiscussionRepository {
     }
     if (questionId != null) {
       req = req.eq('question_id', questionId);
+    }
+    if (deckId != null) {
+      req = req.eq('deck_id', deckId);
+    }
+    if (cardId != null) {
+      req = req.eq('card_id', cardId);
     }
     if (query != null && query.isNotEmpty) {
       req = req.or('title.ilike.%$query%,content.ilike.%$query%');
@@ -54,7 +62,7 @@ class DiscussionRepository {
   Future<DiscussionTopic> getTopicDetails(String topicId) async {
     final response = await _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index)')
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index), flashcard_decks(title), flashcards(front)')
         .eq('id', topicId)
         .single();
 
@@ -74,7 +82,6 @@ class DiscussionRepository {
         .toList();
   }
 
-  // Insert topic row with multiple attachments support
   Future<String> createTopic({
     required String title,
     required String content,
@@ -86,6 +93,8 @@ class DiscussionRepository {
     String? pageId,
     String? quizId,
     String? questionId,
+    String? deckId,
+    String? cardId,
   }) async {
     final response = await _supabase
         .from('discussion_topics')
@@ -101,6 +110,8 @@ class DiscussionRepository {
           'page_id': pageId,
           'quiz_id': quizId,
           'question_id': questionId,
+          'deck_id': deckId,
+          'card_id': cardId,
         })
         .select()
         .single();
@@ -319,6 +330,8 @@ class DiscussionRepository {
     String? chapterId,
     String? subChapterId,
     String? pageId,
+    String? deckId,
+    String? cardId,
   }) async {
     await _supabase
         .from('discussion_topics')
@@ -331,9 +344,38 @@ class DiscussionRepository {
           'chapter_id': chapterId,
           'sub_chapter_id': subChapterId,
           'page_id': pageId,
+          'deck_id': deckId,
+          'card_id': cardId,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', topicId);
+  }
+
+  // Get total discussions count for a flashcard deck
+  Future<int> getDeckTotalDiscussionsCount(String deckId) async {
+    final response = await _supabase
+        .from('discussion_topics')
+        .select('id')
+        .eq('deck_id', deckId);
+    return (response as List).length;
+  }
+
+  // Get post counts for all cards inside a deck in a single query
+  Future<Map<String, int>> getDeckCardsDiscussionsCount(String deckId) async {
+    final response = await _supabase
+        .from('discussion_topics')
+        .select('card_id')
+        .eq('deck_id', deckId);
+    
+    final Map<String, int> counts = {};
+    final list = response as List;
+    for (var row in list) {
+      final cardId = row['card_id'] as String?;
+      if (cardId != null) {
+        counts[cardId] = (counts[cardId] ?? 0) + 1;
+      }
+    }
+    return counts;
   }
 
   // Delete a discussion topic row

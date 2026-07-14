@@ -46,6 +46,10 @@ class DiscussionTopic {
   final String? quizId;
   final String? questionId;
 
+  // Flashcard specific references (nullable)
+  final String? deckId;
+  final String? cardId;
+
   // Joined metadata titles and positions
   final String? courseTitle;
   final String? chapterTitle;
@@ -56,6 +60,10 @@ class DiscussionTopic {
   final String? quizTitle;
   final String? questionText;
   final int? questionOrderIndex;
+
+  // Joined flashcard metadata
+  final String? deckTitle;
+  final String? cardQuestionText;
 
   // Computed properties
   final int upvotesCount;
@@ -86,6 +94,8 @@ class DiscussionTopic {
     this.pageId,
     this.quizId,
     this.questionId,
+    this.deckId,
+    this.cardId,
     this.courseTitle,
     this.chapterTitle,
     this.subChapterTitle,
@@ -93,6 +103,8 @@ class DiscussionTopic {
     this.quizTitle,
     this.questionText,
     this.questionOrderIndex,
+    this.deckTitle,
+    this.cardQuestionText,
   });
 
   factory DiscussionTopic.fromJson(Map<String, dynamic> json, String currentUserId) {
@@ -140,6 +152,8 @@ class DiscussionTopic {
     final pageData = json['lesson_pages'] as Map<String, dynamic>?;
     final quizData = json['quizzes'] as Map<String, dynamic>?;
     final questionData = json['questions'] as Map<String, dynamic>?;
+    final deckData = json['flashcard_decks'] as Map<String, dynamic>?;
+    final cardData = json['flashcards'] as Map<String, dynamic>?;
 
     return DiscussionTopic(
       id: json['id'] as String,
@@ -161,6 +175,8 @@ class DiscussionTopic {
       pageId: json['page_id'] as String?,
       quizId: json['quiz_id'] as String?,
       questionId: json['question_id'] as String?,
+      deckId: json['deck_id'] as String?,
+      cardId: json['card_id'] as String?,
       courseTitle: courseData?['title'] as String?,
       chapterTitle: chapterData?['title'] as String?,
       subChapterTitle: subChapterData?['title'] as String?,
@@ -168,6 +184,8 @@ class DiscussionTopic {
       quizTitle: quizData?['title'] as String?,
       questionText: questionData?['question_text'] as String?,
       questionOrderIndex: questionData?['order_index'] as int?,
+      deckTitle: deckData?['title'] as String?,
+      cardQuestionText: cardData?['front'] as String?,
     );
   }
 }

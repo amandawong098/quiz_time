@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../data/repositories/flashcard_repository.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../learn/models/lesson_models.dart';
@@ -34,6 +35,8 @@ class CreateTopicScreen extends StatefulWidget {
   final String? pageId;
   final String? quizId;
   final String? questionId;
+  final String? deckId;
+  final String? cardId;
 
   const CreateTopicScreen({
     super.key,
@@ -44,6 +47,8 @@ class CreateTopicScreen extends StatefulWidget {
     this.pageId,
     this.quizId,
     this.questionId,
+    this.deckId,
+    this.cardId,
   });
 
   @override
@@ -74,6 +79,10 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   String? _metaQuizTitle;
   int? _metaQuestionNumber;
 
+  // Linked flashcard metadata titles
+  String? _metaDeckTitle;
+  int? _metaCardNumber;
+
   String? _resolvedCourseId;
   String? _resolvedChapterId;
   String? _resolvedSubChapterId;
@@ -102,10 +111,11 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   Future<void> _loadCourses() async {
     // Capture context references before async gaps
     final quizRepo = context.read<QuizRepository>();
+    final flashcardRepo = context.read<FlashcardRepository>();
 
     setState(() {
       _isLoadingCourses = true;
-      if (widget.pageId != null || widget.quizId != null) {
+      if (widget.pageId != null || widget.quizId != null || widget.deckId != null) {
         _isLoadingMetadata = true;
       }
     });
@@ -164,6 +174,23 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
             }
           }
         });
+      } catch (_) {}
+      setState(() => _isLoadingMetadata = false);
+    } else if (widget.deckId != null) {
+      try {
+        final deck = await flashcardRepo.getDeckById(widget.deckId!);
+        setState(() {
+          _metaDeckTitle = deck.title;
+        });
+        if (widget.cardId != null) {
+          final cards = await flashcardRepo.getFlashcards(widget.deckId!);
+          final targetIdx = cards.indexWhere((c) => c.id == widget.cardId);
+          if (targetIdx != -1) {
+            setState(() {
+              _metaCardNumber = targetIdx + 1;
+            });
+          }
+        }
       } catch (_) {}
       setState(() => _isLoadingMetadata = false);
     }
@@ -383,6 +410,8 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
         finalTag = _metaCourseTitle!;
       } else if (widget.quizId != null && _metaQuizTitle != null) {
         finalTag = _metaQuizTitle!;
+      } else if (widget.deckId != null && _metaDeckTitle != null) {
+        finalTag = _metaDeckTitle!;
       } else if (_selectedCourseId != null) {
         final match = _courses.firstWhere(
           (c) => c.id == _selectedCourseId,
@@ -404,6 +433,8 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
           chapterId: _resolvedChapterId ?? _selectedChapterId ?? widget.chapterId,
           subChapterId: _resolvedSubChapterId ?? _selectedSubChapterId ?? widget.subChapterId,
           pageId: widget.pageId ?? _selectedPageId,
+          deckId: widget.deckId ?? widget.topic!.deckId,
+          cardId: widget.cardId ?? widget.topic!.cardId,
         );
       } else {
         await repo.createTopic(
@@ -417,6 +448,8 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
           pageId: widget.pageId ?? _selectedPageId,
           quizId: widget.quizId,
           questionId: widget.questionId,
+          deckId: widget.deckId,
+          cardId: widget.cardId,
         );
       }
 
@@ -655,6 +688,47 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                   if (widget.questionId != null) ...[
                                     const SizedBox(height: 8),
                                     _buildMetaRow('Question', 'Question ${_metaQuestionNumber ?? ''}'),
+                                  ],
+                                ],
+                              ),
+                            ),
+                    ] else if (widget.deckId != null) ...[
+                      _isLoadingMetadata
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.deepPurple.shade50.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.deepPurple.shade100),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.style_rounded, size: 16, color: Colors.deepPurple.shade800),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Linked Flashcard Context',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.deepPurple,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 20),
+                                  _buildMetaRow('Deck', _metaDeckTitle ?? 'Loading...'),
+                                  if (widget.cardId != null) ...[
+                                    const SizedBox(height: 8),
+                                    _buildMetaRow('Card', 'Card ${_metaCardNumber ?? ''}'),
                                   ],
                                 ],
                               ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/flashcard_models.dart';
+import '../widgets/flashcard_discussions_sheet.dart';
+import '../../../data/repositories/discussion_repository.dart';
 
 class FlashcardDetailsScreen extends StatefulWidget {
   final String deckId;
@@ -15,6 +18,8 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
   bool _isLoading = true;
   FlashcardDeck? _deck;
   bool _shuffleCards = false;
+  int _totalDiscussionsCount = 0;
+  bool _hasPlayedBefore = false;
 
   @override
   void initState() {
@@ -24,16 +29,36 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
 
   Future<void> _loadDeckDetails() async {
     setState(() => _isLoading = true);
+    final discRepo = context.read<DiscussionRepository>();
     try {
       final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
       final response = await client
           .from('flashcard_decks')
           .select('*, flashcards(id)')
           .eq('id', widget.deckId)
           .single();
+
+      final deck = FlashcardDeck.fromJson(response);
+      final count = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
+
+      final isCreator = deck.creatorId == user?.id;
+      bool hasPlayed = isCreator;
+      if (!isCreator && user != null) {
+        final attemptsResponse = await client
+            .from('flashcard_deck_attempts')
+            .select('id')
+            .eq('deck_id', widget.deckId)
+            .eq('user_id', user.id)
+            .limit(1);
+        hasPlayed = (attemptsResponse as List).isNotEmpty;
+      }
+
       if (mounted) {
         setState(() {
-          _deck = FlashcardDeck.fromJson(response);
+          _deck = deck;
+          _totalDiscussionsCount = count;
+          _hasPlayedBefore = hasPlayed;
           _isLoading = false;
         });
       }
@@ -45,6 +70,23 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
         );
       }
     }
+  }
+
+  void _showDeckDiscussions(BuildContext context) {
+    if (_deck == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FlashcardDiscussionsSheet(
+        deckId: _deck!.id,
+        deckTitle: _deck!.title,
+        isLocked: !_hasPlayedBefore,
+        onTopicCreated: () {
+          _loadDeckDetails();
+        },
+      ),
+    );
   }
 
   @override
@@ -72,6 +114,24 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
+        actions: [
+          TextButton.icon(
+            onPressed: () => _showDeckDiscussions(context),
+            icon: const Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 22,
+              color: Colors.white,
+            ),
+            label: Text(
+              '$_totalDiscussionsCount',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadDeckDetails,

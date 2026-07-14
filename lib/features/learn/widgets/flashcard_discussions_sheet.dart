@@ -2,38 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/discussion_models.dart';
-import '../../../data/models/quiz_models.dart';
+import '../models/flashcard_models.dart';
 import '../../../data/repositories/discussion_repository.dart';
-import '../../../data/repositories/quiz_repository.dart';
+import '../../../data/repositories/flashcard_repository.dart';
 
-class QuizDiscussionsSheet extends StatefulWidget {
-  final String quizId;
-  final String? questionId;
-  final String quizTitle;
-  final String? questionText;
-  final int? questionNumber;
+class FlashcardDiscussionsSheet extends StatefulWidget {
+  final String deckId;
+  final String? cardId;
+  final String deckTitle;
+  final String? cardFrontText;
+  final int? cardNumber;
   final bool isLocked;
   final VoidCallback? onTopicCreated;
 
-  const QuizDiscussionsSheet({
+  const FlashcardDiscussionsSheet({
     super.key,
-    required this.quizId,
-    this.questionId,
-    required this.quizTitle,
-    this.questionText,
-    this.questionNumber,
+    required this.deckId,
+    this.cardId,
+    required this.deckTitle,
+    this.cardFrontText,
+    this.cardNumber,
     this.isLocked = false,
     this.onTopicCreated,
   });
 
   @override
-  State<QuizDiscussionsSheet> createState() => _QuizDiscussionsSheetState();
+  State<FlashcardDiscussionsSheet> createState() => _FlashcardDiscussionsSheetState();
 }
 
-class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
+class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
   bool _isLoading = true;
-  List<Question> _questions = [];
-  Quiz? _quiz;
+  List<FlashcardItem> _cards = [];
+  FlashcardDeck? _deck;
   List<DiscussionTopic> _allTopics = [];
   List<DiscussionTopic> _filteredTopics = [];
   String _selectedFilter = 'All';
@@ -43,7 +43,7 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
   @override
   void initState() {
     super.initState();
-    _selectedFilter = widget.questionId ?? 'All';
+    _selectedFilter = widget.cardId ?? 'All';
     _loadData();
   }
 
@@ -56,31 +56,31 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
   Future<void> _loadData() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
-    await _loadQuestions();
+    await _loadCards();
     await _loadTopics();
   }
 
-  Future<void> _loadQuestions() async {
+  Future<void> _loadCards() async {
     try {
-      final repo = context.read<QuizRepository>();
-      final data = await repo.getQuizDetails(widget.quizId);
+      final repo = context.read<FlashcardRepository>();
+      final deck = await repo.getDeckById(widget.deckId);
+      final cards = await repo.getFlashcards(widget.deckId);
       if (mounted) {
         setState(() {
-          _questions = data['questions'] as List<Question>;
-          _quiz = data['quiz'] as Quiz;
+          _cards = cards;
+          _deck = deck;
         });
       }
     } catch (e) {
-      debugPrint('Error loading quiz questions: $e');
+      debugPrint('Error loading deck cards: $e');
     }
   }
 
   Future<void> _loadTopics() async {
     try {
       final repo = context.read<DiscussionRepository>();
-      // We retrieve ALL quiz discussions and perform filter & sorting client-side
       final results = await repo.getTopics(
-        quizId: widget.quizId,
+        deckId: widget.deckId,
       );
       if (mounted) {
         setState(() {
@@ -100,11 +100,11 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
     final query = _searchController.text.toLowerCase();
     var list = List<DiscussionTopic>.from(_allTopics);
 
-    // 1. Filter by scope (filter: 'All', 'General', or questionId)
+    // 1. Filter by scope
     if (_selectedFilter == 'General') {
-      list = list.where((t) => t.questionId == null).toList();
+      list = list.where((t) => t.cardId == null).toList();
     } else if (_selectedFilter != 'All') {
-      list = list.where((t) => t.questionId == _selectedFilter).toList();
+      list = list.where((t) => t.cardId == _selectedFilter).toList();
     }
 
     // 2. Filter by search query
@@ -144,20 +144,20 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
 
     bool hasSelectedFilter = _selectedFilter == 'All' || _selectedFilter == 'General';
 
-    for (int i = 0; i < _questions.length; i++) {
-      if (_questions[i].id == _selectedFilter) {
+    for (int i = 0; i < _cards.length; i++) {
+      if (_cards[i].id == _selectedFilter) {
         hasSelectedFilter = true;
       }
       items.add(DropdownMenuItem(
-        value: _questions[i].id,
-        child: Text('Question ${i + 1}'),
+        value: _cards[i].id,
+        child: Text('Card ${i + 1}'),
       ));
     }
 
     if (!hasSelectedFilter) {
       items.add(DropdownMenuItem(
         value: _selectedFilter,
-        child: Text(widget.questionNumber != null ? 'Question ${widget.questionNumber}' : 'Loading Question...'),
+        child: Text(widget.cardNumber != null ? 'Card ${widget.cardNumber}' : 'Loading Card...'),
       ));
     }
 
@@ -183,9 +183,9 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final sheetTitle = widget.questionNumber != null
-        ? 'Question ${widget.questionNumber} Discussions'
-        : 'Quiz Discussions';
+    final sheetTitle = widget.cardNumber != null
+        ? 'Card ${widget.cardNumber} Discussions'
+        : 'Deck Discussions';
 
     return Container(
       decoration: BoxDecoration(
@@ -234,21 +234,19 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            widget.quizTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            widget.deckTitle,
                             style: TextStyle(
                               fontSize: 12,
-                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                              color: Colors.grey.shade600,
                             ),
                           ),
                         ],
                       ),
                     ),
                     if (!widget.isLocked) ...[
-                      if (_quiz != null && _quiz!.isPublic == false)
+                      if (_deck != null && _deck!.isPublic == false)
                         TextButton.icon(
-                          onPressed: null, // Disabled
+                          onPressed: null,
                           icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
                           label: Text(
                             'Post Topic (Disabled)',
@@ -262,8 +260,8 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                             final created = await context.push<bool>(
                               '/create-topic',
                               extra: {
-                                'quizId': widget.quizId,
-                                'questionId': widget.questionId,
+                                'deckId': widget.deckId,
+                                'cardId': widget.cardId,
                               },
                             );
                             if (created == true && mounted) {
@@ -278,232 +276,199 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                     ],
                   ],
                 ),
-                if (!widget.isLocked && _quiz != null && _quiz!.isPublic == false) ...[
+                if (!widget.isLocked && _deck != null && _deck!.isPublic == false) ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      'Discussions are turned off for private quizzes.',
+                      'Discussions are turned off for private decks.',
                       style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
                     ),
+                  ),
+                ],
+                if (!widget.isLocked) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search discussions...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 20),
+                                    onPressed: () {
+                                      setState(() {
+                                        _searchController.clear();
+                                      });
+                                      _applyFiltersAndSort();
+                                    },
+                                  )
+                                : null,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onChanged: (_) {
+                            setState(() {});
+                            _applyFiltersAndSort();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded, color: Colors.deepPurple),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _selectedFilter = widget.cardId ?? 'All';
+                            _sortBy = 'Top Upvotes';
+                          });
+                          _loadTopics();
+                        },
+                        tooltip: 'Refresh discussions',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedFilter,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            labelText: 'Scope',
+                            labelStyle: const TextStyle(fontSize: 12),
+                          ),
+                          items: _buildFilterOptions(),
+                          onChanged: (widget.cardId != null)
+                              ? null
+                              : (val) {
+                                  if (val != null) {
+                                    setState(() => _selectedFilter = val);
+                                    _applyFiltersAndSort();
+                                  }
+                                },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _sortBy,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            labelText: 'Sort By',
+                            labelStyle: const TextStyle(fontSize: 12),
+                          ),
+                          items: _buildSortOptions(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _sortBy = val);
+                              _applyFiltersAndSort();
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ],
             ),
           ),
-          if (!widget.isLocked) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: TextField(
-                        controller: _searchController,
-                        style: const TextStyle(fontSize: 12),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          hintText: 'Search...',
-                          prefixIcon: const Icon(Icons.search, size: 16),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 14),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _applyFiltersAndSort();
-                                  },
-                                )
-                              : null,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onChanged: (_) => _applyFiltersAndSort(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.deepPurple),
-                    tooltip: 'Reset Filters',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () {
-                      setState(() {
-                        _searchController.clear();
-                        _selectedFilter = 'All';
-                        _sortBy = 'Top Upvotes';
-                      });
-                      _applyFiltersAndSort();
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey('scope_dropdown_$_selectedFilter'),
-                        initialValue: _selectedFilter,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          labelText: 'Scope',
-                          labelStyle: const TextStyle(fontSize: 10),
-                        ),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                        items: _buildFilterOptions(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _selectedFilter = val);
-                            _applyFiltersAndSort();
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey('sort_dropdown_$_sortBy'),
-                        initialValue: _sortBy,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          labelText: 'Sort By',
-                          labelStyle: const TextStyle(fontSize: 10),
-                        ),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                        items: _buildSortOptions(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _sortBy = val);
-                            _applyFiltersAndSort();
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-          ],
-          const Divider(),
+          const Divider(height: 16),
           Expanded(
             child: widget.isLocked
                 ? Padding(
                     padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.shade50,
-                            shape: BoxShape.circle,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 32),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.deepPurple.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.lock_person_rounded,
+                              size: 64,
+                              color: Colors.deepPurple,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.lock_person_rounded,
-                            size: 64,
-                            color: Colors.deepPurple,
+                          const SizedBox(height: 24),
+                          const Text(
+                            '🔒 Spoilers Ahead!',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepPurple,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          '🔒 Spoilers Ahead!',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepPurple,
+                          const SizedBox(height: 12),
+                          Text(
+                            "Whoops! Looks like you haven't played this flashcard deck yet. To keep things fair and avoid spoiling the cards, discussions are locked until you submit your first revision attempt. Go revise these flashcards first! 🚀",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                              height: 1.4,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "Whoops! Looks like you haven't played this quiz yet. To keep things fair and avoid spoiling the answers, discussions are locked until you submit your first attempt. Go show this quiz who's boss first! 🚀",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   )
                 : _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: CircularProgressIndicator(color: Colors.deepPurple))
                     : _filteredTopics.isEmpty
                     ? SingleChildScrollView(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const SizedBox(height: 32),
-                            Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              size: 48,
-                              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 12),
+                            Icon(Icons.forum_outlined, size: 48, color: Colors.grey.shade400),
+                            const SizedBox(height: 16),
                             Text(
-                              widget.questionId == null
-                                  ? 'No discussions for this quiz yet.\nStart the conversation!'
-                                  : 'No discussions on this question yet.\nAsk a question or start a discussion!',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.grey, fontSize: 13),
+                              'No discussions yet.',
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                             ),
                             const SizedBox(height: 32),
                           ],
                         ),
                       )
-                    : ListView.builder(
+                    : ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         itemCount: _filteredTopics.length,
+                        separatorBuilder: (context, index) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final topic = _filteredTopics[index];
-                          final displayDate = topic.updatedAt ?? topic.createdAt;
-                          final dateStr = '${displayDate.day}/${displayDate.month}/${displayDate.year}';
+                          final localDate = topic.createdAt.toLocal();
+                          final dateStr = '${localDate.day}/${localDate.month}/${localDate.year}';
                           final editedStr = topic.updatedAt != null ? ' (edited)' : '';
                           return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: Colors.grey.shade200),
                             ),
                             child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
                               onTap: () async {
                                 final result = await context.push('/discussion/${topic.id}');
-                                if ((result == true || result == null) && mounted) {
+                                if (result == true && mounted) {
                                   _loadTopics();
-                                  widget.onTopicCreated?.call();
                                 }
                               },
-                              borderRadius: BorderRadius.circular(12),
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),
                                 child: Column(
@@ -530,17 +495,17 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                                             color: Colors.black54,
                                           ),
                                         ),
-                                         const Spacer(),
-                                         Text(
-                                           '$dateStr$editedStr',
-                                           style: TextStyle(
-                                             fontSize: 10,
-                                             color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
-                                           ),
-                                         ),
-                                       ],
-                                     ),
-                                    if (topic.questionId != null) ...[
+                                        const Spacer(),
+                                        Text(
+                                          '$dateStr$editedStr',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (topic.cardId != null) ...[
                                       const SizedBox(height: 6),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -553,13 +518,13 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             const Icon(
-                                              Icons.assignment_turned_in_rounded,
+                                              Icons.style_rounded,
                                               size: 10,
                                               color: Colors.deepPurple,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              'Question ${(topic.questionOrderIndex ?? 0) + 1}',
+                                              'Card ${topic.cardId == widget.cardId && widget.cardNumber != null ? widget.cardNumber : (_cards.indexWhere((c) => c.id == topic.cardId) + 1)}',
                                               style: const TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,

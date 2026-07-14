@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/flashcard_repository.dart';
+import '../../../data/repositories/discussion_repository.dart';
 import '../models/flashcard_models.dart';
+import '../widgets/flashcard_discussions_sheet.dart';
 
 class PlayFlashcardsScreen extends StatefulWidget {
   final String deckId;
@@ -30,6 +32,8 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
   int _xpEarned = 0;
   bool _isSessionEnded = false;
   final GlobalKey<_PlayFlipCardState> _cardKey = GlobalKey<_PlayFlipCardState>();
+  Map<String, int> _cardDiscussionCounts = {};
+  int _totalDiscussionsCount = 0;
 
   @override
   void initState() {
@@ -41,13 +45,21 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = context.read<FlashcardRepository>();
+      final discRepo = context.read<DiscussionRepository>();
+      
       final cards = await repo.getFlashcards(widget.deckId);
       if (widget.shuffle) {
         cards.shuffle();
       }
+      
+      final counts = await discRepo.getDeckCardsDiscussionsCount(widget.deckId);
+      final totalCount = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
+
       if (mounted) {
         setState(() {
           _cards = cards;
+          _cardDiscussionCounts = counts;
+          _totalDiscussionsCount = totalCount;
           _isLoading = false;
         });
       }
@@ -83,6 +95,19 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
     setState(() => _isLoading = true);
     final int xpAwarded = _correctCount * 2;
     _xpEarned = xpAwarded;
+
+    try {
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      if (user != null) {
+        await client.from('flashcard_deck_attempts').insert({
+          'user_id': user.id,
+          'deck_id': widget.deckId,
+        });
+      }
+    } catch (e) {
+      debugPrint('Error recording deck attempt: $e');
+    }
 
     if (xpAwarded > 0) {
       try {
@@ -129,6 +154,24 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
         _isSessionEnded = true;
       });
     }
+  }
+
+  void _showCardDiscussions(FlashcardItem card) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FlashcardDiscussionsSheet(
+        deckId: widget.deckId,
+        cardId: card.id,
+        deckTitle: widget.deckTitle,
+        cardFrontText: card.front,
+        cardNumber: _currentIndex + 1,
+        onTopicCreated: () {
+          _loadCards();
+        },
+      ),
+    );
   }
 
   Widget _buildReviewScreen() {
@@ -245,13 +288,45 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Results'),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(Icons.close, color: Colors.white),
             onPressed: () => context.pop(),
           ),
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => FlashcardDiscussionsSheet(
+                    deckId: widget.deckId,
+                    deckTitle: widget.deckTitle,
+                    onTopicCreated: () {
+                      _loadCards();
+                    },
+                  ),
+                );
+              },
+              icon: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 22,
+                color: Colors.white,
+              ),
+              label: Text(
+                '$_totalDiscussionsCount',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
         ),
         body: _buildReviewScreen(),
       );
@@ -293,9 +368,35 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
             widget.deckTitle,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
+          actions: [
+            if (_isCardFlipped && !_isLoading && _cards.isNotEmpty)
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+                onPressed: () {
+                  _showCardDiscussions(_cards[_currentIndex]);
+                },
+                icon: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 22,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  '${_cardDiscussionCounts[_cards[_currentIndex].id] ?? 0}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+          ],
         ),
         body: Container(
           color: Colors.white,

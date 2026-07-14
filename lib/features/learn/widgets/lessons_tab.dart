@@ -21,7 +21,7 @@ class LessonsTab extends StatefulWidget {
 class LessonsTabState extends State<LessonsTab> {
   final LessonProgress _progressTracker = LessonProgress();
   final TextEditingController _searchController = TextEditingController();
-  
+
   // State for active lesson and preview
   String? _selectedLessonCourseId;
   bool _isBrowsing = false;
@@ -43,14 +43,15 @@ class LessonsTabState extends State<LessonsTab> {
   Future<int> _getDiscussionCountFuture(String courseId) {
     return _courseDiscussionCountFutures.putIfAbsent(
       courseId,
-      () => context
-          .read<DiscussionRepository>()
-          .getCourseTotalDiscussionsCount(courseId),
+      () => context.read<DiscussionRepository>().getCourseTotalDiscussionsCount(
+        courseId,
+      ),
     );
   }
 
   // Public getter so parent can check if in browse mode vs active lesson
-  bool get isShowingBrowseMode => _isBrowsing || _selectedLessonCourseId == null;
+  bool get isShowingBrowseMode =>
+      _isBrowsing || _selectedLessonCourseId == null;
 
   @override
   void initState() {
@@ -71,7 +72,8 @@ class LessonsTabState extends State<LessonsTab> {
       if (user != null) {
         try {
           final metadata = user.userMetadata;
-          if (metadata != null && metadata.containsKey('current_lesson_course_id')) {
+          if (metadata != null &&
+              metadata.containsKey('current_lesson_course_id')) {
             storedId = metadata['current_lesson_course_id'] as String?;
           }
         } catch (_) {}
@@ -95,7 +97,9 @@ class LessonsTabState extends State<LessonsTab> {
 
     // If an initialCourseId was specified, open the preview sheet after build completes
     if (widget.initialCourseId != null && mounted) {
-      final courseIdx = _dbCourses.indexWhere((c) => c.id == widget.initialCourseId);
+      final courseIdx = _dbCourses.indexWhere(
+        (c) => c.id == widget.initialCourseId,
+      );
       if (courseIdx != -1) {
         final course = _dbCourses[courseIdx];
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -110,12 +114,15 @@ class LessonsTabState extends State<LessonsTab> {
   @override
   void didUpdateWidget(covariant LessonsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.initialCourseId != null && widget.initialCourseId != oldWidget.initialCourseId) {
+    if (widget.initialCourseId != null &&
+        widget.initialCourseId != oldWidget.initialCourseId) {
       setState(() {
         _isBrowsing = true;
       });
       widget.onBrowseModeChanged?.call();
-      final courseIdx = _dbCourses.indexWhere((c) => c.id == widget.initialCourseId);
+      final courseIdx = _dbCourses.indexWhere(
+        (c) => c.id == widget.initialCourseId,
+      );
       if (courseIdx != -1) {
         final course = _dbCourses[courseIdx];
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -127,7 +134,11 @@ class LessonsTabState extends State<LessonsTab> {
     }
   }
 
-  double _getCourseProgress(LessonCourse course, Map<String, List<LessonChapter>> chaptersMap, Map<String, List<LessonSubChapter>> subChaptersMap) {
+  double _getCourseProgress(
+    LessonCourse course,
+    Map<String, List<LessonChapter>> chaptersMap,
+    Map<String, List<LessonSubChapter>> subChaptersMap,
+  ) {
     final chapters = chaptersMap[course.id] ?? [];
     int totalSubs = 0;
     int completedSubs = 0;
@@ -152,7 +163,9 @@ class LessonsTabState extends State<LessonsTab> {
     }
 
     final isCompleted = totalSubs > 0 && progress == 1.0;
-    final isCurrent = course.id == _selectedLessonCourseId || (progress > 0.0 && progress < 1.0);
+    final isCurrent =
+        course.id == _selectedLessonCourseId ||
+        (progress > 0.0 && progress < 1.0);
 
     if (isCompleted) {
       return 2; // Completed at bottom
@@ -175,7 +188,9 @@ class LessonsTabState extends State<LessonsTab> {
 
       final user = Supabase.instance.client.auth.currentUser;
       final currentUserId = user?.id;
-      final courses = allCourses.where((c) => c.isPublic || c.creatorId == currentUserId).toList();
+      final courses = allCourses
+          .where((c) => c.isPublic || c.creatorId == currentUserId)
+          .toList();
 
       final Map<String, List<LessonChapter>> chaptersMap = {};
       final Map<String, List<LessonSubChapter>> subChaptersMap = {};
@@ -248,11 +263,7 @@ class LessonsTabState extends State<LessonsTab> {
       final user = client.auth.currentUser;
       if (user != null) {
         await client.auth.updateUser(
-          UserAttributes(
-            data: {
-              'current_lesson_course_id': course.id,
-            },
-          ),
+          UserAttributes(data: {'current_lesson_course_id': course.id}),
         );
       }
     } catch (_) {}
@@ -287,10 +298,7 @@ class LessonsTabState extends State<LessonsTab> {
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text(
               'Relearn',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -313,13 +321,17 @@ class LessonsTabState extends State<LessonsTab> {
         await loadDbLessons();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lesson "${course.title}" progress reset successfully!')),
+          SnackBar(
+            content: Text(
+              'Lesson "${course.title}" progress reset successfully!',
+            ),
+          ),
         );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error resetting progress: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error resetting progress: $e')));
       } finally {
         if (mounted) {
           setState(() => _isLoadingDb = false);
@@ -344,13 +356,20 @@ class LessonsTabState extends State<LessonsTab> {
                 height: 80,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.deepPurple.shade700, Colors.indigo.shade500],
+                    colors: [
+                      Colors.deepPurple.shade700,
+                      Colors.indigo.shade500,
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.emoji_events_rounded, size: 44, color: Colors.amber),
+                child: const Icon(
+                  Icons.emoji_events_rounded,
+                  size: 44,
+                  color: Colors.amber,
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -381,7 +400,11 @@ class LessonsTabState extends State<LessonsTab> {
               const SizedBox(height: 8),
               Text(
                 "You've covered it all. Ready to tackle the next challenge?",
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -411,7 +434,6 @@ class LessonsTabState extends State<LessonsTab> {
     );
   }
 
-
   Widget _buildEmptyPlaceholder(String message) {
     return Center(
       child: Padding(
@@ -419,11 +441,7 @@ class LessonsTabState extends State<LessonsTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.school_outlined,
-              size: 56,
-              color: Colors.grey.shade300,
-            ),
+            Icon(Icons.school_outlined, size: 56, color: Colors.grey.shade300),
             const SizedBox(height: 16),
             Text(
               message,
@@ -475,17 +493,29 @@ class LessonsTabState extends State<LessonsTab> {
     }
 
     final ongoing = _dbCourses.where((c) {
-      final progress = _getCourseProgress(c, _allChaptersMap, _allSubChaptersMap);
+      final progress = _getCourseProgress(
+        c,
+        _allChaptersMap,
+        _allSubChaptersMap,
+      );
       return _getCourseCategory(c, progress) == 1;
     }).toList();
 
     final unlearned = _dbCourses.where((c) {
-      final progress = _getCourseProgress(c, _allChaptersMap, _allSubChaptersMap);
+      final progress = _getCourseProgress(
+        c,
+        _allChaptersMap,
+        _allSubChaptersMap,
+      );
       return _getCourseCategory(c, progress) == 0;
     }).toList();
 
     final completed = _dbCourses.where((c) {
-      final progress = _getCourseProgress(c, _allChaptersMap, _allSubChaptersMap);
+      final progress = _getCourseProgress(
+        c,
+        _allChaptersMap,
+        _allSubChaptersMap,
+      );
       return _getCourseCategory(c, progress) == 2;
     }).toList();
 
@@ -571,14 +601,20 @@ class LessonsTabState extends State<LessonsTab> {
                       },
                     )
                   : null,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 12,
+                horizontal: 16,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide(color: Colors.grey.shade300),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+                borderSide: const BorderSide(
+                  color: Colors.deepPurple,
+                  width: 2,
+                ),
               ),
             ),
             onChanged: (val) {
@@ -613,7 +649,6 @@ class LessonsTabState extends State<LessonsTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-
                 if (displayedCourses.isEmpty)
                   _buildEmptyPlaceholder(
                     _searchQuery.isNotEmpty
@@ -624,11 +659,18 @@ class LessonsTabState extends State<LessonsTab> {
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0,
+                      vertical: 8.0,
+                    ),
                     itemCount: displayedCourses.length,
                     itemBuilder: (context, index) {
                       final course = displayedCourses[index];
-                      final progress = _getCourseProgress(course, _allChaptersMap, _allSubChaptersMap);
+                      final progress = _getCourseProgress(
+                        course,
+                        _allChaptersMap,
+                        _allSubChaptersMap,
+                      );
                       final progressPct = (progress * 100).toInt();
 
                       return Card(
@@ -654,7 +696,9 @@ class LessonsTabState extends State<LessonsTab> {
                                   ),
                                   child: course.imageUrl != null
                                       ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                           child: Image.network(
                                             course.imageUrl!,
                                             fit: BoxFit.cover,
@@ -669,7 +713,8 @@ class LessonsTabState extends State<LessonsTab> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
@@ -685,8 +730,14 @@ class LessonsTabState extends State<LessonsTab> {
                                           ),
                                           if (!course.isPublic)
                                             const Padding(
-                                              padding: EdgeInsets.only(left: 6.0),
-                                              child: Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                                              padding: EdgeInsets.only(
+                                                left: 6.0,
+                                              ),
+                                              child: Icon(
+                                                Icons.lock_outline,
+                                                size: 14,
+                                                color: Colors.grey,
+                                              ),
                                             ),
                                         ],
                                       ),
@@ -707,47 +758,69 @@ class LessonsTabState extends State<LessonsTab> {
                                       Row(
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: progress == 1.0
                                                   ? Colors.green.shade50
                                                   : (progress > 0
-                                                      ? Colors.deepPurple.shade50
-                                                      : Colors.grey.shade100),
-                                              borderRadius: BorderRadius.circular(6),
+                                                        ? Colors
+                                                              .deepPurple
+                                                              .shade50
+                                                        : Colors.grey.shade100),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: Text(
                                               progress == 1.0
                                                   ? 'Completed'
-                                                  : (progress > 0 ? 'Ongoing' : 'New'),
+                                                  : (progress > 0
+                                                        ? 'Ongoing'
+                                                        : 'New'),
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
                                                 color: progress == 1.0
                                                     ? Colors.green.shade700
                                                     : (progress > 0
-                                                        ? Colors.deepPurple.shade700
-                                                        : Colors.grey.shade700),
+                                                          ? Colors
+                                                                .deepPurple
+                                                                .shade700
+                                                          : Colors
+                                                                .grey
+                                                                .shade700),
                                               ),
                                             ),
                                           ),
                                           const SizedBox(width: 8),
-                                          if (progress > 0 && progress < 1.0) ...[
+                                          if (progress > 0 &&
+                                              progress < 1.0) ...[
                                             Expanded(
                                               child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(4),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
                                                 child: LinearProgressIndicator(
                                                   value: progress,
                                                   minHeight: 6,
-                                                  backgroundColor: Colors.grey.shade100,
-                                                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                                                  backgroundColor:
+                                                      Colors.grey.shade100,
+                                                  valueColor:
+                                                      const AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.deepPurple),
                                                 ),
                                               ),
                                             ),
                                             const SizedBox(width: 8),
                                             Text(
                                               '$progressPct%',
-                                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.grey,
+                                              ),
                                             ),
                                           ],
                                         ],
@@ -835,7 +908,6 @@ class LessonsTabState extends State<LessonsTab> {
     );
   }
 
-
   void _showCoursePreviewSheet(LessonCourse course) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -872,7 +944,10 @@ class LessonsTabState extends State<LessonsTab> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: IconButton(
-                    icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black87),
+                    icon: Icon(
+                      Icons.close,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ),
@@ -933,22 +1008,32 @@ class LessonsTabState extends State<LessonsTab> {
                           decoration: BoxDecoration(
                             color: course.isPublic
                                 ? Colors.green.shade50
-                                : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
+                                : (isDark
+                                      ? Colors.grey.shade800
+                                      : Colors.grey.shade100),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: course.isPublic
                                   ? Colors.green.shade300
-                                  : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+                                  : (isDark
+                                        ? Colors.grey.shade700
+                                        : Colors.grey.shade300),
                             ),
                           ),
                           child: Text(
-                            course.isPublic ? 'Public Lesson' : 'Private Lesson',
+                            course.isPublic
+                                ? 'Public Lesson'
+                                : 'Private Lesson',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                               color: course.isPublic
-                                  ? (isDark ? Colors.green.shade300 : Colors.green.shade700)
-                                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                                  ? (isDark
+                                        ? Colors.green.shade300
+                                        : Colors.green.shade700)
+                                  : (isDark
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade700),
                             ),
                           ),
                         ),
@@ -963,7 +1048,9 @@ class LessonsTabState extends State<LessonsTab> {
                             style: TextStyle(
                               fontSize: 14,
                               height: 1.5,
-                              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                              color: isDark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade700,
                             ),
                           ),
                         ] else ...[
@@ -994,7 +1081,9 @@ class LessonsTabState extends State<LessonsTab> {
                             ),
                             onPressed: () {
                               Navigator.pop(context); // Close sheet
-                              _startLearningCourse(course); // Start course learning
+                              _startLearningCourse(
+                                course,
+                              ); // Start course learning
                             },
                             child: const Text(
                               'Start Learning',
@@ -1031,9 +1120,9 @@ class LessonsTabState extends State<LessonsTab> {
                                     backgroundColor: Colors.transparent,
                                     builder: (context) =>
                                         LessonDiscussionsSheet(
-                                      courseId: course.id,
-                                      courseTitle: course.title,
-                                    ),
+                                          courseId: course.id,
+                                          courseTitle: course.title,
+                                        ),
                                   );
                                 },
                                 icon: const Icon(
@@ -1042,7 +1131,7 @@ class LessonsTabState extends State<LessonsTab> {
                                   size: 20,
                                 ),
                                 label: Text(
-                                  'View Discussion ($count)',
+                                  'View Discussions ($count)',
                                   style: const TextStyle(
                                     color: Colors.deepPurple,
                                     fontWeight: FontWeight.bold,
@@ -1065,10 +1154,14 @@ class LessonsTabState extends State<LessonsTab> {
     );
   }
 
-  bool _isSubChapterUnlocked(LessonSubChapter sub, List<LessonSubChapter> allSubs) {
+  bool _isSubChapterUnlocked(
+    LessonSubChapter sub,
+    List<LessonSubChapter> allSubs,
+  ) {
     final globalIdx = allSubs.indexWhere((s) => s.id == sub.id);
     return globalIdx == 0 ||
-        (globalIdx > 0 && _progressTracker.isCompleted(allSubs[globalIdx - 1].id));
+        (globalIdx > 0 &&
+            _progressTracker.isCompleted(allSubs[globalIdx - 1].id));
   }
 
   Widget _buildDbChapters() {
@@ -1113,10 +1206,14 @@ class LessonsTabState extends State<LessonsTab> {
 
     String? activeChapterId;
     if (activeSubChapterId != null) {
-      activeChapterId = _dbChapters.firstWhere(
-        (ch) => (_dbSubChaptersMap[ch.id] ?? []).any((s) => s.id == activeSubChapterId),
-        orElse: () => _dbChapters.first,
-      ).id;
+      activeChapterId = _dbChapters
+          .firstWhere(
+            (ch) => (_dbSubChaptersMap[ch.id] ?? []).any(
+              (s) => s.id == activeSubChapterId,
+            ),
+            orElse: () => _dbChapters.first,
+          )
+          .id;
     } else if (_dbChapters.isNotEmpty) {
       // If everything is completed, expand the last chapter
       activeChapterId = _dbChapters.last.id;
@@ -1126,8 +1223,11 @@ class LessonsTabState extends State<LessonsTab> {
       children: _dbChapters.map((ch) {
         final subs = _dbSubChaptersMap[ch.id] ?? [];
 
-        final isChCompleted = subs.isNotEmpty && subs.every((sub) => _progressTracker.isCompleted(sub.id));
-        final isChLocked = subs.isNotEmpty && !_isSubChapterUnlocked(subs.first, allSubs);
+        final isChCompleted =
+            subs.isNotEmpty &&
+            subs.every((sub) => _progressTracker.isCompleted(sub.id));
+        final isChLocked =
+            subs.isNotEmpty && !_isSubChapterUnlocked(subs.first, allSubs);
 
         // Visual properties based on state
         Color cardBgColor;
@@ -1164,7 +1264,11 @@ class LessonsTabState extends State<LessonsTab> {
           iconColor = Colors.grey.shade400;
           textColor = Colors.grey.shade500;
           headerIcon = Icons.lock_outline;
-          trailingWidget = const Icon(Icons.lock_outline, color: Colors.grey, size: 20);
+          trailingWidget = const Icon(
+            Icons.lock_outline,
+            color: Colors.grey,
+            size: 20,
+          );
         } else {
           cardBgColor = Colors.deepPurple.shade50.withValues(alpha: 0.5);
           borderColor = Colors.deepPurple.shade200;
@@ -1191,11 +1295,7 @@ class LessonsTabState extends State<LessonsTab> {
               key: Key('${ch.id}_${activeChapterId == ch.id}'),
               initiallyExpanded: isExpanded,
               onExpansionChanged: isChLocked ? (expanded) => false : null,
-              leading: Icon(
-                headerIcon,
-                color: iconColor,
-                size: 28,
-              ),
+              leading: Icon(headerIcon, color: iconColor, size: 28),
               title: Text(
                 ch.title,
                 style: TextStyle(
@@ -1207,26 +1307,36 @@ class LessonsTabState extends State<LessonsTab> {
               trailing: isChLocked
                   ? trailingWidget
                   : (isChCompleted
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (trailingWidget != null) ...[
-                              trailingWidget,
-                              const SizedBox(width: 8),
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (trailingWidget != null) ...[
+                                trailingWidget,
+                                const SizedBox(width: 8),
+                              ],
+                              const Icon(Icons.expand_more),
                             ],
-                            const Icon(Icons.expand_more),
-                          ],
-                        )
-                      : null),
+                          )
+                        : null),
               children: [
                 const Divider(height: 1),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
                   child: Column(
                     children: subs.map((sub) {
-                      final globalIdx = allSubs.indexWhere((s) => s.id == sub.id);
-                      final bool isCompleted = _progressTracker.isCompleted(sub.id);
-                      final bool isUnlocked = _isSubChapterUnlocked(sub, allSubs);
+                      final globalIdx = allSubs.indexWhere(
+                        (s) => s.id == sub.id,
+                      );
+                      final bool isCompleted = _progressTracker.isCompleted(
+                        sub.id,
+                      );
+                      final bool isUnlocked = _isSubChapterUnlocked(
+                        sub,
+                        allSubs,
+                      );
                       final bool isActive = isUnlocked && !isCompleted;
 
                       // Visual styling for sub-chapter badge
@@ -1278,10 +1388,16 @@ class LessonsTabState extends State<LessonsTab> {
                               await loadDbLessons();
                               // Check if lesson is now fully completed
                               if (mounted && _selectedLessonCourseId != null) {
-                                final courseIdx = _dbCourses.indexWhere((c) => c.id == _selectedLessonCourseId);
+                                final courseIdx = _dbCourses.indexWhere(
+                                  (c) => c.id == _selectedLessonCourseId,
+                                );
                                 if (courseIdx != -1) {
                                   final completedCourse = _dbCourses[courseIdx];
-                                  final courseProgress = _getCourseProgress(completedCourse, _allChaptersMap, _allSubChaptersMap);
+                                  final courseProgress = _getCourseProgress(
+                                    completedCourse,
+                                    _allChaptersMap,
+                                    _allSubChaptersMap,
+                                  );
                                   if (courseProgress >= 1.0) {
                                     _showCongratulationsDialog(completedCourse);
                                   }
@@ -1361,8 +1477,11 @@ class LessonsTabState extends State<LessonsTab> {
                                             ),
                                             decoration: BoxDecoration(
                                               color: badgeBgColor,
-                                              borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: badgeBorderColor),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: badgeBorderColor,
+                                              ),
                                             ),
                                             child: Text(
                                               'XP +${sub.xpReward}',
@@ -1408,10 +1527,15 @@ class LessonsTabState extends State<LessonsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final activeCourseIdx = _dbCourses.indexWhere((c) => c.id == _selectedLessonCourseId);
-    final activeCourse = activeCourseIdx != -1 ? _dbCourses[activeCourseIdx] : null;
+    final activeCourseIdx = _dbCourses.indexWhere(
+      (c) => c.id == _selectedLessonCourseId,
+    );
+    final activeCourse = activeCourseIdx != -1
+        ? _dbCourses[activeCourseIdx]
+        : null;
 
-    final isViewingActiveLesson = _selectedLessonCourseId != null && activeCourse != null;
+    final isViewingActiveLesson =
+        _selectedLessonCourseId != null && activeCourse != null;
 
     // Calculate progress for active course
     double progress = 0.0;
@@ -1431,7 +1555,9 @@ class LessonsTabState extends State<LessonsTab> {
     }
 
     if (_isLoadingDb) {
-      return const Center(child: CircularProgressIndicator(color: Colors.deepPurple));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.deepPurple),
+      );
     }
 
     if (isViewingActiveLesson && !_isBrowsing) {
@@ -1445,7 +1571,10 @@ class LessonsTabState extends State<LessonsTab> {
             children: [
               // Active Lesson Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 8.0,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -1491,7 +1620,9 @@ class LessonsTabState extends State<LessonsTab> {
                     value: progress,
                     minHeight: 12,
                     backgroundColor: Colors.grey.shade200,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.green,
+                    ),
                   ),
                 ),
               ),
@@ -1527,10 +1658,16 @@ class LessonsTabState extends State<LessonsTab> {
                             ),
                           );
                         },
-                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                        icon: const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 20,
+                        ),
                         label: Text(
-                          'View Discussion ($count)',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          'View Discussions ($count)',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
                         ),
                       ),
                     );

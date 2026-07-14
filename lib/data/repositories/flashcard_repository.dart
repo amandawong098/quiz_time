@@ -29,7 +29,14 @@ class FlashcardRepository {
         .order('created_at', ascending: false);
     return (response as List).map((e) => FlashcardDeck.fromJson(e)).toList();
   }
-
+  Future<FlashcardDeck> getDeckById(String deckId) async {
+    final response = await _supabase
+        .from('flashcard_decks')
+        .select('*, flashcards(id)')
+        .eq('id', deckId)
+        .single();
+    return FlashcardDeck.fromJson(response);
+  }
   Future<FlashcardDeck> createDeck({
     required String title,
     String? description,
