@@ -35,7 +35,6 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
   Map<String, int> _cardDiscussionCounts = {};
   int _totalDiscussionsCount = 0;
   double _swipeOffset = 0.0;
-  bool _hasPlayedBefore = false;
 
   @override
   void initState() {
@@ -57,31 +56,11 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
       final counts = await discRepo.getDeckCardsDiscussionsCount(widget.deckId);
       final totalCount = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
 
-      final client = Supabase.instance.client;
-      final user = client.auth.currentUser;
-      final deckResponse = await client
-          .from('flashcard_decks')
-          .select('creator_id')
-          .eq('id', widget.deckId)
-          .single();
-      final isCreator = deckResponse['creator_id'] == user?.id;
-      bool hasPlayed = isCreator;
-      if (!isCreator && user != null) {
-        final attemptsResponse = await client
-            .from('flashcard_deck_attempts')
-            .select('id')
-            .eq('deck_id', widget.deckId)
-            .eq('user_id', user.id)
-            .limit(1);
-        hasPlayed = (attemptsResponse as List).isNotEmpty;
-      }
-
       if (mounted) {
         setState(() {
           _cards = cards;
           _cardDiscussionCounts = counts;
           _totalDiscussionsCount = totalCount;
-          _hasPlayedBefore = hasPlayed;
           _isLoading = false;
         });
       }
@@ -128,7 +107,6 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
           'deck_id': widget.deckId,
         });
       }
-      _hasPlayedBefore = true;
     } catch (e) {
       debugPrint('Error recording deck attempt: $e');
     }
@@ -191,7 +169,6 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
         deckTitle: widget.deckTitle,
         cardFrontText: card.front,
         cardNumber: _currentIndex + 1,
-        isLocked: !_hasPlayedBefore,
         onTopicCreated: () {
           _loadCards();
         },
@@ -288,33 +265,13 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
               width: 240,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  context.go('/flashcard-deck/${widget.deckId}/details');
+                  context.go('/?tab=flashcards');
                 },
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                label: const Text('Revise Again', style: TextStyle(fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.home, color: Colors.white),
+                label: const Text('Back to Flashcards', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 240,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  context.go('/?tab=flashcards');
-                },
-                icon: const Icon(Icons.home, color: Colors.deepPurple),
-                label: const Text('Back to Flashcards', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.deepPurple,
-                  side: const BorderSide(color: Colors.deepPurple, width: 2),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -352,7 +309,6 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
                   builder: (context) => FlashcardDiscussionsSheet(
                     deckId: widget.deckId,
                     deckTitle: widget.deckTitle,
-                    isLocked: !_hasPlayedBefore,
                     onTopicCreated: () {
                       _loadCards();
                     },
@@ -811,24 +767,30 @@ class _PlayFlipCardState extends State<PlayFlipCard> with SingleTickerProviderSt
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.deepPurple.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    widget.deckTitle.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
-                      letterSpacing: 1.1,
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        widget.deckTitle.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                          letterSpacing: 1.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 8),
                 Icon(Icons.flip_camera_android_rounded, color: Colors.grey.shade400, size: 20),
               ],
             ),
