@@ -129,6 +129,19 @@ class FlashcardRepository {
         .eq('id', id);
   }
 
+  Future<void> updatePositions(List<FlashcardItem> cards) async {
+    final futures = <Future>[];
+    for (int i = 0; i < cards.length; i++) {
+      futures.add(
+        _supabase
+            .from('flashcards')
+            .update({'position': i + 1})
+            .eq('id', cards[i].id),
+      );
+    }
+    await Future.wait(futures);
+  }
+
   Future<void> deleteFlashcard(String id) async {
     await _supabase.from('flashcards').delete().eq('id', id);
   }

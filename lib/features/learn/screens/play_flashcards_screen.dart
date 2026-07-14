@@ -34,6 +34,8 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
   final GlobalKey<_PlayFlipCardState> _cardKey = GlobalKey<_PlayFlipCardState>();
   Map<String, int> _cardDiscussionCounts = {};
   int _totalDiscussionsCount = 0;
+  double _swipeOffset = 0.0;
+  bool _hasPlayedBefore = false;
 
   @override
   void initState() {
@@ -55,11 +57,31 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
       final counts = await discRepo.getDeckCardsDiscussionsCount(widget.deckId);
       final totalCount = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
 
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      final deckResponse = await client
+          .from('flashcard_decks')
+          .select('creator_id')
+          .eq('id', widget.deckId)
+          .single();
+      final isCreator = deckResponse['creator_id'] == user?.id;
+      bool hasPlayed = isCreator;
+      if (!isCreator && user != null) {
+        final attemptsResponse = await client
+            .from('flashcard_deck_attempts')
+            .select('id')
+            .eq('deck_id', widget.deckId)
+            .eq('user_id', user.id)
+            .limit(1);
+        hasPlayed = (attemptsResponse as List).isNotEmpty;
+      }
+
       if (mounted) {
         setState(() {
           _cards = cards;
           _cardDiscussionCounts = counts;
           _totalDiscussionsCount = totalCount;
+          _hasPlayedBefore = hasPlayed;
           _isLoading = false;
         });
       }
@@ -85,6 +107,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
       setState(() {
         _isCardFlipped = false;
         _currentIndex++;
+        _swipeOffset = 0.0;
       });
     } else {
       _endSession();
@@ -105,6 +128,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
           'deck_id': widget.deckId,
         });
       }
+      _hasPlayedBefore = true;
     } catch (e) {
       debugPrint('Error recording deck attempt: $e');
     }
@@ -167,6 +191,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
         deckTitle: widget.deckTitle,
         cardFrontText: card.front,
         cardNumber: _currentIndex + 1,
+        isLocked: !_hasPlayedBefore,
         onTopicCreated: () {
           _loadCards();
         },
@@ -261,10 +286,12 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
             const SizedBox(height: 48),
             SizedBox(
               width: 240,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: () {
-                  context.pop();
+                  context.go('/flashcard-deck/${widget.deckId}/details');
                 },
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: const Text('Revise Again', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
@@ -273,7 +300,26 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Text('Revise Again', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 240,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  context.go('/?tab=flashcards');
+                },
+                icon: const Icon(Icons.home, color: Colors.deepPurple),
+                label: const Text('Back to Flashcards', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.deepPurple,
+                  side: const BorderSide(color: Colors.deepPurple, width: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
               ),
             ),
           ],
@@ -306,6 +352,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
                   builder: (context) => FlashcardDiscussionsSheet(
                     deckId: widget.deckId,
                     deckTitle: widget.deckTitle,
+                    isLocked: !_hasPlayedBefore,
                     onTopicCreated: () {
                       _loadCards();
                     },
@@ -458,18 +505,76 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 24),
-                          PlayFlipCard(
-                            key: _cardKey,
-                            card: _cards[_currentIndex],
-                            deckTitle: widget.deckTitle,
-                            onFlipped: (isFront) {
-                              setState(() {
-                                _isCardFlipped = !isFront;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 32),
+                           const SizedBox(height: 24),
+                           GestureDetector(
+                             onHorizontalDragUpdate: !_isCardFlipped ? null : (details) {
+                               setState(() {
+                                 _swipeOffset += details.primaryDelta ?? 0.0;
+                               });
+                             },
+                             onHorizontalDragEnd: !_isCardFlipped ? null : (details) {
+                               if (_swipeOffset > 120) {
+                                 _onAnswered(true);
+                               } else if (_swipeOffset < -120) {
+                                 _onAnswered(false);
+                               }
+                               setState(() {
+                                 _swipeOffset = 0.0;
+                               });
+                             },
+                             child: Transform.translate(
+                               offset: Offset(_swipeOffset, 0.0),
+                               child: Transform.rotate(
+                                 angle: _swipeOffset / 1000.0,
+                                 child: Stack(
+                                   children: [
+                                     PlayFlipCard(
+                                       key: _cardKey,
+                                       card: _cards[_currentIndex],
+                                       deckTitle: widget.deckTitle,
+                                       onFlipped: (isFront) {
+                                         setState(() {
+                                           _isCardFlipped = !isFront;
+                                         });
+                                       },
+                                     ),
+                                     if (_swipeOffset != 0.0)
+                                       Positioned.fill(
+                                         child: IgnorePointer(
+                                           child: Container(
+                                             decoration: BoxDecoration(
+                                               borderRadius: BorderRadius.circular(24),
+                                               color: _swipeOffset > 0
+                                                   ? Colors.green.withValues(alpha: (_swipeOffset / 240.0).clamp(0.0, 0.4))
+                                                   : Colors.red.withValues(alpha: (-_swipeOffset / 240.0).clamp(0.0, 0.4)),
+                                             ),
+                                             alignment: _swipeOffset > 0 ? Alignment.centerLeft : Alignment.centerRight,
+                                             padding: const EdgeInsets.all(24),
+                                             child: Container(
+                                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                               decoration: BoxDecoration(
+                                                 color: _swipeOffset > 0 ? Colors.green : Colors.red,
+                                                 borderRadius: BorderRadius.circular(12),
+                                                 border: Border.all(color: Colors.white, width: 2),
+                                               ),
+                                               child: Text(
+                                                 _swipeOffset > 0 ? 'CORRECT' : 'WRONG',
+                                                 style: const TextStyle(
+                                                   color: Colors.white,
+                                                   fontWeight: FontWeight.bold,
+                                                   fontSize: 16,
+                                                 ),
+                                               ),
+                                             ),
+                                           ),
+                                         ),
+                                       ),
+                                   ],
+                                 ),
+                               ),
+                             ),
+                           ),
+                           const SizedBox(height: 32),
                           // Answer input actions / flip
                           _isCardFlipped
                               ? Row(
@@ -524,6 +629,39 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
                                   ),
                                 ),
                           const SizedBox(height: 36),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: Card(
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(color: Colors.deepPurple.shade100),
+                              ),
+                              color: Colors.deepPurple.shade50.withValues(alpha: 0.3),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.swipe_rounded, color: Colors.deepPurple, size: 24),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        _isCardFlipped
+                                            ? 'Hint: Swipe this card to the right to mark it Correct, or to the left to mark it Wrong!'
+                                            : 'Hint: Tap to flip and reveal the answer, then use interactive swipe gestures to rate!',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          height: 1.4,
+                                          color: Colors.deepPurple,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                           Card(
                             elevation: 0,
                             shape: RoundedRectangleBorder(

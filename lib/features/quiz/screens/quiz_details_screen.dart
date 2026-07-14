@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
@@ -93,7 +94,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                 builder: (context) => QuizDiscussionsSheet(
                   quizId: widget.quizId,
                   quizTitle: _quiz!.title,
-                  isLocked: !_hasPlayedBefore,
+                  isLocked: !_hasPlayedBefore && _quiz!.creatorId != Supabase.instance.client.auth.currentUser?.id,
                   onTopicCreated: () {
                     _loadData();
                   },

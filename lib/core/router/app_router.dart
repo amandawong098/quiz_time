@@ -59,7 +59,8 @@ final GoRouter appRouter = GoRouter(
           path: '/',
           builder: (context, state) {
             final courseId = state.uri.queryParameters['selectedCourseId'];
-            return LearnScreen(selectedCourseId: courseId);
+            final tab = state.uri.queryParameters['tab'];
+            return LearnScreen(selectedCourseId: courseId, initialTab: tab);
           },
         ),
         GoRoute(

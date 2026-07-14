@@ -342,12 +342,36 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : ReorderableListView.builder(
                     padding: const EdgeInsets.all(16.0),
                     itemCount: _cards.length,
+                    onReorder: (oldIndex, newIndex) async {
+                      if (oldIndex < newIndex) {
+                        newIndex -= 1;
+                      }
+                      final repo = context.read<FlashcardRepository>();
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
+                      setState(() {
+                        final FlashcardItem item = _cards.removeAt(oldIndex);
+                        _cards.insert(newIndex, item);
+                        _isLoading = true;
+                      });
+                      try {
+                        await repo.updatePositions(_cards);
+                        await _loadCards();
+                      } catch (e) {
+                        if (mounted) {
+                          setState(() => _isLoading = false);
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(content: Text('Error updating card order: ${e.toString()}')),
+                          );
+                        }
+                      }
+                    },
                     itemBuilder: (context, index) {
                       final card = _cards[index];
                       return Card(
+                        key: ValueKey(card.id),
                         margin: const EdgeInsets.only(bottom: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -372,6 +396,15 @@ class _ManageCardsScreenState extends State<ManageCardsScreen> {
                                         fontWeight: FontWeight.bold,
                                         color: Colors.deepPurple.shade700,
                                       ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Drag to reorder',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey.shade400,
+                                      fontStyle: FontStyle.italic,
                                     ),
                                   ),
                                   const Spacer(),

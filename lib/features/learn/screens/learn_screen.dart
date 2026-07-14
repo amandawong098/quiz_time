@@ -6,7 +6,8 @@ import '../widgets/flashcards_tab.dart';
 
 class LearnScreen extends StatefulWidget {
   final String? selectedCourseId;
-  const LearnScreen({super.key, this.selectedCourseId});
+  final String? initialTab;
+  const LearnScreen({super.key, this.selectedCourseId, this.initialTab});
 
   @override
   State<LearnScreen> createState() => _LearnScreenState();
@@ -21,6 +22,9 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    if (widget.initialTab == 'flashcards') {
+      _tabController.index = 1;
+    }
     _tabController.addListener(() {
       if (mounted) {
         setState(() {});
@@ -33,6 +37,8 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
     super.didUpdateWidget(oldWidget);
     if (widget.selectedCourseId != null && widget.selectedCourseId != oldWidget.selectedCourseId) {
       _tabController.animateTo(0);
+    } else if (widget.initialTab == 'flashcards' && widget.initialTab != oldWidget.initialTab) {
+      _tabController.animateTo(1);
     }
   }
 
