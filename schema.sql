@@ -342,6 +342,8 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE,
+    type TEXT CHECK (type IN ('friend_request', 'challenge_invite', 'discussion_upvote', 'discussion_reply', 'comment_reply')),
+    data JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

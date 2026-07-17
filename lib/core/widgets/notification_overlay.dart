@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import '../router/app_router.dart';
 
 class NotificationOverlay {
-  static void show({required String title, required String message}) {
+  static void show({
+    required String title,
+    required String message,
+    String? type,
+    Map<String, dynamic>? data,
+  }) {
     final overlayState = rootNavigatorKey.currentState?.overlay;
     if (overlayState == null) return;
 
@@ -12,6 +17,8 @@ class NotificationOverlay {
       builder: (context) => NotificationPopupWidget(
         title: title,
         message: message,
+        type: type,
+        data: data,
         onDismiss: () {
           if (overlayEntry.mounted) {
             overlayEntry.remove();
@@ -34,12 +41,16 @@ class NotificationOverlay {
 class NotificationPopupWidget extends StatefulWidget {
   final String title;
   final String message;
+  final String? type;
+  final Map<String, dynamic>? data;
   final VoidCallback onDismiss;
 
   const NotificationPopupWidget({
     super.key,
     required this.title,
     required this.message,
+    this.type,
+    this.data,
     required this.onDismiss,
   });
 
@@ -96,7 +107,17 @@ class _NotificationPopupWidgetState extends State<NotificationPopupWidget>
       child: GestureDetector(
         onTap: () async {
           await _dismiss();
-          appRouter.go('/me/friends');
+          final topicId = widget.data?['topic_id'] as String?;
+          final type = widget.type;
+          if (topicId != null &&
+              (type == 'discussion_upvote' ||
+               type == 'comment_upvote' ||
+               type == 'discussion_reply' ||
+               type == 'comment_reply')) {
+            appRouter.push('/discussion/$topicId');
+          } else {
+            appRouter.push('/me/friends');
+          }
         },
         child: Container(
           padding: const EdgeInsets.all(16),

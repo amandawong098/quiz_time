@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/discussion_models.dart';
 
@@ -206,7 +207,17 @@ class DiscussionRepository {
         .select()
         .single();
 
-    return response['id'] as String;
+    final String replyId = response['id'] as String;
+
+    _sendReplyNotification(
+      topicId: topicId,
+      parentId: parentId,
+      replyToId: replyToId,
+    ).catchError((e) {
+      debugPrint('Error sending reply notification: $e');
+    });
+
+    return replyId;
   }
 
   // Update a reply row
@@ -267,6 +278,33 @@ class DiscussionRepository {
         'vote_type': voteType,
       });
     }
+
+    if (voteType == 1) {
+      final bool shouldNotify = existing == null || (existing['vote_type'] as int) != 1;
+      if (shouldNotify) {
+        try {
+          final topicData = await _supabase
+              .from('discussion_topics')
+              .select('author_id, title')
+              .eq('id', topicId)
+              .single();
+          final authorId = topicData['author_id'] as String;
+          final title = topicData['title'] as String;
+          if (authorId != _currentUserId) {
+            final voterName = await _getCurrentUserName();
+            await _createNotification(
+              targetUserId: authorId,
+              title: 'Discussion Upvoted',
+              message: '$voterName upvoted your discussion: $title',
+              type: 'discussion_upvote',
+              data: {'topic_id': topicId},
+            );
+          }
+        } catch (e) {
+          debugPrint('Error processing upvote notification: $e');
+        }
+      }
+    }
   }
 
   // Upvote / downvote reply vote logic (with toggling & retract capability)
@@ -302,6 +340,35 @@ class DiscussionRepository {
         'user_id': _currentUserId,
         'vote_type': voteType,
       });
+    }
+
+    if (voteType == 1) {
+      final bool shouldNotify = existing == null || (existing['vote_type'] as int) != 1;
+      if (shouldNotify) {
+        try {
+          final replyData = await _supabase
+              .from('discussion_replies')
+              .select('author_id, content, topic_id')
+              .eq('id', replyId)
+              .single();
+          final authorId = replyData['author_id'] as String;
+          final content = replyData['content'] as String;
+          final topicId = replyData['topic_id'] as String;
+          if (authorId != _currentUserId) {
+            final voterName = await _getCurrentUserName();
+            final snippet = content.length > 30 ? '${content.substring(0, 30)}...' : content;
+            await _createNotification(
+              targetUserId: authorId,
+              title: 'Comment Upvoted',
+              message: '$voterName upvoted your comment: "$snippet"',
+              type: 'comment_upvote',
+              data: {'topic_id': topicId},
+            );
+          }
+        } catch (e) {
+          debugPrint('Error processing reply upvote notification: $e');
+        }
+      }
     }
   }
 
@@ -384,5 +451,110 @@ class DiscussionRepository {
         .from('discussion_topics')
         .delete()
         .eq('id', topicId);
+  }
+
+  Future<String> _getCurrentUserName() async {
+    try {
+      final res = await _supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', _currentUserId)
+          .single();
+      return res['name'] as String? ?? 'Someone';
+    } catch (_) {
+      return 'Someone';
+    }
+  }
+
+  Future<void> _createNotification({
+    required String targetUserId,
+    required String title,
+    required String message,
+    String? type,
+    Map<String, dynamic>? data,
+  }) async {
+    if (targetUserId == _currentUserId) return;
+    
+    final payload = {
+      'user_id': targetUserId,
+      'title': title,
+      'message': message,
+      'is_read': false,
+    };
+    
+    if (type != null) {
+      payload['type'] = type;
+    }
+    if (data != null) {
+      payload['data'] = data;
+    }
+
+    try {
+      await _supabase.from('notifications').insert(payload);
+    } catch (e) {
+      if (e.toString().contains("column") && e.toString().contains("does not exist")) {
+        try {
+          payload.remove('type');
+          payload.remove('data');
+          await _supabase.from('notifications').insert(payload);
+        } catch (e2) {
+          debugPrint('Error inserting fallback notification: $e2');
+        }
+      } else {
+        debugPrint('Error inserting notification: $e');
+      }
+    }
+  }
+
+  Future<void> _sendReplyNotification({
+    required String topicId,
+    String? parentId,
+    String? replyToId,
+  }) async {
+    final replierName = await _getCurrentUserName();
+
+    if (parentId == null && replyToId == null) {
+      // Direct reply to the topic
+      final topicData = await _supabase
+          .from('discussion_topics')
+          .select('author_id, title')
+          .eq('id', topicId)
+          .single();
+      final authorId = topicData['author_id'] as String;
+      final topicTitle = topicData['title'] as String;
+
+      if (authorId != _currentUserId) {
+        await _createNotification(
+          targetUserId: authorId,
+          title: 'New Reply on Topic',
+          message: '$replierName replied to your topic: "$topicTitle"',
+          type: 'discussion_reply',
+          data: {'topic_id': topicId},
+        );
+      }
+    } else {
+      // Reply to a comment/nested reply
+      final targetId = replyToId ?? parentId!;
+      final targetData = await _supabase
+          .from('discussion_replies')
+          .select('author_id, content')
+          .eq('id', targetId)
+          .single();
+      final targetAuthorId = targetData['author_id'] as String;
+      final targetContent = targetData['content'] as String;
+
+      if (targetAuthorId != _currentUserId) {
+        final snippet = targetContent.length > 30 
+            ? '${targetContent.substring(0, 30)}...' 
+            : targetContent;
+        await _createNotification(
+          targetUserId: targetAuthorId,
+          title: 'New Reply on Comment',
+          message: '$replierName replied to your comment: "$snippet"',
+          type: 'comment_reply',
+          data: {'topic_id': topicId},
+        );
+      }
+    }
   }
 }

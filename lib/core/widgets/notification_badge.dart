@@ -113,7 +113,17 @@ class NotificationIconBadge extends StatelessWidget {
                                       ),
                                       onTap: () {
                                         Navigator.pop(ctx);
-                                        appRouter.go('/me/friends');
+                                        final topicId = n.data?['topic_id'] as String?;
+                                        final type = n.type;
+                                        if (topicId != null &&
+                                            (type == 'discussion_upvote' ||
+                                             type == 'comment_upvote' ||
+                                             type == 'discussion_reply' ||
+                                             type == 'comment_reply')) {
+                                          appRouter.push('/discussion/$topicId');
+                                        } else {
+                                          appRouter.push('/me/friends');
+                                        }
                                       },
                                     ),
                                   ),

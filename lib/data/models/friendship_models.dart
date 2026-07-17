@@ -36,6 +36,8 @@ class AppNotification {
   final String title;
   final String message;
   final bool isRead;
+  final String? type;
+  final Map<String, dynamic>? data;
   final DateTime createdAt;
 
   AppNotification({
@@ -44,6 +46,8 @@ class AppNotification {
     required this.title,
     required this.message,
     required this.isRead,
+    this.type,
+    this.data,
     required this.createdAt,
   });
 
@@ -54,6 +58,8 @@ class AppNotification {
       title: json['title'] as String? ?? '',
       message: json['message'] as String? ?? '',
       isRead: json['is_read'] as bool? ?? false,
+      type: json['type'] as String?,
+      data: json['data'] != null ? json['data'] as Map<String, dynamic> : null,
       createdAt: json['created_at'] != null 
           ? DateTime.parse(json['created_at'] as String) 
           : DateTime.now(),

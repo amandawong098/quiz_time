@@ -706,7 +706,17 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
     final editedStr = _topic!.updatedAt != null ? ' (edited)' : '';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Thread')),
+      appBar: AppBar(
+        title: const Text('Thread'),
+        leading: Navigator.canPop(context)
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  context.go('/');
+                },
+              ),
+      ),
       body: Column(
         children: [
           Expanded(

@@ -142,6 +142,8 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
               NotificationOverlay.show(
                 title: newNotification.title,
                 message: newNotification.message,
+                type: newNotification.type,
+                data: newNotification.data,
               );
             }
           } else {
