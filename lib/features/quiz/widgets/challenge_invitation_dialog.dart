@@ -10,6 +10,7 @@ class ChallengeInvitationDialog extends StatefulWidget {
   final String quizTitle;
   final String quizId;
   final bool shuffle;
+  final bool useTimer;
 
   const ChallengeInvitationDialog({
     super.key,
@@ -19,6 +20,7 @@ class ChallengeInvitationDialog extends StatefulWidget {
     required this.quizTitle,
     required this.quizId,
     this.shuffle = false,
+    this.useTimer = true,
   });
 
   @override
@@ -268,33 +270,67 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepPurple),
               textAlign: TextAlign.center,
             ),
-            if (widget.shuffle) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.deepPurple.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.deepPurple.shade200),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.shuffle, size: 16, color: Colors.deepPurple),
-                    SizedBox(width: 6),
-                    Text(
-                      'Shuffle Questions Mode is ON',
-                      style: TextStyle(
-                        color: Colors.deepPurple,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: widget.useTimer ? Colors.amber.shade50 : Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: widget.useTimer ? Colors.amber.shade200 : Colors.blue.shade200,
                     ),
-                  ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.useTimer ? Icons.timer_outlined : Icons.timer_off_outlined,
+                        size: 14,
+                        color: widget.useTimer ? Colors.amber.shade900 : Colors.blue.shade900,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        widget.useTimer ? 'Timer: ON' : 'Timer: OFF',
+                        style: TextStyle(
+                          color: widget.useTimer ? Colors.amber.shade900 : Colors.blue.shade900,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                if (widget.shuffle)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.deepPurple.shade200),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.shuffle, size: 14, color: Colors.deepPurple),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Shuffle: ON',
+                          style: TextStyle(
+                            color: Colors.deepPurple,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,

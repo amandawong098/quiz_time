@@ -10,12 +10,14 @@ class MultiplayerInviteDialog extends StatefulWidget {
   final String quizId;
   final String quizTitle;
   final bool shuffle;
+  final bool useTimer;
 
   const MultiplayerInviteDialog({
     super.key,
     required this.quizId,
     required this.quizTitle,
     this.shuffle = false,
+    this.useTimer = true,
   });
 
   @override
@@ -125,12 +127,22 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
       if (currentUserId == null) return;
 
       // 1. Create quiz_challenges row
-      final challenge = await client.from('quiz_challenges').insert({
+      Map<String, dynamic> insertData = {
         'quiz_id': widget.quizId,
         'host_id': currentUserId,
         'status': 'pending',
         'shuffle': widget.shuffle,
-      }).select().single();
+      };
+      
+      dynamic challenge;
+      try {
+        final Map<String, dynamic> testData = Map.from(insertData);
+        testData['use_timer'] = widget.useTimer;
+        challenge = await client.from('quiz_challenges').insert(testData).select().single();
+      } catch (e) {
+        debugPrint('Fallback: insert without use_timer: $e');
+        challenge = await client.from('quiz_challenges').insert(insertData).select().single();
+      }
 
       _challengeId = challenge['id'] as String;
 

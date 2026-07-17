@@ -13,6 +13,10 @@ class FriendsScreen extends StatefulWidget {
 class _FriendsScreenState extends State<FriendsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final TextEditingController _friendsSearchController = TextEditingController();
+  final TextEditingController _discoverSearchController = TextEditingController();
+  String _friendsQuery = '';
+  String _discoverQuery = '';
   bool _isLoading = true;
   bool _isActionInProgress = false;
 
@@ -31,6 +35,8 @@ class _FriendsScreenState extends State<FriendsScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _friendsSearchController.dispose();
+    _discoverSearchController.dispose();
     super.dispose();
   }
 
@@ -148,36 +154,98 @@ class _FriendsScreenState extends State<FriendsScreen>
     );
   }
 
+  Widget _buildSearchBar({
+    required TextEditingController controller,
+    required String hintText,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: hintText,
+          prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
+          suffixIcon: controller.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.grey),
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.grey.shade100,
+          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.deepPurple, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFriendsTab() {
+    final filtered = _friends
+        .where((f) => f.name.toLowerCase().contains(_friendsQuery.toLowerCase()))
+        .toList();
+
     return RefreshIndicator(
       onRefresh: () => _loadData(showFullLoading: false),
-      child: _friends.isEmpty
-          ? ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    vertical: 64.0,
-                    horizontal: 16.0,
-                  ),
-                  child: Center(
-                    child: Text(
-                      'You haven\'t added any friends yet.\nGo to "Discover" tab to add new connections!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              itemCount: _friends.length,
-              itemBuilder: (context, index) {
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            _buildSearchBar(
+              controller: _friendsSearchController,
+              hintText: 'Search friends by name...',
+              onChanged: (val) {
+                setState(() {
+                  _friendsQuery = val;
+                });
+              },
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 64.0,
+                            horizontal: 16.0,
+                          ),
+                          child: Center(
+                            child: Text(
+                              _friendsQuery.isEmpty
+                                  ? 'You haven\'t added any friends yet.\nGo to "Discover" tab to add new connections!'
+                                  : 'No friends matching "$_friendsQuery"',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
                 final friend = _friends[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -246,38 +314,62 @@ class _FriendsScreenState extends State<FriendsScreen>
                 );
               },
             ),
-    );
-  }
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildDiscoverTab() {
+    final filtered = _discoverNewFriends
+        .where((u) => u.name.toLowerCase().contains(_discoverQuery.toLowerCase()))
+        .toList();
+
     return RefreshIndicator(
       onRefresh: () => _loadData(showFullLoading: false),
-      child: _discoverNewFriends.isEmpty
-          ? ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    vertical: 64.0,
-                    horizontal: 16.0,
-                  ),
-                  child: Center(
-                    child: Text(
-                      'No new profiles found to discover.',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              itemCount: _discoverNewFriends.length,
-              itemBuilder: (context, index) {
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            _buildSearchBar(
+              controller: _discoverSearchController,
+              hintText: 'Search people to discover...',
+              onChanged: (val) {
+                setState(() {
+                  _discoverQuery = val;
+                });
+              },
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 64.0,
+                            horizontal: 16.0,
+                          ),
+                          child: Center(
+                            child: Text(
+                              _discoverQuery.isEmpty
+                                  ? 'No new profiles found to discover.'
+                                  : 'No profiles matching "$_discoverQuery"',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
                 final user = _discoverNewFriends[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -330,8 +422,12 @@ class _FriendsScreenState extends State<FriendsScreen>
                 );
               },
             ),
-    );
-  }
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -440,6 +536,8 @@ class _FriendsScreenState extends State<FriendsScreen>
                               children: [
                                 TabBar(
                                   controller: _tabController,
+                                  isScrollable: true,
+                                  tabAlignment: TabAlignment.start,
                                   indicatorColor: Colors.deepPurple,
                                   labelColor: Colors.deepPurple,
                                   unselectedLabelColor: Colors.grey,

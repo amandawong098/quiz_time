@@ -21,6 +21,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   Quiz? _quiz;
   List<Question> _questions = [];
   bool _shuffleQuestions = false;
+  bool _useTimer = true;
   int _totalDiscussionsCount = 0;
   bool _hasPlayedBefore = false;
 
@@ -156,23 +157,45 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                   ],
                 ),
                 const SizedBox(height: 32),
-                 Column(
+                  Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('Shuffle Questions', style: TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 8),
-                        Switch(
-                          value: _shuffleQuestions,
-                          activeThumbColor: Colors.deepPurple,
-                          onChanged: (val) {
-                            setState(() {
-                              _shuffleQuestions = val;
-                            });
-                          },
-                        ),
-                      ],
+                    SizedBox(
+                      width: 220,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Turn on Timer', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Switch(
+                            value: _useTimer,
+                            activeThumbColor: Colors.deepPurple,
+                            activeTrackColor: Colors.deepPurple.shade100,
+                            onChanged: (val) {
+                              setState(() {
+                                _useTimer = val;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Shuffle Questions', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Switch(
+                            value: _shuffleQuestions,
+                            activeThumbColor: Colors.deepPurple,
+                            activeTrackColor: Colors.deepPurple.shade100,
+                            onChanged: (val) {
+                              setState(() {
+                                _shuffleQuestions = val;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -187,7 +210,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () {
-                          context.push('/quiz/${widget.quizId}/take?shuffle=$_shuffleQuestions');
+                          context.push('/quiz/${widget.quizId}/take?shuffle=$_shuffleQuestions&useTimer=$_useTimer');
                         },
                       ),
                     ),
@@ -232,6 +255,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                                 quizId: widget.quizId,
                                 quizTitle: _quiz!.title,
                                 shuffle: _shuffleQuestions,
+                                useTimer: _useTimer,
                               ),
                             );
                           },

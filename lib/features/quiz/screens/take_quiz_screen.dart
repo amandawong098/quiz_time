@@ -13,6 +13,7 @@ class TakeQuizScreen extends StatefulWidget {
   final bool shuffle;
   final bool isPreview;
   final String? initialQuestionId;
+  final bool useTimer;
   const TakeQuizScreen({
     super.key,
     required this.quizId,
@@ -20,6 +21,7 @@ class TakeQuizScreen extends StatefulWidget {
     this.shuffle = false,
     this.isPreview = false,
     this.initialQuestionId,
+    this.useTimer = true,
   });
 
   static bool isActive = false;
@@ -46,10 +48,12 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   List<int> _timeTakenPerQuestion = [];
   int _currentQuestionStartTime = 0;
   List<Map<String, dynamic>> _userAnswers = [];
+  bool _useTimer = true;
 
   @override
   void initState() {
     super.initState();
+    _useTimer = widget.useTimer;
     TakeQuizScreen.isActive = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FriendshipRepository>().setUserPlaying(true);
@@ -63,19 +67,31 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
       final data = await repo.getQuizDetails(widget.quizId);
 
       bool isShuffle = false;
+      bool useTimer = widget.useTimer;
       if (widget.challengeId != null) {
         final client = Supabase.instance.client;
-        final challenge = await client
-            .from('quiz_challenges')
-            .select('shuffle')
-            .eq('id', widget.challengeId!)
-            .single();
-        isShuffle = challenge['shuffle'] as bool? ?? false;
+        try {
+          final challenge = await client
+              .from('quiz_challenges')
+              .select('shuffle, use_timer')
+              .eq('id', widget.challengeId!)
+              .single();
+          isShuffle = challenge['shuffle'] as bool? ?? false;
+          useTimer = challenge['use_timer'] as bool? ?? true;
+        } catch (_) {
+          final challenge = await client
+              .from('quiz_challenges')
+              .select('shuffle')
+              .eq('id', widget.challengeId!)
+              .single();
+          isShuffle = challenge['shuffle'] as bool? ?? false;
+        }
       }
 
       if (mounted) {
         setState(() {
           _questions = data['questions'] as List<Question>;
+          _useTimer = useTimer;
           if ((isShuffle || widget.shuffle) && widget.initialQuestionId == null) {
             _questions.shuffle();
           }
@@ -109,7 +125,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     _currentQuestionStartTime = DateTime.now().millisecondsSinceEpoch;
 
     _timer?.cancel();
-    if (!widget.isPreview) {
+    if (!widget.isPreview && _useTimer) {
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (!mounted) {
           timer.cancel();
@@ -466,7 +482,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!widget.isPreview) ...[
+                    if (!widget.isPreview && _useTimer) ...[
                       TweenAnimationBuilder<double>(
                         tween: Tween<double>(begin: progress, end: progress),
                         duration: const Duration(milliseconds: 500),
@@ -479,7 +495,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                         '00:${_remainingSeconds.toString().padLeft(2, '0')}',
                         textAlign: TextAlign.right,
                       ),
-                    ] else ...[
+                    ] else if (widget.isPreview) ...[
                       const Center(
                         child: Text(
                           'Quiz Preview Mode (Non-Scored)',

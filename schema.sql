@@ -390,6 +390,7 @@ CREATE TABLE IF NOT EXISTS public.quiz_challenges (
     host_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'started', 'completed', 'cancelled')),
     shuffle BOOLEAN DEFAULT FALSE,
+    use_timer BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

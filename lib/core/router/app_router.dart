@@ -116,12 +116,14 @@ final GoRouter appRouter = GoRouter(
         final shuffle = state.uri.queryParameters['shuffle'] == 'true';
         final isPreview = state.uri.queryParameters['preview'] == 'true' || state.uri.queryParameters['isPreview'] == 'true';
         final initialQuestionId = state.uri.queryParameters['initialQuestionId'];
+        final useTimer = state.uri.queryParameters['useTimer'] != 'false';
         return TakeQuizScreen(
           quizId: state.pathParameters['id']!,
           challengeId: challengeId,
           shuffle: shuffle,
           isPreview: isPreview,
           initialQuestionId: initialQuestionId,
+          useTimer: useTimer,
         );
       },
     ),

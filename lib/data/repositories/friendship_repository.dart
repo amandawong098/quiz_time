@@ -476,11 +476,22 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
 
           if (status == 'pending') {
             try {
-              final challengeData = await _supabase
-                  .from('quiz_challenges')
-                  .select('*, quizzes(title), profiles!host_id(name, avatar_url)')
-                  .eq('id', challengeId)
-                  .single();
+              dynamic challengeData;
+              bool useTimer = true;
+              try {
+                challengeData = await _supabase
+                    .from('quiz_challenges')
+                    .select('*, quizzes(title), profiles!host_id(name, avatar_url), use_timer')
+                    .eq('id', challengeId)
+                    .single();
+                useTimer = challengeData['use_timer'] as bool? ?? true;
+              } catch (_) {
+                challengeData = await _supabase
+                    .from('quiz_challenges')
+                    .select('*, quizzes(title), profiles!host_id(name, avatar_url)')
+                    .eq('id', challengeId)
+                    .single();
+              }
 
               final quizTitle = challengeData['quizzes']['title'] as String;
               final hostName = challengeData['profiles']['name'] as String;
@@ -488,7 +499,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
               final quizId = challengeData['quiz_id'] as String;
               final shuffle = challengeData['shuffle'] as bool? ?? false;
 
-              _showInvitationDialog(challengeId, hostName, hostAvatarUrl, quizTitle, quizId, shuffle);
+              _showInvitationDialog(challengeId, hostName, hostAvatarUrl, quizTitle, quizId, shuffle, useTimer);
             } catch (e) {
               debugPrint('Error loading challenge details: $e');
             }
@@ -506,7 +517,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _showInvitationDialog(
-      String challengeId, String hostName, String? hostAvatarUrl, String quizTitle, String quizId, bool shuffle) {
+      String challengeId, String hostName, String? hostAvatarUrl, String quizTitle, String quizId, bool shuffle, bool useTimer) {
     final context = rootNavigatorKey.currentContext;
     if (context == null) return;
 
@@ -520,6 +531,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
         quizTitle: quizTitle,
         quizId: quizId,
         shuffle: shuffle,
+        useTimer: useTimer,
       ),
     );
   }
