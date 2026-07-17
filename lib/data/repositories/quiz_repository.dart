@@ -115,31 +115,65 @@ class QuizRepository {
 
   // Save questions and options
   Future<void> saveQuestions(String quizId, List<Question> questions) async {
-    // Delete existing to replace (simple approach)
-    await _supabase.from('questions').delete().eq('quiz_id', quizId);
+    // Get existing questions in database for this quiz
+    final existingResponse = await _supabase
+        .from('questions')
+        .select('id')
+        .eq('quiz_id', quizId);
+    final existingIds = (existingResponse as List).map((e) => e['id'] as String).toList();
+
+    // Identify which questions to delete
+    final newIds = questions.map((q) => q.id).where((id) => id.isNotEmpty).toSet();
+    final idsToDelete = existingIds.where((id) => !newIds.contains(id)).toList();
+
+    // Delete questions that were removed
+    if (idsToDelete.isNotEmpty) {
+      await _supabase.from('questions').delete().inFilter('id', idsToDelete);
+    }
 
     for (int i = 0; i < questions.length; i++) {
       var q = questions[i];
-      final qResponse = await _supabase
-          .from('questions')
-          .insert({
-            'quiz_id': quizId,
-            'question_text': q.questionText,
-            'duration_seconds': q.durationSeconds,
-            'order_index': i,
-            'explanation': q.explanation,
-          })
-          .select()
-          .single();
+      if (q.id.isNotEmpty && existingIds.contains(q.id)) {
+        // Update existing question
+        await _supabase.from('questions').update({
+          'question_text': q.questionText,
+          'duration_seconds': q.durationSeconds,
+          'order_index': i,
+          'explanation': q.explanation,
+        }).eq('id', q.id);
 
-      String newQuestionId = qResponse['id'];
+        // Replace options for this question
+        await _supabase.from('options').delete().eq('question_id', q.id);
+        for (var opt in q.options) {
+          await _supabase.from('options').insert({
+            'question_id': q.id,
+            'option_text': opt.optionText,
+            'is_correct': opt.isCorrect,
+          });
+        }
+      } else {
+        // Create new question
+        final qResponse = await _supabase
+            .from('questions')
+            .insert({
+              'quiz_id': quizId,
+              'question_text': q.questionText,
+              'duration_seconds': q.durationSeconds,
+              'order_index': i,
+              'explanation': q.explanation,
+            })
+            .select()
+            .single();
 
-      for (var opt in q.options) {
-        await _supabase.from('options').insert({
-          'question_id': newQuestionId,
-          'option_text': opt.optionText,
-          'is_correct': opt.isCorrect,
-        });
+        String newQuestionId = qResponse['id'];
+
+        for (var opt in q.options) {
+          await _supabase.from('options').insert({
+            'question_id': newQuestionId,
+            'option_text': opt.optionText,
+            'is_correct': opt.isCorrect,
+          });
+        }
       }
     }
   }

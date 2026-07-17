@@ -745,14 +745,14 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.deepPurple.shade50,
+                                    color: Colors.blue.shade50,
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.deepPurple.shade200),
+                                    border: Border.all(color: Colors.blue.shade200),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.menu_book_rounded, size: 12, color: Colors.deepPurple),
+                                      const Icon(Icons.menu_book_rounded, size: 12, color: Colors.blue),
                                       const SizedBox(width: 4),
                                       Flexible(
                                         child: Builder(
@@ -773,7 +773,7 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                               style: const TextStyle(
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.deepPurple,
+                                                color: Colors.blue,
                                               ),
                                               overflow: TextOverflow.ellipsis,
                                             );
@@ -797,27 +797,27 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.deepPurple.shade50,
+                                    color: Colors.amber.shade50,
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.deepPurple.shade200),
+                                    border: Border.all(color: Colors.amber.shade200),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.assignment_turned_in_rounded, size: 12, color: Colors.deepPurple),
+                                      Icon(Icons.assignment_turned_in_rounded, size: 12, color: Colors.amber.shade900),
                                       const SizedBox(width: 4),
                                       Flexible(
                                         child: Builder(
                                           builder: (context) {
                                             final label = _topic!.questionId != null
-                                                ? '${_topic!.quizTitle ?? "Quiz"} > Question ${(_topic!.questionOrderIndex ?? 0) + 1}'
+                                                ? '${_topic!.quizTitle ?? "Quiz"} > ${_topic!.questionText ?? "Question"}'
                                                 : (_topic!.quizTitle ?? "Quiz");
                                             return Text(
                                               label,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.deepPurple,
+                                                color: Colors.amber.shade900,
                                               ),
                                               overflow: TextOverflow.ellipsis,
                                             );

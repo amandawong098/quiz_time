@@ -77,11 +77,11 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
 
   // Linked quiz metadata titles
   String? _metaQuizTitle;
-  int? _metaQuestionNumber;
+  String? _metaQuestionText;
 
   // Linked flashcard metadata titles
   String? _metaDeckTitle;
-  int? _metaCardNumber;
+  String? _metaCardFront;
 
   String? _resolvedCourseId;
   String? _resolvedChapterId;
@@ -113,9 +113,16 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
     final quizRepo = context.read<QuizRepository>();
     final flashcardRepo = context.read<FlashcardRepository>();
 
+    final pageId = widget.pageId ?? widget.topic?.pageId;
+    final quizId = widget.quizId ?? widget.topic?.quizId;
+    final deckId = widget.deckId ?? widget.topic?.deckId;
+    final courseId = widget.courseId ?? widget.topic?.courseId;
+    final questionId = widget.questionId ?? widget.topic?.questionId;
+    final cardId = widget.cardId ?? widget.topic?.cardId;
+
     setState(() {
       _isLoadingCourses = true;
-      if (widget.pageId != null || widget.quizId != null || widget.deckId != null) {
+      if (pageId != null || quizId != null || deckId != null) {
         _isLoadingMetadata = true;
       }
     });
@@ -129,10 +136,10 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
         _selectedChapterId = widget.topic!.chapterId;
         _selectedSubChapterId = widget.topic!.subChapterId;
         _selectedPageId = widget.topic!.pageId;
-      } else if (widget.courseId != null) {
-        _selectedCourseId = widget.courseId;
+      } else if (courseId != null) {
+        _selectedCourseId = courseId;
         final matchingCourse =
-            _courses.where((c) => c.id == widget.courseId).firstOrNull;
+            _courses.where((c) => c.id == courseId).firstOrNull;
         _metaCourseTitle = matchingCourse?.title;
       }
       setState(() {});
@@ -140,9 +147,9 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
       setState(() => _isLoadingCourses = false);
     }
 
-    if (widget.pageId != null) {
+    if (pageId != null) {
       try {
-        final meta = await LessonRepository().getPageMetadata(widget.pageId!);
+        final meta = await LessonRepository().getPageMetadata(pageId);
         if (meta != null) {
           final subData = meta['lesson_sub_chapters'] as Map<String, dynamic>?;
           final chapData = subData?['lesson_chapters'] as Map<String, dynamic>?;
@@ -160,34 +167,34 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
         }
       } catch (_) {}
       setState(() => _isLoadingMetadata = false);
-    } else if (widget.quizId != null) {
+    } else if (quizId != null) {
       try {
-        final quizData = await quizRepo.getQuizDetails(widget.quizId!);
+        final quizData = await quizRepo.getQuizDetails(quizId);
         final quiz = quizData['quiz'] as Quiz;
         final questions = quizData['questions'] as List<Question>;
         setState(() {
           _metaQuizTitle = quiz.title;
-          if (widget.questionId != null) {
-            final targetIdx = questions.indexWhere((q) => q.id == widget.questionId);
-            if (targetIdx != -1) {
-              _metaQuestionNumber = targetIdx + 1;
+          if (questionId != null) {
+            final match = questions.where((q) => q.id == questionId).firstOrNull;
+            if (match != null) {
+              _metaQuestionText = match.questionText;
             }
           }
         });
       } catch (_) {}
       setState(() => _isLoadingMetadata = false);
-    } else if (widget.deckId != null) {
+    } else if (deckId != null) {
       try {
-        final deck = await flashcardRepo.getDeckById(widget.deckId!);
+        final deck = await flashcardRepo.getDeckById(deckId);
         setState(() {
           _metaDeckTitle = deck.title;
         });
-        if (widget.cardId != null) {
-          final cards = await flashcardRepo.getFlashcards(widget.deckId!);
-          final targetIdx = cards.indexWhere((c) => c.id == widget.cardId);
-          if (targetIdx != -1) {
+        if (cardId != null) {
+          final cards = await flashcardRepo.getFlashcards(deckId);
+          final match = cards.where((c) => c.id == cardId).firstOrNull;
+          if (match != null) {
             setState(() {
-              _metaCardNumber = targetIdx + 1;
+              _metaCardFront = match.front;
             });
           }
         }
@@ -547,6 +554,13 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pageId = widget.pageId ?? widget.topic?.pageId;
+    final courseId = widget.courseId ?? widget.topic?.courseId;
+    final quizId = widget.quizId ?? widget.topic?.quizId;
+    final deckId = widget.deckId ?? widget.topic?.deckId;
+    final questionId = widget.questionId ?? widget.topic?.questionId;
+    final cardId = widget.cardId ?? widget.topic?.cardId;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.topic != null ? 'Edit Discussion' : 'New Discussion'),
@@ -571,7 +585,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                           : null,
                     ),
                     const SizedBox(height: 20),
-                    if (widget.pageId != null) ...[
+                    if (pageId != null) ...[
                       _isLoadingMetadata
                           ? const Center(
                               child: Padding(
@@ -614,7 +628,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                 ],
                               ),
                             ),
-                    ] else if (widget.courseId != null) ...[
+                    ] else if (courseId != null) ...[
                       _isLoadingCourses
                           ? const Center(
                               child: Padding(
@@ -651,7 +665,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                 ],
                               ),
                             ),
-                    ] else if (widget.quizId != null) ...[
+                    ] else if (quizId != null) ...[
                       _isLoadingMetadata
                           ? const Center(
                               child: Padding(
@@ -685,14 +699,14 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                   ),
                                   const Divider(height: 20),
                                   _buildMetaRow('Quiz', _metaQuizTitle ?? 'Loading...'),
-                                  if (widget.questionId != null) ...[
+                                  if (questionId != null) ...[
                                     const SizedBox(height: 8),
-                                    _buildMetaRow('Question', 'Question ${_metaQuestionNumber ?? ''}'),
+                                    _buildMetaRow('Question', _metaQuestionText ?? 'Loading...'),
                                   ],
                                 ],
                               ),
                             ),
-                    ] else if (widget.deckId != null) ...[
+                    ] else if (deckId != null) ...[
                       _isLoadingMetadata
                           ? const Center(
                               child: Padding(
@@ -726,42 +740,43 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                   ),
                                   const Divider(height: 20),
                                   _buildMetaRow('Deck', _metaDeckTitle ?? 'Loading...'),
-                                  if (widget.cardId != null) ...[
+                                  if (cardId != null) ...[
                                     const SizedBox(height: 8),
-                                    _buildMetaRow('Card', 'Card ${_metaCardNumber ?? ''}'),
+                                    _buildMetaRow('Card', _metaCardFront ?? 'Loading...'),
                                   ],
                                 ],
                               ),
                             ),
-                     ] else ...[
-                      DropdownButtonFormField<String?>(
-                        decoration: InputDecoration(
-                          labelText: _isLoadingCourses ? 'Loading lessons...' : 'Associate Lesson',
-                        ),
-                        initialValue: _selectedCourseId,
-                        onChanged: (widget.courseId != null || (widget.topic != null && widget.topic!.courseId != null))
-                            ? null
-                            : (val) {
-                                setState(() {
-                                  _selectedCourseId = val;
-                                  _selectedChapterId = null;
-                                  _selectedSubChapterId = null;
-                                  _selectedPageId = null;
-                                });
-                              },
-                        items: [
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('General Discussions (No Lesson)'),
+                    ] else ...[
+                      if (widget.topic == null)
+                        DropdownButtonFormField<String?>(
+                          decoration: InputDecoration(
+                            labelText: _isLoadingCourses ? 'Loading lessons...' : 'Associate Lesson',
                           ),
-                          ..._courses.map((course) {
-                            return DropdownMenuItem<String?>(
-                              value: course.id,
-                              child: Text(course.title),
-                            );
-                          }),
-                        ],
-                      ),
+                          initialValue: _selectedCourseId,
+                          onChanged: (widget.courseId != null || (widget.topic != null && widget.topic!.courseId != null))
+                              ? null
+                              : (val) {
+                                  setState(() {
+                                    _selectedCourseId = val;
+                                    _selectedChapterId = null;
+                                    _selectedSubChapterId = null;
+                                    _selectedPageId = null;
+                                  });
+                                },
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('General Discussions (No Lesson)'),
+                            ),
+                            ..._courses.map((course) {
+                              return DropdownMenuItem<String?>(
+                                value: course.id,
+                                child: Text(course.title),
+                              );
+                            }),
+                          ],
+                        ),
                     ],
 
                     const SizedBox(height: 20),
@@ -791,18 +806,33 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(widget.topic != null ? 'Save Changes' : 'Post Topic'),
-                    ),
+                    widget.topic != null
+                        ? ElevatedButton.icon(
+                            onPressed: _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.save, color: Colors.white),
+                            label: const Text('Save Changes'),
+                          )
+                        : ElevatedButton(
+                            onPressed: _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Post Topic'),
+                          ),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),

@@ -150,14 +150,20 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
       }
       items.add(DropdownMenuItem(
         value: _cards[i].id,
-        child: Text('Card ${i + 1}'),
+        child: Text(
+          _cards[i].front,
+          overflow: TextOverflow.ellipsis,
+        ),
       ));
     }
 
     if (!hasSelectedFilter) {
       items.add(DropdownMenuItem(
         value: _selectedFilter,
-        child: Text(widget.cardNumber != null ? 'Card ${widget.cardNumber}' : 'Loading Card...'),
+        child: Text(
+          widget.cardFrontText ?? 'Loading Card...',
+          overflow: TextOverflow.ellipsis,
+        ),
       ));
     }
 
@@ -244,7 +250,9 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
                       ),
                     ),
                     if (!widget.isLocked) ...[
-                      if (_deck != null && _deck!.isPublic == false)
+                      if (_deck == null)
+                        const SizedBox.shrink()
+                      else if (_deck!.isPublic == false)
                         TextButton.icon(
                           onPressed: null,
                           icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
@@ -523,12 +531,17 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
                                               color: Colors.deepPurple,
                                             ),
                                             const SizedBox(width: 4),
-                                            Text(
-                                              'Card ${topic.cardId == widget.cardId && widget.cardNumber != null ? widget.cardNumber : (_cards.indexWhere((c) => c.id == topic.cardId) + 1)}',
-                                              style: const TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.deepPurple,
+                                            Flexible(
+                                              child: Text(
+                                                topic.cardId == widget.cardId && widget.cardFrontText != null
+                                                    ? widget.cardFrontText!
+                                                    : (topic.cardQuestionText ?? 'Card Question'),
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.deepPurple,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                           ],

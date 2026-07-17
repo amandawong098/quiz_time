@@ -150,14 +150,20 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
       }
       items.add(DropdownMenuItem(
         value: _questions[i].id,
-        child: Text('Question ${i + 1}'),
+        child: Text(
+          _questions[i].questionText,
+          overflow: TextOverflow.ellipsis,
+        ),
       ));
     }
 
     if (!hasSelectedFilter) {
       items.add(DropdownMenuItem(
         value: _selectedFilter,
-        child: Text(widget.questionNumber != null ? 'Question ${widget.questionNumber}' : 'Loading Question...'),
+        child: Text(
+          widget.questionText ?? 'Loading Question...',
+          overflow: TextOverflow.ellipsis,
+        ),
       ));
     }
 
@@ -246,7 +252,9 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                       ),
                     ),
                     if (!widget.isLocked) ...[
-                      if (_quiz != null && _quiz!.isPublic == false)
+                      if (_quiz == null)
+                        const SizedBox.shrink()
+                      else if (_quiz!.isPublic == false)
                         TextButton.icon(
                           onPressed: null, // Disabled
                           icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
@@ -545,25 +553,25 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.deepPurple.shade50,
+                                          color: Colors.amber.shade50,
                                           borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.deepPurple.shade100),
+                                          border: Border.all(color: Colors.amber.shade100),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            const Icon(
+                                            Icon(
                                               Icons.assignment_turned_in_rounded,
                                               size: 10,
-                                              color: Colors.deepPurple,
+                                              color: Colors.amber.shade900,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              'Question ${(topic.questionOrderIndex ?? 0) + 1}',
-                                              style: const TextStyle(
+                                              topic.questionText ?? 'Question',
+                                              style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.deepPurple,
+                                                color: Colors.amber.shade900,
                                               ),
                                             ),
                                           ],

@@ -1326,7 +1326,7 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
   bool _isLoading = true;
   List<DiscussionTopic> _topics = [];
   List<DiscussionTopic> _filteredTopics = [];
-  bool _isPublic = true;
+  bool? _isPublic;
   String _sortBy = 'Top Upvotes';
   final TextEditingController _searchController = TextEditingController();
 
@@ -1462,7 +1462,9 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                         ),
                       ),
                     ),
-                    if (!_isPublic)
+                    if (_isPublic == null)
+                      const SizedBox.shrink()
+                    else if (!_isPublic!)
                       TextButton.icon(
                         onPressed: null, // Disabled
                         icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
@@ -1515,7 +1517,7 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                       ),
                   ],
                 ),
-                if (!_isPublic) ...[
+                if (_isPublic == false) ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,

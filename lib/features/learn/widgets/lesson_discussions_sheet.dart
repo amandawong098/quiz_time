@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
@@ -36,18 +37,38 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
   List<LessonChapter> _chapters = [];
   Map<String, List<LessonSubChapter>> _subChaptersMap = {};
   Map<String, List<LessonPage>> _pagesMap = {};
+  LessonCourse? _course;
 
   @override
   void initState() {
     super.initState();
     _loadTopics();
     _loadLessonStructure();
+    _loadCourseDetails();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCourseDetails() async {
+    try {
+      final client = Supabase.instance.client;
+      final response = await client
+          .from('lesson_courses')
+          .select()
+          .eq('id', widget.courseId)
+          .single();
+      if (mounted) {
+        setState(() {
+          _course = LessonCourse.fromJson(response);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading course details: $e');
+    }
   }
 
   Future<void> _loadLessonStructure() async {
@@ -276,27 +297,52 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                     ],
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () async {
-                    if (!mounted) return;
-                    final created = await context.push<bool>(
-                      '/create-topic',
-                      extra: {
-                        'courseId': widget.courseId,
-                      },
-                    );
-                    if (created == true && mounted) {
-                      _loadTopics();
-                      widget.onTopicCreated?.call();
-                    }
-                  },
-                  icon: const Icon(Icons.add_comment_outlined, size: 18),
-                  label: const Text('Post Topic'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
-                ),
+                if (_course == null)
+                  const SizedBox.shrink()
+                else if (_course!.isPublic == false)
+                  TextButton.icon(
+                    onPressed: null, // Disabled
+                    icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
+                    label: Text(
+                      'Post Topic (Disabled)',
+                      style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  )
+                else
+                  TextButton.icon(
+                    onPressed: () async {
+                      if (!mounted) return;
+                      final created = await context.push<bool>(
+                        '/create-topic',
+                        extra: {
+                          'courseId': widget.courseId,
+                        },
+                      );
+                      if (created == true && mounted) {
+                        _loadTopics();
+                        widget.onTopicCreated?.call();
+                      }
+                    },
+                    icon: const Icon(Icons.add_comment_outlined, size: 18),
+                    label: const Text('Post Topic'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                  ),
               ],
             ),
           ),
+          if (_course != null && _course!.isPublic == false) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Discussions are turned off for private lessons.',
+                  style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
+                ),
+              ),
+            ),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: Column(
@@ -576,9 +622,9 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.deepPurple.shade50,
+                                          color: Colors.blue.shade50,
                                           borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.deepPurple.shade200),
+                                          border: Border.all(color: Colors.blue.shade200),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -586,7 +632,7 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                             const Icon(
                                               Icons.menu_book_rounded,
                                               size: 10,
-                                              color: Colors.deepPurple,
+                                              color: Colors.blue,
                                             ),
                                             const SizedBox(width: 4),
                                             Flexible(
@@ -595,7 +641,7 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.deepPurple,
+                                                  color: Colors.blue,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -608,9 +654,9 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.deepPurple.shade50,
+                                          color: Colors.blue.shade50,
                                           borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.deepPurple.shade200),
+                                          border: Border.all(color: Colors.blue.shade200),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -618,7 +664,7 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                             const Icon(
                                               Icons.menu_book_rounded,
                                               size: 10,
-                                              color: Colors.deepPurple,
+                                              color: Colors.blue,
                                             ),
                                             const SizedBox(width: 4),
                                             Flexible(
@@ -627,7 +673,7 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.deepPurple,
+                                                  color: Colors.blue,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -640,9 +686,9 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.deepPurple.shade50,
+                                          color: Colors.blue.shade50,
                                           borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.deepPurple.shade200),
+                                          border: Border.all(color: Colors.blue.shade200),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -650,7 +696,7 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                             const Icon(
                                               Icons.menu_book_rounded,
                                               size: 10,
-                                              color: Colors.deepPurple,
+                                              color: Colors.blue,
                                             ),
                                             const SizedBox(width: 4),
                                             Flexible(
@@ -659,7 +705,7 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.deepPurple,
+                                                  color: Colors.blue,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),

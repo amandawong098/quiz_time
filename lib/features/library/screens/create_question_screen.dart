@@ -5,6 +5,7 @@ import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 
 class _QuestionFormData {
+  final String? id;
   final GlobalKey<FormState> formKey;
   final TextEditingController questionTextController;
   final TextEditingController durationController;
@@ -14,6 +15,7 @@ class _QuestionFormData {
   Set<int> correctOptionIndices;
 
   _QuestionFormData({
+    this.id,
     required this.formKey,
     required this.questionTextController,
     required this.durationController,
@@ -204,6 +206,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
       correctIndices.add(0);
     }
     return _QuestionFormData(
+      id: q.id,
       formKey: GlobalKey<FormState>(),
       questionTextController: TextEditingController(text: q.questionText),
       durationController: TextEditingController(
@@ -294,7 +297,7 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
 
       questionsToSave.add(
         Question(
-          id: '',
+          id: f.id ?? '',
           quizId: widget.initialQuizData.id,
           questionText: f.questionTextController.text.trim(),
           durationSeconds: duration,
