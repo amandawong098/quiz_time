@@ -785,7 +785,6 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.blue,
                                               ),
-                                              overflow: TextOverflow.ellipsis,
                                             );
                                           }
                                         ),
@@ -797,11 +796,11 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                             ] else if (_topic!.quizId != null) ...[
                               InkWell(
                                 onTap: () {
-                                  String path = '/quiz/${_topic!.quizId}/take?preview=true';
                                   if (_topic!.questionId != null) {
-                                    path += '&initialQuestionId=${_topic!.questionId}';
+                                    context.push('/quiz/${_topic!.quizId}/take?preview=true&initialQuestionId=${_topic!.questionId}');
+                                  } else {
+                                    context.push('/quiz/${_topic!.quizId}');
                                   }
-                                  context.push(path);
                                 },
                                 borderRadius: BorderRadius.circular(6),
                                 child: Container(
@@ -829,7 +828,6 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.amber.shade900,
                                               ),
-                                              overflow: TextOverflow.ellipsis,
                                             );
                                           }
                                         ),
@@ -873,7 +871,6 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.deepPurple,
                                               ),
-                                              overflow: TextOverflow.ellipsis,
                                             );
                                           }
                                         ),

@@ -747,36 +747,6 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                 ],
                               ),
                             ),
-                    ] else ...[
-                      if (widget.topic == null)
-                        DropdownButtonFormField<String?>(
-                          decoration: InputDecoration(
-                            labelText: _isLoadingCourses ? 'Loading lessons...' : 'Associate Lesson',
-                          ),
-                          initialValue: _selectedCourseId,
-                          onChanged: (widget.courseId != null || (widget.topic != null && widget.topic!.courseId != null))
-                              ? null
-                              : (val) {
-                                  setState(() {
-                                    _selectedCourseId = val;
-                                    _selectedChapterId = null;
-                                    _selectedSubChapterId = null;
-                                    _selectedPageId = null;
-                                  });
-                                },
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('General Discussions (No Lesson)'),
-                            ),
-                            ..._courses.map((course) {
-                              return DropdownMenuItem<String?>(
-                                value: course.id,
-                                child: Text(course.title),
-                              );
-                            }),
-                          ],
-                        ),
                     ],
 
                     const SizedBox(height: 20),

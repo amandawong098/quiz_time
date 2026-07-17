@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/discussion_repository.dart';
-import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../learn/models/flashcard_models.dart';
 import '../../../data/models/discussion_models.dart';
@@ -19,41 +18,62 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
   bool _isLoading = true;
   List<DiscussionTopic> _topics = [];
 
+  final _searchController = TextEditingController();
   String _searchQuery = '';
-  String _activeTag = 'All Discussions';
-  final List<String> _tags = ['All Discussions', 'General'];
+  String _selectedTypeFilter = 'All'; // 'All', 'Lessons', 'Quizzes', 'Flashcards', 'General'
+  String _sortBy = 'Top Upvotes'; // 'Top Upvotes', 'Latest'
 
   @override
   void initState() {
     super.initState();
-    _loadLessons();
     _loadTopics();
   }
 
-  Future<void> _loadLessons() async {
-    try {
-      final courses = await LessonRepository().getCourses();
-      if (mounted) {
-        setState(() {
-          _tags.clear();
-          _tags.addAll(['All Discussions', 'General']);
-          _tags.addAll(courses.map((c) => c.title));
-        });
-      }
-    } catch (_) {}
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadTopics() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadTopics({bool showSpinner = true}) async {
+    if (showSpinner) {
+      setState(() => _isLoading = true);
+    }
     try {
       final repo = context.read<DiscussionRepository>();
       final results = await repo.getTopics(
         query: _searchQuery,
-        tag: _activeTag,
       );
       if (mounted) {
         setState(() {
-          _topics = results;
+          // Filter client-side
+          List<DiscussionTopic> filtered = results;
+          if (_selectedTypeFilter == 'Lessons') {
+            filtered = results.where((t) => t.courseId != null).toList();
+          } else if (_selectedTypeFilter == 'Quizzes') {
+            filtered = results.where((t) => t.quizId != null).toList();
+          } else if (_selectedTypeFilter == 'Flashcards') {
+            filtered = results.where((t) => t.deckId != null).toList();
+          } else if (_selectedTypeFilter == 'General') {
+            filtered = results.where((t) => t.courseId == null && t.quizId == null && t.deckId == null).toList();
+          }
+
+          // Sort client-side
+          if (_sortBy == 'Top Upvotes') {
+            filtered.sort((a, b) {
+              final scoreCompare = b.score.compareTo(a.score);
+              if (scoreCompare != 0) return scoreCompare;
+              return b.createdAt.compareTo(a.createdAt);
+            });
+          } else if (_sortBy == 'Latest') {
+            filtered.sort((a, b) {
+              final dateA = a.updatedAt ?? a.createdAt;
+              final dateB = b.updatedAt ?? b.createdAt;
+              return dateB.compareTo(dateA);
+            });
+          }
+
+          _topics = filtered;
           _isLoading = false;
         });
       }
@@ -71,16 +91,7 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
     try {
       final repo = context.read<DiscussionRepository>();
       await repo.voteTopic(topicId, voteType);
-      // Reload topics list to reflect fresh vote count calculations
-      final results = await repo.getTopics(
-        query: _searchQuery,
-        tag: _activeTag,
-      );
-      if (mounted) {
-        setState(() {
-          _topics = results;
-        });
-      }
+      await _loadTopics(showSpinner: false);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -88,6 +99,70 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
         );
       }
     }
+  }
+
+  void _showFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Widget buildFilterTile(String value, String label, IconData icon, Color activeColor) {
+              final isSelected = _selectedTypeFilter == value;
+              return ListTile(
+                leading: Icon(icon, color: isSelected ? activeColor : Colors.grey),
+                title: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? activeColor : null,
+                  ),
+                ),
+                trailing: isSelected ? Icon(Icons.check_circle_rounded, color: activeColor) : null,
+                onTap: () {
+                  setState(() {
+                    _selectedTypeFilter = value;
+                  });
+                  _loadTopics();
+                  Navigator.pop(context);
+                },
+              );
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                      child: Text(
+                        'Filter Discussions',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Divider(),
+                    buildFilterTile('All', 'All Discussions', Icons.forum_rounded, Colors.deepPurple),
+                    buildFilterTile('Lessons', 'Lessons', Icons.menu_book_rounded, Colors.blue),
+                    buildFilterTile('Quizzes', 'Quizzes', Icons.assignment_turned_in_rounded, Colors.amber.shade800),
+                    buildFilterTile('Flashcards', 'Flashcards', Icons.style_rounded, Colors.purple),
+                    buildFilterTile('General', 'General (No Context)', Icons.chat_bubble_rounded, Colors.grey.shade700),
+                  ],
+                ),
+              ),
+            );
+          }
+        );
+      },
+    );
   }
 
   Widget _buildVotingWidget({required DiscussionTopic topic}) {
@@ -208,50 +283,134 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        controller: _searchController,
                         decoration: const InputDecoration(
                           hintText: 'Search forum threads...',
                           border: InputBorder.none,
                           isDense: true,
                         ),
                         onChanged: (val) {
-                          _searchQuery = val.trim();
+                          setState(() {
+                            _searchQuery = val.trim();
+                          });
                           _loadTopics();
                         },
                       ),
                     ),
+                    if (_searchQuery.isNotEmpty)
+                      IconButton(
+                        icon: Icon(Icons.clear, color: Colors.grey.shade500),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                          _loadTopics();
+                        },
+                        tooltip: 'Clear search',
+                      ),
+                    IconButton(
+                      icon: Icon(
+                        _selectedTypeFilter == 'All' ? Icons.filter_list_rounded : Icons.filter_list_alt,
+                        color: _selectedTypeFilter == 'All' ? Colors.grey.shade500 : Colors.deepPurple,
+                      ),
+                      onPressed: _showFilterBottomSheet,
+                      tooltip: 'Filter by category',
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              // Horizontal Categories chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _tags.map((tag) {
-                    final isActive = _activeTag == tag;
-                    return Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        label: Text(tag),
-                        selected: isActive,
-                        selectedColor: Colors.deepPurple.shade100,
-                        checkmarkColor: Colors.deepPurple,
-                        labelStyle: TextStyle(
-                          color: isActive ? Colors.deepPurple.shade900 : null,
-                          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (_selectedTypeFilter != 'All') ...[
+                    InputChip(
+                      avatar: Icon(
+                        _selectedTypeFilter == 'Lessons'
+                            ? Icons.menu_book_rounded
+                            : _selectedTypeFilter == 'Quizzes'
+                                ? Icons.assignment_turned_in_rounded
+                                : _selectedTypeFilter == 'Flashcards'
+                                    ? Icons.style_rounded
+                                    : Icons.chat_bubble_rounded,
+                        size: 14,
+                        color: _selectedTypeFilter == 'Lessons'
+                            ? Colors.blue
+                            : _selectedTypeFilter == 'Quizzes'
+                                ? Colors.amber.shade900
+                                : _selectedTypeFilter == 'Flashcards'
+                                    ? Colors.purple
+                                    : Colors.grey.shade700,
+                      ),
+                      label: Text(_selectedTypeFilter),
+                      onDeleted: () {
+                        setState(() {
+                          _selectedTypeFilter = 'All';
+                        });
+                        _loadTopics();
+                      },
+                      deleteIconColor: Colors.deepPurple,
+                      backgroundColor: Colors.deepPurple.shade50,
+                      side: BorderSide(color: Colors.deepPurple.shade100),
+                      labelStyle: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple,
+                      ),
+                    ),
+                  ] else ...[
+                    const Text(
+                      'All Discussions',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.sort_rounded, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'Sort by: ',
+                        style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                      DropdownButton<String>(
+                        value: _sortBy,
+                        underline: const SizedBox.shrink(),
+                        icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.deepPurple),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
                         ),
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() => _activeTag = tag);
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Top Upvotes',
+                            child: Text('Top Upvotes'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Latest',
+                            child: Text('Latest'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _sortBy = val;
+                            });
                             _loadTopics();
                           }
                         },
                       ),
-                    );
-                  }).toList(),
-                ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               // Topics Timeline List
               Expanded(
                 child: _isLoading
