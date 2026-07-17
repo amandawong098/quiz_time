@@ -10,6 +10,7 @@ import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../learn/models/flashcard_models.dart';
 import '../../../data/models/discussion_models.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 import './create_topic_screen.dart'; // Reuse PendingAttachment class
 import '../../../core/widgets/in_app_video_player.dart';
 import '../../../core/widgets/video_preview_widget.dart';
@@ -909,20 +910,36 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                CircleAvatar(
-                                  radius: 12,
-                                  backgroundColor: Colors.deepPurple.shade100,
-                                  backgroundImage: _topic!.authorAvatarUrl != null
-                                      ? NetworkImage(_topic!.authorAvatarUrl!)
-                                      : null,
-                                  child: _topic!.authorAvatarUrl == null
-                                      ? const Icon(Icons.person, size: 12)
-                                      : null,
+                                GestureDetector(
+                                  onTap: () => UserDetailBottomSheet.show(
+                                    context,
+                                    userId: _topic!.authorId,
+                                    name: _topic!.authorName,
+                                    avatarUrl: _topic!.authorAvatarUrl,
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 12,
+                                    backgroundColor: Colors.deepPurple.shade100,
+                                    backgroundImage: _topic!.authorAvatarUrl != null
+                                        ? NetworkImage(_topic!.authorAvatarUrl!)
+                                        : null,
+                                    child: _topic!.authorAvatarUrl == null
+                                        ? const Icon(Icons.person, size: 12)
+                                        : null,
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  _topic!.authorName,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                GestureDetector(
+                                  onTap: () => UserDetailBottomSheet.show(
+                                    context,
+                                    userId: _topic!.authorId,
+                                    name: _topic!.authorName,
+                                    avatarUrl: _topic!.authorAvatarUrl,
+                                  ),
+                                  child: Text(
+                                    _topic!.authorName,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                                 const Spacer(),
                                 Text(
@@ -1185,23 +1202,39 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 12,
-                  backgroundColor: Colors.deepPurple.shade100,
-                  backgroundImage: reply.authorAvatarUrl != null
-                      ? NetworkImage(reply.authorAvatarUrl!)
-                      : null,
-                  child: reply.authorAvatarUrl == null
-                      ? const Icon(Icons.person, size: 12)
-                      : null,
+                GestureDetector(
+                  onTap: () => UserDetailBottomSheet.show(
+                    context,
+                    userId: reply.authorId,
+                    name: reply.authorName,
+                    avatarUrl: reply.authorAvatarUrl,
+                  ),
+                  child: CircleAvatar(
+                    radius: 12,
+                    backgroundColor: Colors.deepPurple.shade100,
+                    backgroundImage: reply.authorAvatarUrl != null
+                        ? NetworkImage(reply.authorAvatarUrl!)
+                        : null,
+                    child: reply.authorAvatarUrl == null
+                        ? const Icon(Icons.person, size: 12)
+                        : null,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    reply.authorName,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: GestureDetector(
+                    onTap: () => UserDetailBottomSheet.show(
+                      context,
+                      userId: reply.authorId,
+                      name: reply.authorName,
+                      avatarUrl: reply.authorAvatarUrl,
+                    ),
+                    child: Text(
+                      reply.authorName,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
                 Text(

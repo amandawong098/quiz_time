@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/leaderboard_repository.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -809,29 +810,45 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             rankIndicator,
             const SizedBox(width: 16),
             // Avatar
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.deepPurple.shade100,
-              backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-              child: user.avatarUrl == null
-                  ? Text(
-                      user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                      style: const TextStyle(
-                        color: Colors.deepPurple,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+            GestureDetector(
+              onTap: () => UserDetailBottomSheet.show(
+                context,
+                userId: user.id,
+                name: user.name,
+                avatarUrl: user.avatarUrl,
+              ),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.deepPurple.shade100,
+                backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+                child: user.avatarUrl == null
+                    ? Text(
+                        user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: Colors.deepPurple,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
+              ),
             ),
             const SizedBox(width: 16),
             // Name
             Expanded(
-              child: Text(
-                user.name,
-                style: TextStyle(
-                  fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
-                  fontSize: 15,
-                  color: Colors.black87,
+              child: GestureDetector(
+                onTap: () => UserDetailBottomSheet.show(
+                  context,
+                  userId: user.id,
+                  name: user.name,
+                  avatarUrl: user.avatarUrl,
+                ),
+                child: Text(
+                  user.name,
+                  style: TextStyle(
+                    fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
+                    fontSize: 15,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/repositories/friendship_repository.dart';
 import '../../../data/models/friendship_models.dart';
+import '../widgets/user_detail_bottom_sheet.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({super.key});
@@ -13,8 +14,10 @@ class FriendsScreen extends StatefulWidget {
 class _FriendsScreenState extends State<FriendsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final TextEditingController _friendsSearchController = TextEditingController();
-  final TextEditingController _discoverSearchController = TextEditingController();
+  final TextEditingController _friendsSearchController =
+      TextEditingController();
+  final TextEditingController _discoverSearchController =
+      TextEditingController();
   String _friendsQuery = '';
   String _discoverQuery = '';
   bool _isLoading = true;
@@ -127,18 +130,41 @@ class _FriendsScreenState extends State<FriendsScreen>
                 side: BorderSide(color: Colors.grey.shade200),
               ),
               child: ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-                      ? NetworkImage(user.avatarUrl!)
-                      : null,
-                  backgroundColor: Colors.deepPurple.shade100,
-                  child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                      ? const Icon(Icons.person, color: Colors.deepPurple)
-                      : null,
+                leading: GestureDetector(
+                  onTap: () async {
+                    await UserDetailBottomSheet.show(
+                      context,
+                      userId: user.id,
+                      name: user.name,
+                      avatarUrl: user.avatarUrl,
+                    );
+                    if (mounted) _loadData(showFullLoading: false);
+                  },
+                  child: CircleAvatar(
+                    backgroundImage:
+                        (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(user.avatarUrl!)
+                        : null,
+                    backgroundColor: Colors.deepPurple.shade100,
+                    child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                        ? const Icon(Icons.person, color: Colors.deepPurple)
+                        : null,
+                  ),
                 ),
-                title: Text(
-                  user.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                title: GestureDetector(
+                  onTap: () async {
+                    await UserDetailBottomSheet.show(
+                      context,
+                      userId: user.id,
+                      name: user.name,
+                      avatarUrl: user.avatarUrl,
+                    );
+                    if (mounted) _loadData(showFullLoading: false);
+                  },
+                  child: Text(
+                    user.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 subtitle: Text(
                   user.email,
@@ -178,7 +204,10 @@ class _FriendsScreenState extends State<FriendsScreen>
               : null,
           filled: true,
           fillColor: Colors.grey.shade100,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 0,
+            horizontal: 16,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -198,7 +227,9 @@ class _FriendsScreenState extends State<FriendsScreen>
 
   Widget _buildFriendsTab() {
     final filtered = _friends
-        .where((f) => f.name.toLowerCase().contains(_friendsQuery.toLowerCase()))
+        .where(
+          (f) => f.name.toLowerCase().contains(_friendsQuery.toLowerCase()),
+        )
         .toList();
 
     return RefreshIndicator(
@@ -209,7 +240,7 @@ class _FriendsScreenState extends State<FriendsScreen>
           children: [
             _buildSearchBar(
               controller: _friendsSearchController,
-              hintText: 'Search friends by name...',
+              hintText: 'Search friends...',
               onChanged: (val) {
                 setState(() {
                   _friendsQuery = val;
@@ -246,84 +277,119 @@ class _FriendsScreenState extends State<FriendsScreen>
                       padding: EdgeInsets.zero,
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
-                final friend = _friends[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: (friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty)
-                          ? NetworkImage(friend.avatarUrl!)
-                          : null,
-                      backgroundColor: Colors.deepPurple.shade100,
-                      child: (friend.avatarUrl == null || friend.avatarUrl!.isEmpty)
-                          ? const Icon(Icons.person, color: Colors.deepPurple)
-                          : null,
-                    ),
-                    title: Text(
-                      friend.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      friend.email,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.person_remove_rounded,
-                        color: Colors.redAccent,
-                      ),
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: Text('Unfriend ${friend.name}?'),
-                            content: const Text(
-                              'Are you sure you want to remove this friend? Unfriending won\'t alert them.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Cancel'),
+                        final friend = filtered[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: ListTile(
+                            leading: GestureDetector(
+                              onTap: () async {
+                                await UserDetailBottomSheet.show(
+                                  context,
+                                  userId: friend.id,
+                                  name: friend.name,
+                                  avatarUrl: friend.avatarUrl,
+                                );
+                                if (mounted) _loadData(showFullLoading: false);
+                              },
+                              child: CircleAvatar(
+                                backgroundImage:
+                                    (friend.avatarUrl != null &&
+                                        friend.avatarUrl!.isNotEmpty)
+                                    ? NetworkImage(friend.avatarUrl!)
+                                    : null,
+                                backgroundColor: Colors.deepPurple.shade100,
+                                child:
+                                    (friend.avatarUrl == null ||
+                                        friend.avatarUrl!.isEmpty)
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: Colors.deepPurple,
+                                      )
+                                    : null,
                               ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text(
-                                  'Unfriend',
-                                  style: TextStyle(color: Colors.red),
+                            ),
+                            title: GestureDetector(
+                              onTap: () async {
+                                await UserDetailBottomSheet.show(
+                                  context,
+                                  userId: friend.id,
+                                  name: friend.name,
+                                  avatarUrl: friend.avatarUrl,
+                                );
+                                if (mounted) _loadData(showFullLoading: false);
+                              },
+                              child: Text(
+                                friend.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ],
+                            ),
+                            subtitle: Text(
+                              friend.email,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.person_remove_rounded,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: Text('Unfriend ${friend.name}?'),
+                                    content: const Text(
+                                      'Are you sure you want to remove this friend? Unfriending won\'t alert them.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        child: const Text(
+                                          'Unfriend',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (confirm == true && mounted) {
+                                  _performAction(
+                                    () => context
+                                        .read<FriendshipRepository>()
+                                        .unfriend(friend.id),
+                                    'Unfriended ${friend.name}.',
+                                  );
+                                }
+                              },
+                            ),
                           ),
                         );
-
-                        if (confirm == true && mounted) {
-                          _performAction(
-                            () => context.read<FriendshipRepository>().unfriend(
-                              friend.id,
-                            ),
-                            'Unfriended ${friend.name}.',
-                          );
-                        }
                       },
                     ),
-                  ),
-                );
-              },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildDiscoverTab() {
     final filtered = _discoverNewFriends
-        .where((u) => u.name.toLowerCase().contains(_discoverQuery.toLowerCase()))
+        .where(
+          (u) => u.name.toLowerCase().contains(_discoverQuery.toLowerCase()),
+        )
         .toList();
 
     return RefreshIndicator(
@@ -370,64 +436,98 @@ class _FriendsScreenState extends State<FriendsScreen>
                       padding: EdgeInsets.zero,
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
-                final user = _discoverNewFriends[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-                          ? NetworkImage(user.avatarUrl!)
-                          : null,
-                      backgroundColor: Colors.deepPurple.shade100,
-                      child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                          ? const Icon(Icons.person, color: Colors.deepPurple)
-                          : null,
-                    ),
-                    title: Text(
-                      user.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      user.email,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    trailing: ElevatedButton.icon(
-                      icon: const Icon(Icons.person_add_rounded, size: 16),
-                      label: const Text('Add'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      onPressed: () {
-                        _performAction(
-                          () => context
-                              .read<FriendshipRepository>()
-                              .sendFriendRequest(user.id),
-                          'Friend request sent to ${user.name}.',
+                        final user = filtered[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: ListTile(
+                            leading: GestureDetector(
+                              onTap: () async {
+                                await UserDetailBottomSheet.show(
+                                  context,
+                                  userId: user.id,
+                                  name: user.name,
+                                  avatarUrl: user.avatarUrl,
+                                );
+                                if (mounted) _loadData(showFullLoading: false);
+                              },
+                              child: CircleAvatar(
+                                backgroundImage:
+                                    (user.avatarUrl != null &&
+                                        user.avatarUrl!.isNotEmpty)
+                                    ? NetworkImage(user.avatarUrl!)
+                                    : null,
+                                backgroundColor: Colors.deepPurple.shade100,
+                                child:
+                                    (user.avatarUrl == null ||
+                                        user.avatarUrl!.isEmpty)
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: Colors.deepPurple,
+                                      )
+                                    : null,
+                              ),
+                            ),
+                            title: GestureDetector(
+                              onTap: () async {
+                                await UserDetailBottomSheet.show(
+                                  context,
+                                  userId: user.id,
+                                  name: user.name,
+                                  avatarUrl: user.avatarUrl,
+                                );
+                                if (mounted) _loadData(showFullLoading: false);
+                              },
+                              child: Text(
+                                user.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            subtitle: Text(
+                              user.email,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: ElevatedButton.icon(
+                              icon: const Icon(
+                                Icons.person_add_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('Add'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepPurple,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                              onPressed: () {
+                                _performAction(
+                                  () => context
+                                      .read<FriendshipRepository>()
+                                      .sendFriendRequest(user.id),
+                                  'Friend request sent to ${user.name}.',
+                                );
+                              },
+                            ),
+                          ),
                         );
                       },
                     ),
-                  ),
-                );
-              },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

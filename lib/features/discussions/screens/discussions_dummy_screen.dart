@@ -6,6 +6,7 @@ import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../learn/models/flashcard_models.dart';
 import '../../../data/models/discussion_models.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class DiscussionsDummyScreen extends StatefulWidget {
   const DiscussionsDummyScreen({super.key});
@@ -669,28 +670,37 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                                               ),
                                               _buildAttachmentIndicator(topic.multimediaType),
                                               const SizedBox(height: 12),
-                                              Row(
-                                                children: [
-                                                  CircleAvatar(
-                                                    radius: 9,
-                                                    backgroundColor: Colors.deepPurple.shade100,
-                                                    backgroundImage: topic.authorAvatarUrl != null
-                                                        ? NetworkImage(topic.authorAvatarUrl!)
-                                                        : null,
-                                                    child: topic.authorAvatarUrl == null
-                                                        ? const Icon(Icons.person, size: 9)
-                                                        : null,
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    topic.authorName,
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Colors.grey.shade700,
+                                              GestureDetector(
+                                                onTap: () => UserDetailBottomSheet.show(
+                                                  context,
+                                                  userId: topic.authorId,
+                                                  name: topic.authorName,
+                                                  avatarUrl: topic.authorAvatarUrl,
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    CircleAvatar(
+                                                      radius: 9,
+                                                      backgroundColor: Colors.deepPurple.shade100,
+                                                      backgroundImage: topic.authorAvatarUrl != null
+                                                          ? NetworkImage(topic.authorAvatarUrl!)
+                                                          : null,
+                                                      child: topic.authorAvatarUrl == null
+                                                          ? const Icon(Icons.person, size: 9)
+                                                          : null,
                                                     ),
-                                                  ),
-                                                ],
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      topic.authorName,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.grey.shade700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ],
                                           ),
