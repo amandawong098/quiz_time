@@ -444,6 +444,48 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
     }
   }
 
+  Map<String, dynamic> _getLeagueStyle(String league) {
+    MaterialColor baseColor;
+    IconData icon;
+
+    switch (league) {
+      case 'Stargazer':
+        baseColor = Colors.amber;
+        icon = Icons.star;
+        break;
+      case 'Explorer':
+        baseColor = Colors.deepPurple;
+        icon = Icons.explore;
+        break;
+      case 'Voyager':
+        baseColor = Colors.green;
+        icon = Icons.public;
+        break;
+      case 'Stellar Scholar':
+        baseColor = Colors.indigo;
+        icon = Icons.school;
+        break;
+      case 'Galactic Sage':
+        baseColor = Colors.purple;
+        icon = Icons.psychology;
+        break;
+      case 'Cosmic Legend':
+        baseColor = Colors.cyan;
+        icon = Icons.auto_awesome;
+        break;
+      default:
+        baseColor = Colors.blue;
+        icon = Icons.emoji_events;
+    }
+    return {
+      'bg': baseColor.shade50,
+      'border': baseColor.shade200,
+      'text': baseColor.shade900,
+      'iconColor': baseColor.shade700,
+      'icon': icon,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final avatarUrl = _profile?.avatarUrl ?? widget.initialAvatarUrl;
@@ -451,6 +493,7 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
     final league = _profile?.league ?? 'Stargazer';
     final weeklyXp = _profile?.weeklyXp ?? 0;
     final lifetimeXp = _profile?.xp ?? 0;
+    final leagueStyle = _getLeagueStyle(league);
 
     return Container(
       decoration: BoxDecoration(
@@ -497,21 +540,25 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.deepPurple.shade50,
+              color: leagueStyle['bg'] as Color,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.deepPurple.shade100),
+              border: Border.all(color: leagueStyle['border'] as Color),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.stars_rounded, size: 14, color: Colors.deepPurple),
+                Icon(
+                  leagueStyle['icon'] as IconData,
+                  size: 14,
+                  color: leagueStyle['iconColor'] as Color,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   league.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.deepPurple,
+                    color: leagueStyle['text'] as Color,
                   ),
                 ),
               ],

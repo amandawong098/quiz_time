@@ -25,6 +25,7 @@ class DiscussionDetailsScreen extends StatefulWidget {
 
 class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
   bool _isLoading = true;
+  bool _isLockedForSpoiler = false;
   DiscussionTopic? _topic;
   List<DiscussionReply> _replies = [];
   String _sortBy = 'upvotes';
@@ -56,10 +57,34 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
       final topic = await repo.getTopicDetails(widget.topicId);
       final replies = await repo.getReplies(widget.topicId);
 
+      bool isLocked = false;
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+
+      if (userId != null) {
+        if (topic.quizId != null && topic.quizCreatorId != userId) {
+          final res = await Supabase.instance.client
+              .from('quiz_attempts')
+              .select('id')
+              .eq('quiz_id', topic.quizId!)
+              .eq('user_id', userId)
+              .limit(1);
+          isLocked = (res as List).isEmpty;
+        } else if (topic.deckId != null && topic.deckCreatorId != userId) {
+          final res = await Supabase.instance.client
+              .from('flashcard_deck_attempts')
+              .select('id')
+              .eq('deck_id', topic.deckId!)
+              .eq('user_id', userId)
+              .limit(1);
+          isLocked = (res as List).isEmpty;
+        }
+      }
+
       if (mounted) {
         setState(() {
           _topic = topic;
           _replies = replies;
+          _isLockedForSpoiler = isLocked;
           _isLoading = false;
         });
       }
@@ -691,6 +716,135 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
     );
   }
 
+  Widget _buildSpoilerLockScreen(BuildContext context) {
+    final isQuiz = _topic!.quizId != null;
+    final title = isQuiz ? 'Quiz Spoilers Ahead! 🤫' : 'Flashcard Spoilers Ahead! 🤫';
+    final contentName = isQuiz ? (_topic!.quizTitle ?? 'Quiz') : (_topic!.deckTitle ?? 'Flashcard Deck');
+
+    final description = isQuiz
+        ? 'This discussion is locked to avoid spoilers and revealing the quiz answers. Go play the quiz and test your knowledge first! Once you\'ve completed it, come back here to join the conversation.'
+        : 'This discussion is locked to avoid spoilers and revealing the flashcard answers. Review the flashcards and practice first! Once you\'ve studied the deck, come back here to participate in the discussion.';
+
+    final icon = isQuiz ? Icons.assignment_turned_in_rounded : Icons.style_rounded;
+    final color = isQuiz ? Colors.amber.shade800 : Colors.purple;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Thread Locked'),
+        leading: Navigator.canPop(context)
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.go('/'),
+              ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(color: color.withValues(alpha: 0.2), width: 1.5),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  colors: [Colors.white, color.withValues(alpha: 0.03)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 64,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Text(
+                      contentName,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      if (isQuiz) {
+                        context.push('/quiz/${_topic!.quizId}').then((_) => _loadDetails());
+                      } else {
+                        context.push('/flashcard-deck/${_topic!.deckId}/details').then((_) => _loadDetails());
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 2,
+                    ),
+                    icon: Icon(isQuiz ? Icons.play_arrow_rounded : Icons.menu_book_rounded),
+                    label: Text(
+                      isQuiz ? 'Play Quiz' : 'Study Deck',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -699,6 +853,10 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
 
     if (_topic == null) {
       return const Scaffold(body: Center(child: Text('Discussion thread not found')));
+    }
+
+    if (_isLockedForSpoiler) {
+      return _buildSpoilerLockScreen(context);
     }
 
     final treeRoots = _buildCommentTree(_replies);

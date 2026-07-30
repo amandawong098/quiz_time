@@ -13,9 +13,17 @@ class LessonProgress {
   int getSavedSlideIndex(String id) => subChapterSlideProgress[id] ?? 0;
 
   Future<void> complete(String id) async {
+    final alreadyCompleted = completedSubChapters.contains(id);
     completedSubChapters.add(id);
     subChapterSlideProgress.remove(id); // Clear slide index since completed
-    
+
+    if (alreadyCompleted) {
+      // Already completed status: don't award double XP
+      await _saveToSupabase();
+      return;
+    }
+
+    // Sub-chapter was not completed (or progress was reset): award XP!
     int currentXp = 0;
     int currentWeeklyXp = 0;
     final user = Supabase.instance.client.auth.currentUser;
@@ -72,9 +80,10 @@ class LessonProgress {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
         final metadata = user.userMetadata;
-        
+
         // Load completed sub chapters
-        if (metadata != null && metadata.containsKey('completed_sub_chapters')) {
+        if (metadata != null &&
+            metadata.containsKey('completed_sub_chapters')) {
           final list = metadata['completed_sub_chapters'];
           if (list is List) {
             completedSubChapters.clear();
@@ -132,10 +141,10 @@ class LessonProgress {
         );
 
         // Also update profiles directly in public schema
-        await client.from('profiles').update({
-          'xp': xpToSave,
-          'weekly_xp': weeklyXpToSave,
-        }).eq('id', user.id);
+        await client
+            .from('profiles')
+            .update({'xp': xpToSave, 'weekly_xp': weeklyXpToSave})
+            .eq('id', user.id);
       }
     } catch (_) {}
   }

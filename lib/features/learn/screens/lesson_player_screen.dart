@@ -358,6 +358,13 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   void _completeLesson() {
+    String? targetSubChapterId = widget.subChapterId;
+    if (targetSubChapterId == null && widget.courseId != null && _dynamicPages.isNotEmpty) {
+      final currentPageObj = _dynamicPages[_currentSlide];
+      targetSubChapterId = _pageSubChapterMap[currentPageObj.id];
+    }
+    final bool wasAlreadyCompleted = targetSubChapterId != null && _progressTracker.isCompleted(targetSubChapterId);
+
     final completionFuture = _saveCompletionState();
 
     if (widget.isPreview) {
@@ -398,34 +405,37 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.amber.shade100,
+                        color: wasAlreadyCompleted ? Colors.orange.shade100 : Colors.amber.shade100,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.emoji_events,
-                        color: Colors.amber,
+                      child: Icon(
+                        wasAlreadyCompleted ? Icons.auto_stories_rounded : Icons.emoji_events,
+                        color: wasAlreadyCompleted ? Colors.orange.shade800 : Colors.amber,
                         size: 72,
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Lesson Complete!',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    Text(
+                      wasAlreadyCompleted ? 'Oops! No XP for you...' : 'Lesson Complete!',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'XP +10 Earned',
+                      wasAlreadyCompleted ? '+0 XP (Already Learnt)' : 'XP +10 Earned',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.deepPurple.shade800,
+                        color: wasAlreadyCompleted ? Colors.orange.shade800 : Colors.deepPurple.shade800,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!',
+                      wasAlreadyCompleted
+                          ? 'You\'ve already learnt this sub-chapter previously! Re-reading completed lessons is great for revision, but XP is only rewarded when completing it for the first time or after resetting your lesson progress.'
+                          : 'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.4),
                     ),
                     const SizedBox(height: 28),
                     SizedBox(

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../models/flashcard_models.dart';
+import '../../../core/services/publish_reward_service.dart';
 
 class CreateFlashcardDeckScreen extends StatefulWidget {
   final FlashcardDeck? deck;
@@ -139,6 +140,19 @@ class _CreateFlashcardDeckScreenState extends State<CreateFlashcardDeckScreen> {
           imageUrl: _imageUrl,
         );
         deckId = newDeck.id;
+      }
+
+      if (_isPublic && mounted) {
+        final rewarded = await PublishRewardService.awardPublishXp(
+          contentType: 'flashcard',
+          contentId: deckId,
+        );
+        if (rewarded && mounted) {
+          await PublishRewardService.showPublishCongratsDialog(
+            context,
+            contentType: 'flashcard deck',
+          );
+        }
       }
 
       goRouter.pop(true);
@@ -347,6 +361,19 @@ class _CreateFlashcardDeckScreenState extends State<CreateFlashcardDeckScreen> {
                         title: const Text('Make this flashcard deck public'),
                         value: _isPublic,
                         onChanged: (val) => setState(() => _isPublic = val),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 4.0, bottom: 12.0),
+                        child: Text(
+                          _isPublic
+                              ? '💡 Ready to publish! Shared with the community to learn.'
+                              : '💡 Save as draft. Only visible to you until published.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _isPublic ? Colors.deepPurple.shade700 : Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 40),
 

@@ -138,8 +138,10 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
         _selectedPageId = widget.topic!.pageId;
       } else if (courseId != null) {
         _selectedCourseId = courseId;
+      }
+      if (_selectedCourseId != null) {
         final matchingCourse =
-            _courses.where((c) => c.id == courseId).firstOrNull;
+            _courses.where((c) => c.id == _selectedCourseId).firstOrNull;
         _metaCourseTitle = matchingCourse?.title;
       }
       setState(() {});

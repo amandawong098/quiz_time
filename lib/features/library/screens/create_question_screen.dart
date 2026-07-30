@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../core/services/publish_reward_service.dart';
 
 class _QuestionFormData {
   final String? id;
@@ -13,6 +14,7 @@ class _QuestionFormData {
   final TextEditingController explanationController;
   bool isMultipleChoice;
   Set<int> correctOptionIndices;
+  Offset slideOffset = Offset.zero;
 
   _QuestionFormData({
     this.id,
@@ -278,6 +280,50 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
     });
   }
 
+  bool _isReordering = false;
+
+  Future<void> _moveQuestionUp(int index) async {
+    if (index <= 0 || _isReordering) return;
+    _isReordering = true;
+
+    setState(() {
+      _forms[index].slideOffset = const Offset(0.0, -1.1);
+      _forms[index - 1].slideOffset = const Offset(0.0, 1.1);
+    });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    setState(() {
+      final movedItem = _forms.removeAt(index);
+      _forms.insert(index - 1, movedItem);
+      _forms[index - 1].slideOffset = Offset.zero;
+      _forms[index].slideOffset = Offset.zero;
+      _isReordering = false;
+    });
+  }
+
+  Future<void> _moveQuestionDown(int index) async {
+    if (index >= _forms.length - 1 || _isReordering) return;
+    _isReordering = true;
+
+    setState(() {
+      _forms[index].slideOffset = const Offset(0.0, 1.1);
+      _forms[index + 1].slideOffset = const Offset(0.0, -1.1);
+    });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    setState(() {
+      final movedItem = _forms.removeAt(index);
+      _forms.insert(index + 1, movedItem);
+      _forms[index + 1].slideOffset = Offset.zero;
+      _forms[index].slideOffset = Offset.zero;
+      _isReordering = false;
+    });
+  }
+
   Future<void> _saveAllToDatabase() async {
     List<Question> questionsToSave = [];
 
@@ -329,6 +375,19 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
 
       await repo.saveQuestions(effectiveQuizId, questionsToSave);
 
+      if (widget.initialQuizData.isPublic && mounted) {
+        final rewarded = await PublishRewardService.awardPublishXp(
+          contentType: 'quiz',
+          contentId: effectiveQuizId,
+        );
+        if (rewarded && mounted) {
+          await PublishRewardService.showPublishCongratsDialog(
+            context,
+            contentType: 'quiz',
+          );
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -353,13 +412,17 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
     _QuestionFormData formData,
     int index,
   ) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300, width: 1),
-      ),
+    return AnimatedSlide(
+      offset: formData.slideOffset,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+      child: Card(
+        elevation: 2,
+        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -371,16 +434,39 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Questions ${index + 1}',
+                    'Question ${index + 1}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteQuestion(index),
-                    tooltip: 'Delete Question',
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.arrow_upward,
+                          size: 18,
+                          color: (index > 0 && !_isReordering) ? Colors.grey.shade700 : Colors.grey.shade300,
+                        ),
+                        onPressed: (index > 0 && !_isReordering) ? () => _moveQuestionUp(index) : null,
+                        tooltip: 'Move Up',
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.arrow_downward,
+                          size: 18,
+                          color: (index < _forms.length - 1 && !_isReordering) ? Colors.grey.shade700 : Colors.grey.shade300,
+                        ),
+                        onPressed: (index < _forms.length - 1 && !_isReordering) ? () => _moveQuestionDown(index) : null,
+                        tooltip: 'Move Down',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                        onPressed: () => _deleteQuestion(index),
+                        tooltip: 'Delete Question',
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -547,8 +633,9 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {

@@ -115,6 +115,10 @@ class _NotificationPopupWidgetState extends State<NotificationPopupWidget>
                type == 'discussion_reply' ||
                type == 'comment_reply')) {
             appRouter.push('/discussion/$topicId');
+          } else if (type == 'league_promotion' ||
+                     type == 'league_demotion' ||
+                     type == 'league_stay') {
+            appRouter.push('/leaderboard');
           } else {
             appRouter.push('/me/friends');
           }

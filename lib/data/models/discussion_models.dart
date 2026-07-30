@@ -65,6 +65,14 @@ class DiscussionTopic {
   final String? deckTitle;
   final String? cardQuestionText;
 
+  // Linked content privacy and owner status
+  final bool? courseIsPublic;
+  final String? courseCreatorId;
+  final bool? quizIsPublic;
+  final String? quizCreatorId;
+  final bool? deckIsPublic;
+  final String? deckCreatorId;
+
   // Computed properties
   final int upvotesCount;
   final int downvotesCount;
@@ -105,6 +113,12 @@ class DiscussionTopic {
     this.questionOrderIndex,
     this.deckTitle,
     this.cardQuestionText,
+    this.courseIsPublic,
+    this.courseCreatorId,
+    this.quizIsPublic,
+    this.quizCreatorId,
+    this.deckIsPublic,
+    this.deckCreatorId,
   });
 
   factory DiscussionTopic.fromJson(Map<String, dynamic> json, String currentUserId) {
@@ -186,6 +200,12 @@ class DiscussionTopic {
       questionOrderIndex: questionData?['order_index'] as int?,
       deckTitle: deckData?['title'] as String?,
       cardQuestionText: cardData?['front'] as String?,
+      courseIsPublic: courseData?['is_public'] as bool?,
+      courseCreatorId: courseData?['creator_id'] as String?,
+      quizIsPublic: quizData?['is_public'] as bool?,
+      quizCreatorId: quizData?['creator_id'] as String?,
+      deckIsPublic: deckData?['is_public'] as bool?,
+      deckCreatorId: deckData?['creator_id'] as String?,
     );
   }
 }

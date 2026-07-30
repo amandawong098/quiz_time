@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../core/services/publish_reward_service.dart';
 
 class CreateQuizScreen extends StatefulWidget {
   final Quiz? quiz;
@@ -20,13 +21,11 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
 
-  bool _isPublic = false;
-  bool _isLoading = false;
-
-  File? _imageFile;
   String? _imageUrl;
-
-  List<dynamic>? _generatedQuestions;
+  File? _imageFile;
+  bool _isLoading = false;
+  bool _isPublic = false;
+  List<Map<String, dynamic>>? _generatedQuestions;
 
   @override
   void initState() {
@@ -47,6 +46,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: source);
@@ -57,7 +57,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Error picking image: ${e.toString()}'),
           ),
@@ -105,7 +105,7 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
     try {
       if (_imageFile != null) {
         final fileName =
-            '${DateTime.now().millisecondsSinceEpoch}_${_imageFile!.path.split('/').last}';
+            '${DateTime.now().millisecondsSinceEpoch}_${_imageFile!.path.split(Platform.pathSeparator).last}';
         await Supabase.instance.client.storage
             .from('quiz_images')
             .upload(fileName, _imageFile!);
@@ -126,6 +126,18 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
 
       if (widget.quiz != null) {
         await repo.updateQuiz(quizData);
+        if (_isPublic && mounted) {
+          final rewarded = await PublishRewardService.awardPublishXp(
+            contentType: 'quiz',
+            contentId: widget.quiz!.id,
+          );
+          if (rewarded && mounted) {
+            await PublishRewardService.showPublishCongratsDialog(
+              context,
+              contentType: 'quiz',
+            );
+          }
+        }
       }
 
       if (mounted) {
@@ -276,6 +288,19 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                   title: const Text('Make this quiz public'),
                   value: _isPublic,
                   onChanged: (val) => setState(() => _isPublic = val),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 4.0, bottom: 12.0),
+                  child: Text(
+                    _isPublic
+                        ? '💡 Ready to publish! Shared with the community to learn.'
+                        : '💡 Save as draft. Only visible to you until published.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isPublic ? Colors.deepPurple.shade700 : Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 32),
                 if (_isLoading)

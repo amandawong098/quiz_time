@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../models/lesson_models.dart';
+import '../../../core/services/publish_reward_service.dart';
 
 class CreateLessonScreen extends StatefulWidget {
   final LessonCourse? lesson;
@@ -20,11 +21,10 @@ class _CreateLessonScreenState extends State<CreateLessonScreen> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
 
-  bool _isPublic = false;
-  bool _isLoading = false;
-
-  File? _imageFile;
   String? _imageUrl;
+  File? _imageFile;
+  bool _isLoading = false;
+  bool _isPublic = false;
 
   @override
   void initState() {
@@ -115,6 +115,7 @@ class _CreateLessonScreenState extends State<CreateLessonScreen> {
             .getPublicUrl(fileName);
       }
 
+      String courseId;
       if (widget.lesson != null) {
         // Edit existing lesson
         await repo.updateCourse(
@@ -124,14 +125,29 @@ class _CreateLessonScreenState extends State<CreateLessonScreen> {
           isPublic: _isPublic,
           imageUrl: _imageUrl,
         );
+        courseId = widget.lesson!.id;
       } else {
         // Create new lesson
-        await repo.createCourse(
+        final newCourse = await repo.createCourse(
           title: _titleController.text.trim(),
           description: _descController.text.trim(),
           isPublic: _isPublic,
           imageUrl: _imageUrl,
         );
+        courseId = newCourse.id;
+      }
+
+      if (_isPublic && mounted) {
+        final rewarded = await PublishRewardService.awardPublishXp(
+          contentType: 'lesson',
+          contentId: courseId,
+        );
+        if (rewarded && mounted) {
+          await PublishRewardService.showPublishCongratsDialog(
+            context,
+            contentType: 'lesson',
+          );
+        }
       }
 
       if (mounted) {
@@ -265,6 +281,19 @@ class _CreateLessonScreenState extends State<CreateLessonScreen> {
                   title: const Text('Make this lesson public'),
                   value: _isPublic,
                   onChanged: (val) => setState(() => _isPublic = val),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 4.0, bottom: 12.0),
+                  child: Text(
+                    _isPublic
+                        ? '💡 Ready to publish! Shared with the community to learn.'
+                        : '💡 Save as draft. Only visible to you until published.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isPublic ? Colors.deepPurple.shade700 : Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 32),
                 if (_isLoading)

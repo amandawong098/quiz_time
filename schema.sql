@@ -673,11 +673,15 @@ DECLARE
     promo_pct DOUBLE PRECISION;
     demo_pct DOUBLE PRECISION;
     v_new_league TEXT;
+    v_title TEXT;
+    v_msg TEXT;
+    v_type TEXT;
 BEGIN
     -- Create temporary table to store updates
     CREATE TEMP TABLE temp_league_updates (
         user_id UUID PRIMARY KEY,
-        new_league TEXT
+        new_league TEXT,
+        old_league TEXT
     ) ON COMMIT DROP;
 
     -- Iterate through leagues sorted by order
@@ -732,20 +736,38 @@ BEGIN
                     END IF;
                 END IF;
 
-                -- If the league has changed, save to updates table
-                IF v_new_league <> league_rec.league THEN
-                    INSERT INTO temp_league_updates (user_id, new_league)
-                    VALUES (user_rec.id, v_new_league);
-                END IF;
+                -- Save to updates table
+                INSERT INTO temp_league_updates (user_id, new_league, old_league)
+                VALUES (user_rec.id, v_new_league, league_rec.league);
             END LOOP;
         END IF;
     END LOOP;
 
-    -- Apply promotions/demotions to profiles table using a safe loop to bypass Safe Update constraints
-    FOR user_rec IN SELECT user_id, new_league FROM temp_league_updates LOOP
-        UPDATE public.profiles
-        SET league = user_rec.new_league
-        WHERE id = user_rec.user_id;
+    -- Apply promotions/demotions and send notifications
+    FOR user_rec IN SELECT user_id, new_league, old_league FROM temp_league_updates LOOP
+        IF user_rec.new_league <> user_rec.old_league THEN
+            UPDATE public.profiles
+            SET league = user_rec.new_league
+            WHERE id = user_rec.user_id;
+
+            IF (SELECT rank_order FROM public.league_configs WHERE league = user_rec.new_league) > 
+               (SELECT rank_order FROM public.league_configs WHERE league = user_rec.old_league) THEN
+                v_title := 'League Promotion!';
+                v_msg := 'Outstanding effort! You have been promoted to the ' || user_rec.new_league || ' league. Keep pushing your boundaries and climb higher!';
+                v_type := 'league_promotion';
+            ELSE
+                v_title := 'League Demotion';
+                v_msg := 'You have moved to the ' || user_rec.new_league || ' league. Do not give up! Jump back into learning to reclaim your rank!';
+                v_type := 'league_demotion';
+            END IF;
+        ELSE
+            v_title := 'League Division Retained';
+            v_msg := 'Solid performance! You have retained your spot in the ' || user_rec.new_league || ' league. Aim even higher in the new weekly cycle!';
+            v_type := 'league_stay';
+        END IF;
+
+        INSERT INTO public.notifications (user_id, title, message, type, is_read, created_at)
+        VALUES (user_rec.user_id, v_title, v_msg, v_type, false, NOW());
     END LOOP;
 
     -- Reset weekly XP for all users back to 0
@@ -757,7 +779,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Only trusted server-side jobs should run the real weekly rollover.
 REVOKE EXECUTE ON FUNCTION public.reset_weekly_leagues() FROM anon, authenticated;
-
 
 -- =======================================================
 -- 14. LEADERBOARD SANDBOX SAFETY
@@ -801,3 +822,17 @@ CREATE POLICY "Users can view their own deck attempts" ON public.flashcard_deck_
 CREATE POLICY "Users can insert their own deck attempts" ON public.flashcard_deck_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_flashcard_deck_attempts_user_deck ON public.flashcard_deck_attempts(user_id, deck_id);
+
+-- =======================================================
+-- 17. PRODUCTION WEEKLY LEADERBOARD CRON SCHEDULER
+-- =======================================================
+
+-- Enable pg_cron extension
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Schedule the weekly league reset job to run every Sunday at 00:00 UTC (Sunday midnight)
+SELECT cron.schedule(
+    'weekly-league-reset',
+    '0 0 * * 0',
+    'SELECT public.reset_weekly_leagues()'
+);

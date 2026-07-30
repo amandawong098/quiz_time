@@ -23,7 +23,7 @@ class DiscussionRepository {
   }) async {
     var req = _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index), flashcard_decks(title), flashcards(front)');
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title, is_public, creator_id), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title, is_public, creator_id), questions(question_text, order_index), flashcard_decks(title, is_public, creator_id), flashcards(front)');
 
     if (authorId != null) {
       req = req.eq('author_id', authorId);
@@ -54,16 +54,52 @@ class DiscussionRepository {
     }
 
     final response = await req.order('created_at', ascending: false);
-    return (response as List)
+    final List<DiscussionTopic> topics = (response as List)
         .map((e) => DiscussionTopic.fromJson(e, _currentUserId))
         .toList();
+
+    // Hide discussions related to private content from general/un-targeted feed queries,
+    // unless the current user is the creator of the private content.
+    final isSpecificEntityQuery = pageId != null ||
+        courseId != null ||
+        quizId != null ||
+        questionId != null ||
+        deckId != null ||
+        cardId != null;
+
+    if (!isSpecificEntityQuery) {
+      topics.removeWhere((t) {
+        // 1. Hide if course is private
+        if (t.courseId != null) {
+          if (t.courseIsPublic == false && t.courseCreatorId != _currentUserId) return true;
+          // Hide if metadata is completely missing due to RLS block (another user's private course)
+          if (t.courseTitle == null) return true;
+        }
+
+        // 2. Hide if quiz is private
+        if (t.quizId != null) {
+          if (t.quizIsPublic == false && t.quizCreatorId != _currentUserId) return true;
+          if (t.quizTitle == null) return true;
+        }
+
+        // 3. Hide if deck is private
+        if (t.deckId != null) {
+          if (t.deckIsPublic == false && t.deckCreatorId != _currentUserId) return true;
+          if (t.deckTitle == null) return true;
+        }
+
+        return false;
+      });
+    }
+
+    return topics;
   }
 
   // Fetch details of a single topic
   Future<DiscussionTopic> getTopicDetails(String topicId) async {
     final response = await _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title), questions(question_text, order_index), flashcard_decks(title), flashcards(front)')
+        .select('*, profiles(*), topic_votes(*), lesson_courses(title, is_public, creator_id), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title, is_public, creator_id), questions(question_text, order_index), flashcard_decks(title, is_public, creator_id), flashcards(front)')
         .eq('id', topicId)
         .single();
 

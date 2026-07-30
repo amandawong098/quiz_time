@@ -166,10 +166,6 @@ class _FriendsScreenState extends State<FriendsScreen>
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                subtitle: Text(
-                  user.email,
-                  style: const TextStyle(fontSize: 12),
-                ),
                 trailing: actionBuilder(user),
               ),
             );
@@ -329,10 +325,6 @@ class _FriendsScreenState extends State<FriendsScreen>
                                 ),
                               ),
                             ),
-                            subtitle: Text(
-                              friend.email,
-                              style: const TextStyle(fontSize: 12),
-                            ),
                             trailing: IconButton(
                               icon: const Icon(
                                 Icons.person_remove_rounded,
@@ -487,10 +479,6 @@ class _FriendsScreenState extends State<FriendsScreen>
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                            subtitle: Text(
-                              user.email,
-                              style: const TextStyle(fontSize: 12),
                             ),
                             trailing: ElevatedButton.icon(
                               icon: const Icon(
