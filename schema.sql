@@ -342,7 +342,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE,
-    type TEXT CHECK (type IN ('friend_request', 'challenge_invite', 'discussion_upvote', 'discussion_reply', 'comment_reply')),
+    type TEXT CHECK (type IN ('friend_request', 'challenge_invite', 'discussion_upvote', 'discussion_reply', 'comment_reply', 'comment_upvote', 'league_promotion', 'league_demotion', 'league_stay')),
     data JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -770,9 +770,13 @@ BEGIN
         VALUES (user_rec.user_id, v_title, v_msg, v_type, false, NOW());
     END LOOP;
 
-    -- Reset weekly XP for all users back to 0
+    -- Reset weekly XP for all users back to 0 in both profiles and auth.users metadata
     UPDATE public.profiles
     SET weekly_xp = 0
+    WHERE id IS NOT NULL;
+
+    UPDATE auth.users
+    SET raw_user_meta_data = jsonb_set(COALESCE(raw_user_meta_data, '{}'::jsonb), '{weekly_xp}', '0'::jsonb)
     WHERE id IS NOT NULL;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -836,3 +840,52 @@ SELECT cron.schedule(
     '0 0 * * 0',
     'SELECT public.reset_weekly_leagues()'
 );
+
+-- =======================================================
+-- 18. ACCOUNT DELETION FUNCTION WITH CONTRIBUTION HANDLING
+-- =======================================================
+
+-- Allow creator_id / author_id to be NULL when account is deleted and public contributions remain
+ALTER TABLE public.quizzes ALTER COLUMN creator_id DROP NOT NULL;
+ALTER TABLE public.flashcard_decks ALTER COLUMN creator_id DROP NOT NULL;
+ALTER TABLE public.lesson_courses ALTER COLUMN creator_id DROP NOT NULL;
+ALTER TABLE public.discussion_topics ALTER COLUMN author_id DROP NOT NULL;
+ALTER TABLE public.discussion_replies ALTER COLUMN author_id DROP NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.delete_user(p_delete_contributions BOOLEAN DEFAULT TRUE)
+RETURNS void AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+BEGIN
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    IF p_delete_contributions THEN
+        -- Delete all user contributions
+        DELETE FROM public.quizzes WHERE creator_id = v_user_id;
+        DELETE FROM public.flashcard_decks WHERE creator_id = v_user_id;
+        DELETE FROM public.lesson_courses WHERE creator_id = v_user_id;
+        DELETE FROM public.discussion_topics WHERE author_id = v_user_id;
+        DELETE FROM public.discussion_replies WHERE author_id = v_user_id;
+    ELSE
+        -- Delete private drafts only
+        DELETE FROM public.quizzes WHERE creator_id = v_user_id AND is_public = FALSE;
+        DELETE FROM public.flashcard_decks WHERE creator_id = v_user_id AND is_public = FALSE;
+        DELETE FROM public.lesson_courses WHERE creator_id = v_user_id AND is_public = FALSE;
+
+        -- For public contributions, set creator_id / author_id = NULL so they remain as public content created by Deleted User
+        UPDATE public.quizzes SET creator_id = NULL WHERE creator_id = v_user_id AND is_public = TRUE;
+        UPDATE public.flashcard_decks SET creator_id = NULL WHERE creator_id = v_user_id AND is_public = TRUE;
+        UPDATE public.lesson_courses SET creator_id = NULL WHERE creator_id = v_user_id AND is_public = TRUE;
+        UPDATE public.discussion_topics SET author_id = NULL WHERE author_id = v_user_id;
+        UPDATE public.discussion_replies SET author_id = NULL WHERE author_id = v_user_id;
+    END IF;
+
+    -- Delete user profile
+    DELETE FROM public.profiles WHERE id = v_user_id;
+
+    -- Delete auth user account
+    DELETE FROM auth.users WHERE id = v_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

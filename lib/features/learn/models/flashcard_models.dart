@@ -7,6 +7,8 @@ class FlashcardDeck {
   final bool isPublic;
   final String? createdAt;
   final int cardCount;
+  final String? creatorName;
+  final String? creatorAvatarUrl;
 
   FlashcardDeck({
     required this.id,
@@ -17,6 +19,8 @@ class FlashcardDeck {
     this.isPublic = false,
     this.createdAt,
     this.cardCount = 0,
+    this.creatorName,
+    this.creatorAvatarUrl,
   });
 
   factory FlashcardDeck.fromJson(Map<String, dynamic> json) {
@@ -26,6 +30,17 @@ class FlashcardDeck {
     } else if (json['card_count'] != null) {
       count = json['card_count'] as int;
     }
+
+    String? cName;
+    String? cAvatar;
+    if (json['creator'] is Map) {
+      cName = json['creator']['name'] as String?;
+      cAvatar = json['creator']['avatar_url'] as String?;
+    } else if (json['profiles'] is Map) {
+      cName = json['profiles']['name'] as String?;
+      cAvatar = json['profiles']['avatar_url'] as String?;
+    }
+
     return FlashcardDeck(
       id: json['id'] as String,
       creatorId: json['creator_id'] as String? ?? '',
@@ -35,6 +50,8 @@ class FlashcardDeck {
       isPublic: json['is_public'] as bool? ?? false,
       createdAt: json['created_at'] as String?,
       cardCount: count,
+      creatorName: cName ?? (json['creator_id'] == null ? 'Deleted User' : null),
+      creatorAvatarUrl: cAvatar,
     );
   }
 

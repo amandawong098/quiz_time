@@ -7,6 +7,8 @@ class Quiz {
   final String? imageUrl;
   final DateTime createdAt;
   final int questionCount;
+  final String? creatorName;
+  final String? creatorAvatarUrl;
 
   Quiz({
     required this.id,
@@ -17,18 +19,32 @@ class Quiz {
     this.imageUrl,
     required this.createdAt,
     this.questionCount = 0,
+    this.creatorName,
+    this.creatorAvatarUrl,
   });
 
   factory Quiz.fromJson(Map<String, dynamic> json) {
+    String? cName;
+    String? cAvatar;
+    if (json['creator'] is Map) {
+      cName = json['creator']['name'] as String?;
+      cAvatar = json['creator']['avatar_url'] as String?;
+    } else if (json['profiles'] is Map) {
+      cName = json['profiles']['name'] as String?;
+      cAvatar = json['profiles']['avatar_url'] as String?;
+    }
+
     return Quiz(
       id: json['id'],
-      creatorId: json['creator_id'],
+      creatorId: json['creator_id'] ?? '',
       title: json['title'],
       description: json['description'],
       isPublic: json['is_public'] ?? false,
       imageUrl: json['image_url'],
       createdAt: DateTime.parse(json['created_at']),
       questionCount: json['question_count'] ?? 0,
+      creatorName: cName ?? (json['creator_id'] == null ? 'Deleted User' : null),
+      creatorAvatarUrl: cAvatar,
     );
   }
 

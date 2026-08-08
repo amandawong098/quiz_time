@@ -22,7 +22,7 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String _selectedTypeFilter = 'All'; // 'All', 'Lessons', 'Quizzes', 'Flashcards', 'General'
-  String _sortBy = 'Top Upvotes'; // 'Top Upvotes', 'Latest'
+  String _sortBy = 'Latest'; // 'Latest', 'Top Upvotes'
 
   @override
   void initState() {
@@ -390,12 +390,12 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                         ),
                         items: const [
                           DropdownMenuItem(
-                            value: 'Top Upvotes',
-                            child: Text('Top Upvotes'),
-                          ),
-                          DropdownMenuItem(
                             value: 'Latest',
                             child: Text('Latest'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Top Upvotes',
+                            child: Text('Top Upvotes'),
                           ),
                         ],
                         onChanged: (val) {

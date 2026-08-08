@@ -8,13 +8,47 @@ class FlashcardRepository {
   // DECKS CRUD
   // ------------------------------------------
 
-  // Fetch all viewable decks (public ones, or owned by current user)
   Future<List<FlashcardDeck>> getDecks() async {
     final response = await _supabase
         .from('flashcard_decks')
         .select('*, flashcards(id)')
         .order('created_at', ascending: false);
-    return (response as List).map((e) => FlashcardDeck.fromJson(e)).toList();
+    final List<FlashcardDeck> decks =
+        (response as List).map((e) => FlashcardDeck.fromJson(e)).toList();
+
+    final creatorIds =
+        decks.map((d) => d.creatorId).where((id) => id.isNotEmpty).toSet().toList();
+    if (creatorIds.isNotEmpty) {
+      try {
+        final profilesRes = await _supabase
+            .from('profiles')
+            .select('id, name, avatar_url')
+            .inFilter('id', creatorIds);
+        final Map<String, Map<String, dynamic>> profileMap = {
+          for (var p in (profilesRes as List))
+            p['id'] as String: p as Map<String, dynamic>
+        };
+
+        for (var i = 0; i < decks.length; i++) {
+          final p = profileMap[decks[i].creatorId];
+          if (p != null) {
+            decks[i] = FlashcardDeck(
+              id: decks[i].id,
+              creatorId: decks[i].creatorId,
+              title: decks[i].title,
+              description: decks[i].description,
+              imageUrl: decks[i].imageUrl,
+              isPublic: decks[i].isPublic,
+              createdAt: decks[i].createdAt,
+              cardCount: decks[i].cardCount,
+              creatorName: p['name'] as String?,
+              creatorAvatarUrl: p['avatar_url'] as String?,
+            );
+          }
+        }
+      } catch (_) {}
+    }
+    return decks;
   }
 
   // Fetch only decks created by the current user

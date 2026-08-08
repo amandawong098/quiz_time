@@ -12,7 +12,48 @@ class LessonRepository {
         .from('lesson_courses')
         .select()
         .order('created_at', ascending: true);
-    return (response as List).map((e) => LessonCourse.fromJson(e)).toList();
+    final List<LessonCourse> courses =
+        (response as List).map((e) => LessonCourse.fromJson(e)).toList();
+
+    final creatorIds = courses
+        .map((c) => c.creatorId)
+        .where((id) => id != null && id.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+
+    if (creatorIds.isNotEmpty) {
+      try {
+        final profilesRes = await _supabase
+            .from('profiles')
+            .select('id, name, avatar_url')
+            .inFilter('id', creatorIds);
+        final Map<String, Map<String, dynamic>> profileMap = {
+          for (var p in (profilesRes as List))
+            p['id'] as String: p as Map<String, dynamic>
+        };
+
+        for (var i = 0; i < courses.length; i++) {
+          final cid = courses[i].creatorId;
+          if (cid != null) {
+            final p = profileMap[cid];
+            if (p != null) {
+              courses[i] = LessonCourse(
+                id: courses[i].id,
+                title: courses[i].title,
+                description: courses[i].description,
+                isPublic: courses[i].isPublic,
+                imageUrl: courses[i].imageUrl,
+                creatorId: courses[i].creatorId,
+                creatorName: p['name'] as String?,
+                creatorAvatarUrl: p['avatar_url'] as String?,
+              );
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    return courses;
   }
 
   Future<LessonCourse> createCourse({

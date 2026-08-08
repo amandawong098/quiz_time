@@ -18,6 +18,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _passwordController = TextEditingController();
   bool _isSaving = false;
   String? _avatarUrl;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -34,6 +35,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  String _formatErrorMessage(dynamic error) {
+    if (error is AuthException) {
+      final msg = error.message.toLowerCase();
+      if (msg.contains('invalid') || error.code == 'email_address_invalid') {
+        return 'Please enter a valid email address.';
+      }
+      if (msg.contains('already registered') || error.code == 'user_already_exists') {
+        return 'This email address is already in use by another account.';
+      }
+      if (msg.contains('password') && (msg.contains('6') || msg.contains('short'))) {
+        return 'Password must be at least 6 characters long.';
+      }
+      return error.message;
+    }
+    final errorStr = error.toString();
+    if (errorStr.contains('email_address_invalid') || errorStr.toLowerCase().contains('is invalid')) {
+      return 'Please enter a valid email address.';
+    }
+    if (errorStr.contains('user_already_exists') || errorStr.toLowerCase().contains('already registered')) {
+      return 'This email address is already in use by another account.';
+    }
+    if (errorStr.toLowerCase().contains('password') && (errorStr.contains('6') || errorStr.toLowerCase().contains('short'))) {
+      return 'Password must be at least 6 characters long.';
+    }
+    final match = RegExp(r'message:\s*([^,]+)').firstMatch(errorStr);
+    if (match != null && match.group(1) != null) {
+      return match.group(1)!.trim();
+    }
+    return errorStr.replaceAll(RegExp(r'AuthApiException\(|\)'), '').trim();
   }
 
   Future<void> _showImagePickerOptions() async {
@@ -70,7 +102,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: source);
       if (pickedFile != null) {
-        setState(() => _isSaving = true);
+        setState(() {
+          _isSaving = true;
+          _errorMessage = null;
+        });
         final file = File(pickedFile.path);
         final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
@@ -88,8 +123,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
       }
     } catch (e) {
-      setState(() => _isSaving = false);
-      _showErrorDialog(e.toString());
+      setState(() {
+        _isSaving = false;
+        _errorMessage = _formatErrorMessage(e);
+      });
     }
   }
 
@@ -97,35 +134,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _avatarUrl = null);
   }
 
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Notification'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _saveChanges() async {
-    setState(() => _isSaving = true);
-    try {
-      final oldEmail = context.read<AuthRepository>().currentUser?.email;
-      final newEmail = _emailController.text.trim();
-      bool emailChanged = newEmail != oldEmail;
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
 
+    final oldEmail = context.read<AuthRepository>().currentUser?.email;
+    final newEmail = _emailController.text.trim();
+    final newPassword = _passwordController.text;
+    bool emailChanged = newEmail != oldEmail;
+
+    if (emailChanged && newEmail.isNotEmpty) {
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegex.hasMatch(newEmail)) {
+        setState(() {
+          _isSaving = false;
+          _errorMessage = 'Please enter a valid email address.';
+        });
+        return;
+      }
+    }
+
+    if (newPassword.isNotEmpty && newPassword.length < 6) {
+      setState(() {
+        _isSaving = false;
+        _errorMessage = 'Password must be at least 6 characters long.';
+      });
+      return;
+    }
+
+    try {
       await context.read<AuthRepository>().updateProfile(
         name: _nameController.text.trim(),
         email: emailChanged ? newEmail : null,
-        password: _passwordController.text.isEmpty
-            ? null
-            : _passwordController.text,
+        password: newPassword.isEmpty ? null : newPassword,
         avatarUrl: _avatarUrl,
         updateAvatar: true,
       );
@@ -151,8 +194,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (mounted) Navigator.pop(context, true);
       }
     } catch (e) {
-      setState(() => _isSaving = false);
-      _showErrorDialog(e.toString());
+      setState(() {
+        _isSaving = false;
+        _errorMessage = _formatErrorMessage(e);
+      });
     }
   }
 
@@ -169,20 +214,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             )
           else
-            TextButton(
+            IconButton(
+              icon: const Icon(Icons.save_rounded, color: Colors.white),
+              tooltip: 'Save Profile',
               onPressed: _saveChanges,
-              child: const Text(
-                'Save',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
             ),
         ],
       ),
@@ -229,6 +272,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 32),
             TextField(
               controller: _nameController,
+              onChanged: (_) {
+                if (_errorMessage != null) setState(() => _errorMessage = null);
+              },
               decoration: const InputDecoration(
                 labelText: 'Display Name',
                 prefixIcon: Icon(Icons.person_outline),
@@ -237,6 +283,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _emailController,
+              onChanged: (_) {
+                if (_errorMessage != null) setState(() => _errorMessage = null);
+              },
               decoration: const InputDecoration(
                 labelText: 'Email',
                 prefixIcon: Icon(Icons.email_outlined),
@@ -246,6 +295,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
+              onChanged: (_) {
+                if (_errorMessage != null) setState(() => _errorMessage = null);
+              },
               decoration: const InputDecoration(
                 labelText: 'Change Password (optional)',
                 prefixIcon: Icon(Icons.lock_outline),
@@ -253,6 +305,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               obscureText: true,
             ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: Colors.red.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

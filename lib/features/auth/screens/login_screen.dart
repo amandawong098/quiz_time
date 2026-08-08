@@ -92,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.quiz, size: 80),
+                const Icon(Icons.school_rounded, size: 80),
                 const SizedBox(height: 24),
                 Text(
                   _isLogin ? 'Login to LearnByte' : 'Create an Account',

@@ -7,6 +7,7 @@ import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../widgets/multiplayer_invite_dialog.dart';
 import '../widgets/quiz_discussions_sheet.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class QuizDetailsScreen extends StatefulWidget {
   final String quizId;
@@ -38,9 +39,36 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
       final data = await repo.getQuizDetails(widget.quizId);
       final attempts = await repo.getQuizAttempts(widget.quizId);
       final count = await discRepo.getQuizTotalDiscussionsCount(widget.quizId);
+      var quiz = data['quiz'] as Quiz;
+
+      if (quiz.creatorId.isNotEmpty &&
+          (quiz.creatorName == null || quiz.creatorName!.isEmpty)) {
+        try {
+          final profileRes = await Supabase.instance.client
+              .from('profiles')
+              .select('name, avatar_url')
+              .eq('id', quiz.creatorId)
+              .maybeSingle();
+          if (profileRes != null) {
+            quiz = Quiz(
+              id: quiz.id,
+              creatorId: quiz.creatorId,
+              title: quiz.title,
+              description: quiz.description,
+              isPublic: quiz.isPublic,
+              imageUrl: quiz.imageUrl,
+              createdAt: quiz.createdAt,
+              questionCount: quiz.questionCount,
+              creatorName: profileRes['name'] as String?,
+              creatorAvatarUrl: profileRes['avatar_url'] as String?,
+            );
+          }
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
-          _quiz = data['quiz'] as Quiz;
+          _quiz = quiz;
           _questions = data['questions'] as List<Question>;
           _totalDiscussionsCount = count;
           _hasPlayedBefore = attempts.isNotEmpty;
@@ -146,6 +174,57 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                 if (_quiz!.description != null) ...[
                   const SizedBox(height: 8),
                   Text(_quiz!.description!, textAlign: TextAlign.center),
+                ],
+                if (_quiz!.creatorId.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () {
+                      UserDetailBottomSheet.show(
+                        context,
+                        userId: _quiz!.creatorId,
+                        name: _quiz!.creatorName ?? 'Author',
+                        avatarUrl: _quiz!.creatorAvatarUrl,
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 10,
+                            backgroundColor: Colors.deepPurple.shade100,
+                            backgroundImage: (_quiz!.creatorAvatarUrl != null &&
+                                    _quiz!.creatorAvatarUrl!.isNotEmpty)
+                                ? NetworkImage(_quiz!.creatorAvatarUrl!)
+                                : null,
+                            child: (_quiz!.creatorAvatarUrl == null ||
+                                    _quiz!.creatorAvatarUrl!.isEmpty)
+                                ? const Icon(Icons.person,
+                                    size: 11, color: Colors.deepPurple)
+                                : null,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _quiz!.creatorName ?? 'Author',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.deepPurple.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 Wrap(

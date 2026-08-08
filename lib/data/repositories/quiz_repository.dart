@@ -34,7 +34,43 @@ class QuizRepository {
     }
 
     final response = await req.order('created_at', ascending: false);
-    return (response as List).map((e) => Quiz.fromJson(e)).toList();
+    final List<Quiz> quizzes =
+        (response as List).map((e) => Quiz.fromJson(e)).toList();
+
+    final creatorIds =
+        quizzes.map((q) => q.creatorId).where((id) => id.isNotEmpty).toSet().toList();
+
+    if (creatorIds.isNotEmpty) {
+      try {
+        final profilesRes = await _supabase
+            .from('profiles')
+            .select('id, name, avatar_url')
+            .inFilter('id', creatorIds);
+        final Map<String, Map<String, dynamic>> profileMap = {
+          for (var p in (profilesRes as List))
+            p['id'] as String: p as Map<String, dynamic>
+        };
+
+        for (var i = 0; i < quizzes.length; i++) {
+          final p = profileMap[quizzes[i].creatorId];
+          if (p != null) {
+            quizzes[i] = Quiz(
+              id: quizzes[i].id,
+              creatorId: quizzes[i].creatorId,
+              title: quizzes[i].title,
+              description: quizzes[i].description,
+              isPublic: quizzes[i].isPublic,
+              imageUrl: quizzes[i].imageUrl,
+              createdAt: quizzes[i].createdAt,
+              questionCount: quizzes[i].questionCount,
+              creatorName: p['name'] as String?,
+              creatorAvatarUrl: p['avatar_url'] as String?,
+            );
+          }
+        }
+      } catch (_) {}
+    }
+    return quizzes;
   }
 
   // Fetch quizzes created by current user

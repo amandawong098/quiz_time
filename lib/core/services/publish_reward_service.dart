@@ -33,11 +33,22 @@ class PublishRewardService {
 
       int currentXp = 0;
       int currentWeeklyXp = 0;
-      if (metadata.containsKey('xp')) {
-        currentXp = int.tryParse(metadata['xp'].toString()) ?? 0;
-      }
-      if (metadata.containsKey('weekly_xp')) {
-        currentWeeklyXp = int.tryParse(metadata['weekly_xp'].toString()) ?? 0;
+      try {
+        final res = await client
+            .from('profiles')
+            .select('xp, weekly_xp')
+            .eq('id', user.id)
+            .single();
+        currentXp = (res['xp'] as num? ?? 0).toInt();
+        currentWeeklyXp = (res['weekly_xp'] as num? ?? 0).toInt();
+      } catch (_) {
+        if (metadata.containsKey('xp')) {
+          currentXp = int.tryParse(metadata['xp'].toString()) ?? 0;
+        }
+        if (metadata.containsKey('weekly_xp')) {
+          currentWeeklyXp =
+              int.tryParse(metadata['weekly_xp'].toString()) ?? 0;
+        }
       }
 
       final nextXp = currentXp + 10;

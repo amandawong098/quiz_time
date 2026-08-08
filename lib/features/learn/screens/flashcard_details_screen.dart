@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/flashcard_models.dart';
 import '../widgets/flashcard_discussions_sheet.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class FlashcardDetailsScreen extends StatefulWidget {
   final String deckId;
@@ -39,7 +40,32 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
           .eq('id', widget.deckId)
           .single();
 
-      final deck = FlashcardDeck.fromJson(response);
+      var deck = FlashcardDeck.fromJson(response);
+      if (deck.creatorId.isNotEmpty &&
+          (deck.creatorName == null || deck.creatorName!.isEmpty)) {
+        try {
+          final profileRes = await client
+              .from('profiles')
+              .select('name, avatar_url')
+              .eq('id', deck.creatorId)
+              .maybeSingle();
+          if (profileRes != null) {
+            deck = FlashcardDeck(
+              id: deck.id,
+              creatorId: deck.creatorId,
+              title: deck.title,
+              description: deck.description,
+              imageUrl: deck.imageUrl,
+              isPublic: deck.isPublic,
+              createdAt: deck.createdAt,
+              cardCount: deck.cardCount,
+              creatorName: profileRes['name'] as String?,
+              creatorAvatarUrl: profileRes['avatar_url'] as String?,
+            );
+          }
+        } catch (_) {}
+      }
+
       final count = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
 
       final isCreator = deck.creatorId == user?.id;
@@ -201,7 +227,58 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 20),
+                if (_deck!.creatorId.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () {
+                      UserDetailBottomSheet.show(
+                        context,
+                        userId: _deck!.creatorId,
+                        name: _deck!.creatorName ?? 'Author',
+                        avatarUrl: _deck!.creatorAvatarUrl,
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 10,
+                            backgroundColor: Colors.deepPurple.shade100,
+                            backgroundImage: (_deck!.creatorAvatarUrl != null &&
+                                    _deck!.creatorAvatarUrl!.isNotEmpty)
+                                ? NetworkImage(_deck!.creatorAvatarUrl!)
+                                : null,
+                            child: (_deck!.creatorAvatarUrl == null ||
+                                    _deck!.creatorAvatarUrl!.isEmpty)
+                                ? const Icon(Icons.person,
+                                    size: 11, color: Colors.deepPurple)
+                                : null,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _deck!.creatorName ?? 'Author',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.deepPurple.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
                 // Badges/Chips
                 Chip(
                   label: Text(

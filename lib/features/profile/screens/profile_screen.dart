@@ -16,28 +16,155 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
 
   Future<void> _deleteAccount() async {
+    bool deleteContributions = true;
+
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Account?'),
-        content: const Text('This action is permanent. All your quizzes and history will be deleted.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+                SizedBox(width: 8),
+                Text(
+                  'Delete Account',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Deleting your account is permanent. Please choose how to handle your created content (Lessons, Quizzes, Flashcards, and Discussions):',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  RadioListTile<bool>(
+                    value: true,
+                    groupValue: deleteContributions,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: Colors.deepPurple,
+                    title: const Text(
+                      'Delete account & remove all my contributions',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'All quizzes, flashcards, lessons, and discussions created by you will be permanently deleted.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => deleteContributions = val);
+                      }
+                    },
+                  ),
+                  RadioListTile<bool>(
+                    value: false,
+                    groupValue: deleteContributions,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: Colors.deepPurple,
+                    title: const Text(
+                      'Delete account but keep my public contributions',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Your public content remains available for the community under "Deleted User". Private drafts will be deleted.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => deleteContributions = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.lightbulb_outline_rounded,
+                          color: Colors.amber.shade900,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Tip: If you only want to keep specific contributions, click Cancel first to manually delete unwanted items before deleting your account.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              height: 1.3,
+                              color: Colors.amber.shade900,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'Delete Account',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
 
     if (confirm == true) {
       try {
         setState(() => _isLoading = true);
-        await context.read<AuthRepository>().deleteAccount();
+        await context
+            .read<AuthRepository>()
+            .deleteAccount(deleteContributions: deleteContributions);
         if (mounted) {
           context.go('/login');
         }

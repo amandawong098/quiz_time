@@ -89,8 +89,11 @@ class AuthRepository extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteAccount() async {
-    await _supabase.rpc('delete_user');
+  Future<void> deleteAccount({bool deleteContributions = true}) async {
+    await _supabase.rpc(
+      'delete_user',
+      params: {'p_delete_contributions': deleteContributions},
+    );
     await signOut();
   }
 }

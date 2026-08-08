@@ -171,8 +171,8 @@ class DiscussionTopic {
 
     return DiscussionTopic(
       id: json['id'] as String,
-      authorId: json['author_id'] as String,
-      authorName: profile?['name'] as String? ?? 'User Name',
+      authorId: json['author_id'] as String? ?? '',
+      authorName: profile?['name'] as String? ?? (json['author_id'] == null ? 'Deleted User' : 'User Name'),
       authorAvatarUrl: profile?['avatar_url'] as String?,
       title: json['title'] as String,
       content: json['content'] as String,
@@ -289,8 +289,8 @@ class DiscussionReply {
     return DiscussionReply(
       id: json['id'] as String,
       topicId: json['topic_id'] as String,
-      authorId: json['author_id'] as String,
-      authorName: profile?['name'] as String? ?? 'User Name',
+      authorId: json['author_id'] as String? ?? '',
+      authorName: profile?['name'] as String? ?? (json['author_id'] == null ? 'Deleted User' : 'User Name'),
       authorAvatarUrl: profile?['avatar_url'] as String?,
       content: json['content'] as String,
       attachments: parsedAttachments,

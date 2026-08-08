@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../core/widgets/flashcard_filter_bar.dart';
 import '../models/flashcard_models.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class FlashcardsTab extends StatefulWidget {
   const FlashcardsTab({super.key});
@@ -173,38 +174,91 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                         ],
                       ],
                     ),
-                    // Card Count Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.deepPurple.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            '🎴',
-                            style: TextStyle(
-                              fontSize: 11,
-                            ),
+                    // Footer Area: Card Count Badge & Author Chip
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            deck.cardCount == 1
-                                ? '1 Card'
-                                : '${deck.cardCount} Cards',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.deepPurple.shade700,
+                          decoration: BoxDecoration(
+                            color: Colors.deepPurple.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                '🎴',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                deck.cardCount == 1
+                                    ? '1 Card'
+                                    : '${deck.cardCount} Cards',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.deepPurple.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (deck.creatorId.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () {
+                              UserDetailBottomSheet.show(
+                                context,
+                                userId: deck.creatorId,
+                                name: deck.creatorName ?? 'Author',
+                                avatarUrl: deck.creatorAvatarUrl,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 8,
+                                    backgroundColor: Colors.deepPurple.shade100,
+                                    backgroundImage: (deck.creatorAvatarUrl != null &&
+                                            deck.creatorAvatarUrl!.isNotEmpty)
+                                        ? NetworkImage(deck.creatorAvatarUrl!)
+                                        : null,
+                                    child: (deck.creatorAvatarUrl == null ||
+                                            deck.creatorAvatarUrl!.isEmpty)
+                                        ? const Icon(Icons.person, size: 9, color: Colors.deepPurple)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      deck.creatorName ?? 'Author',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.deepPurple.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -324,7 +378,7 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                             crossAxisCount: 2,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
-                            childAspectRatio: 0.78,
+                            childAspectRatio: 0.70,
                           ),
                           delegate: SliverChildBuilderDelegate(
                             (context, index) {

@@ -8,6 +8,7 @@ import '../../../data/repositories/discussion_repository.dart';
 import '../models/lesson_models.dart';
 import './lesson_discussions_sheet.dart';
 import '../models/lesson_progress.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class LessonsTab extends StatefulWidget {
   final String? initialCourseId;
@@ -753,6 +754,52 @@ class LessonsTabState extends State<LessonsTab> {
                                             color: Colors.grey.shade600,
                                           ),
                                         ),
+                                        const SizedBox(height: 6),
+                                      ],
+                                      if (course.creatorId != null &&
+                                          course.creatorId!.isNotEmpty) ...[
+                                        InkWell(
+                                          onTap: () {
+                                            UserDetailBottomSheet.show(
+                                              context,
+                                              userId: course.creatorId!,
+                                              name: course.creatorName ?? 'Author',
+                                              avatarUrl: course.creatorAvatarUrl,
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                CircleAvatar(
+                                                  radius: 9,
+                                                  backgroundColor: Colors.deepPurple.shade100,
+                                                  backgroundImage: (course.creatorAvatarUrl != null &&
+                                                          course.creatorAvatarUrl!.isNotEmpty)
+                                                      ? NetworkImage(course.creatorAvatarUrl!)
+                                                      : null,
+                                                  child: (course.creatorAvatarUrl == null ||
+                                                          course.creatorAvatarUrl!.isEmpty)
+                                                      ? const Icon(Icons.person, size: 10, color: Colors.deepPurple)
+                                                      : null,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  course.creatorName ?? 'Author',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.deepPurple.shade700,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                      ] else ...[
                                         const SizedBox(height: 8),
                                       ],
                                       Row(
@@ -999,44 +1046,62 @@ class LessonsTabState extends State<LessonsTab> {
                             color: isDark ? Colors.white : Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: course.isPublic
-                                ? Colors.green.shade50
-                                : (isDark
-                                      ? Colors.grey.shade800
-                                      : Colors.grey.shade100),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: course.isPublic
-                                  ? Colors.green.shade300
-                                  : (isDark
-                                        ? Colors.grey.shade700
-                                        : Colors.grey.shade300),
+                        if (course.creatorId != null &&
+                            course.creatorId!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () {
+                              UserDetailBottomSheet.show(
+                                context,
+                                userId: course.creatorId!,
+                                name: course.creatorName ?? 'Author',
+                                avatarUrl: course.creatorAvatarUrl,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.deepPurple.shade900.withValues(alpha: 0.4)
+                                    : Colors.deepPurple.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 10,
+                                    backgroundColor: Colors.deepPurple.shade100,
+                                    backgroundImage: (course.creatorAvatarUrl != null &&
+                                            course.creatorAvatarUrl!.isNotEmpty)
+                                        ? NetworkImage(course.creatorAvatarUrl!)
+                                        : null,
+                                    child: (course.creatorAvatarUrl == null ||
+                                            course.creatorAvatarUrl!.isEmpty)
+                                        ? const Icon(Icons.person,
+                                            size: 11, color: Colors.deepPurple)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    course.creatorName ?? 'Author',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? Colors.deepPurple.shade200
+                                          : Colors.deepPurple.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          child: Text(
-                            course.isPublic
-                                ? 'Public Lesson'
-                                : 'Private Lesson',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: course.isPublic
-                                  ? (isDark
-                                        ? Colors.green.shade300
-                                        : Colors.green.shade700)
-                                  : (isDark
-                                        ? Colors.grey.shade400
-                                        : Colors.grey.shade700),
-                            ),
-                          ),
-                        ),
+                        ],
                         const SizedBox(height: 16),
                         if (course.description != null &&
                             course.description!.isNotEmpty) ...[

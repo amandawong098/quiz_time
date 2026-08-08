@@ -5,6 +5,7 @@ import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
 import '../../../core/widgets/notification_badge.dart';
+import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -207,44 +208,118 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                                   ],
                                                 ],
                                               ),
-                                              // Dynamic badge below details
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
+                                              Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
                                                       horizontal: 8,
                                                       vertical: 4,
                                                     ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      Colors.deepPurple.shade50,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Text(
-                                                      _getQuestionBadgeEmoji(
-                                                        quiz.questionCount,
-                                                      ),
-                                                      style: const TextStyle(
-                                                        fontSize: 11,
-                                                      ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.deepPurple.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(8),
                                                     ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      '${quiz.questionCount} Qs',
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: Colors
-                                                            .deepPurple
-                                                            .shade700,
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          _getQuestionBadgeEmoji(
+                                                            quiz.questionCount,
+                                                          ),
+                                                          style: const TextStyle(
+                                                            fontSize: 11,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 4),
+                                                        Text(
+                                                          '${quiz.questionCount} Qs',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            color: Colors
+                                                                .deepPurple
+                                                                .shade700,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (quiz.creatorId.isNotEmpty) ...[
+                                                    const SizedBox(height: 4),
+                                                    InkWell(
+                                                      onTap: () {
+                                                        UserDetailBottomSheet.show(
+                                                          context,
+                                                          userId: quiz.creatorId,
+                                                          name: quiz.creatorName ??
+                                                              'Author',
+                                                          avatarUrl:
+                                                              quiz.creatorAvatarUrl,
+                                                        );
+                                                      },
+                                                      borderRadius:
+                                                          BorderRadius.circular(12),
+                                                      child: Padding(
+                                                        padding: const EdgeInsets
+                                                            .symmetric(vertical: 2),
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            CircleAvatar(
+                                                              radius: 8,
+                                                              backgroundColor:
+                                                                  Colors.deepPurple
+                                                                      .shade100,
+                                                              backgroundImage: (quiz.creatorAvatarUrl !=
+                                                                          null &&
+                                                                      quiz.creatorAvatarUrl!
+                                                                          .isNotEmpty)
+                                                                  ? NetworkImage(quiz
+                                                                      .creatorAvatarUrl!)
+                                                                  : null,
+                                                              child: (quiz.creatorAvatarUrl ==
+                                                                          null ||
+                                                                      quiz.creatorAvatarUrl!
+                                                                          .isEmpty)
+                                                                  ? const Icon(
+                                                                      Icons.person,
+                                                                      size: 9,
+                                                                      color: Colors
+                                                                          .deepPurple)
+                                                                  : null,
+                                                            ),
+                                                            const SizedBox(width: 4),
+                                                            Expanded(
+                                                              child: Text(
+                                                                quiz.creatorName ??
+                                                                    'Author',
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow
+                                                                    .ellipsis,
+                                                                style: TextStyle(
+                                                                  fontSize: 10,
+                                                                  fontWeight:
+                                                                      FontWeight.w600,
+                                                                  color: Colors
+                                                                      .deepPurple
+                                                                      .shade700,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
                                                       ),
                                                     ),
                                                   ],
-                                                ),
+                                                ],
                                               ),
                                             ],
                                           ),

@@ -27,6 +27,16 @@ class UserDetailBottomSheet extends StatefulWidget {
     required String name,
     String? avatarUrl,
   }) {
+    if (userId.isEmpty || name == 'Deleted User' || userId.toLowerCase() == 'deleted') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Cannot access deleted account's profile"),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return Future.value();
+    }
+
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

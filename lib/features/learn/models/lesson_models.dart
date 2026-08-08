@@ -5,6 +5,8 @@ class LessonCourse {
   final bool isPublic;
   final String? imageUrl;
   final String? creatorId;
+  final String? creatorName;
+  final String? creatorAvatarUrl;
 
   LessonCourse({
     required this.id,
@@ -13,16 +15,30 @@ class LessonCourse {
     this.isPublic = false,
     this.imageUrl,
     this.creatorId,
+    this.creatorName,
+    this.creatorAvatarUrl,
   });
 
   factory LessonCourse.fromJson(Map<String, dynamic> json) {
+    String? cName;
+    String? cAvatar;
+    if (json['creator'] is Map) {
+      cName = json['creator']['name'] as String?;
+      cAvatar = json['creator']['avatar_url'] as String?;
+    } else if (json['profiles'] is Map) {
+      cName = json['profiles']['name'] as String?;
+      cAvatar = json['profiles']['avatar_url'] as String?;
+    }
+
     return LessonCourse(
       id: json['id'] as String,
       title: json['title'] as String,
       description: json['description'] as String?,
       isPublic: json['is_public'] as bool? ?? false,
       imageUrl: json['image_url'] as String?,
-      creatorId: json['creator_id'] as String?,
+      creatorId: json['creator_id'] as String? ?? '',
+      creatorName: cName ?? (json['creator_id'] == null ? 'Deleted User' : null),
+      creatorAvatarUrl: cAvatar,
     );
   }
 
