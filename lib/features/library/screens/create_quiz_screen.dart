@@ -269,6 +269,38 @@ class _CreateQuizScreenState extends State<CreateQuizScreen> {
                     ],
                   ),
                 ),
+                if (widget.quiz == null) ...[
+                  const SizedBox(height: 20),
+                  Card(
+                    elevation: 0,
+                    color: Colors.deepPurple.shade50,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(color: Colors.deepPurple.shade100),
+                    ),
+                    child: ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Colors.deepPurple,
+                        child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                      ),
+                      title: const Text(
+                        'Generate Quiz with AI',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Upload files or enter a topic to auto-generate questions instantly.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        context.pushReplacement('/ai-quiz-generator');
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: _titleController,

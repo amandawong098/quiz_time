@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
+import '../../../core/services/ai_generation_manager.dart';
 
 class MyQuizzesScreen extends StatefulWidget {
   const MyQuizzesScreen({super.key});
@@ -23,6 +24,23 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
   void initState() {
     super.initState();
     _loadMyQuizzes();
+    AIGenerationManager().addListener(_onAIManagerStateChanged);
+  }
+
+  @override
+  void dispose() {
+    AIGenerationManager().removeListener(_onAIManagerStateChanged);
+    super.dispose();
+  }
+
+  void _onAIManagerStateChanged() {
+    if (mounted) {
+      final task = AIGenerationManager().currentTask;
+      if (task?.status == AITaskStatus.completed) {
+        _loadMyQuizzes();
+      }
+      setState(() {});
+    }
   }
 
   Future<void> _loadMyQuizzes() async {
@@ -63,11 +81,72 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Quizzes'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: FilledButton.tonalIcon(
+              onPressed: () {
+                context.push('/ai-quiz-generator').then((_) => _loadMyQuizzes());
+              },
+              icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.deepPurple),
+              label: const Text('AI Generator'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.deepPurple.shade50,
+                foregroundColor: Colors.deepPurple.shade900,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            // Background AI Generation Status Banner
+            Builder(
+              builder: (context) {
+                final aiTask = AIGenerationManager().currentTask;
+                if (aiTask == null || aiTask.status != AITaskStatus.generating) {
+                  return const SizedBox.shrink();
+                }
+                return Card(
+                  color: Colors.deepPurple.shade50,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: Colors.deepPurple.shade200),
+                  ),
+                  child: ListTile(
+                    leading: const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                    title: Text(
+                      'AI Generating: ${aiTask.prompt.isNotEmpty ? aiTask.prompt : (aiTask.fileName ?? "Quiz")}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.deepPurple,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      aiTask.statusMessage,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () {
+                        context.push('/ai-quiz-generator');
+                      },
+                      child: const Text('View', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                );
+              },
+            ),
             QuizFilterBar(
               searchQuery: _searchQuery,
               selectedQuestionRange: _selectedQuestionRange,

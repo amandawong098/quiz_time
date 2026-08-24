@@ -348,7 +348,8 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
         return;
       }
 
-      int duration = int.tryParse(f.durationController.text) ?? 30;
+      int duration = int.tryParse(f.durationController.text.trim()) ?? 30;
+      if (duration <= 0) duration = 30;
 
       questionsToSave.add(
         Question(

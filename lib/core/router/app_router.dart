@@ -22,6 +22,7 @@ import '../../features/quiz/screens/take_quiz_screen.dart';
 import '../../features/quiz/screens/quiz_review_screen.dart';
 import '../../features/library/screens/create_quiz_screen.dart';
 import '../../features/library/screens/create_question_screen.dart';
+import '../../features/library/screens/ai_quiz_generator_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/profile/screens/my_discussions_screen.dart';
 import '../../features/profile/screens/friends_screen.dart';
@@ -146,6 +147,10 @@ final GoRouter appRouter = GoRouter(
             state.extra as Map<String, dynamic>?;
         return CreateQuizScreen(quiz: extra?['quiz']);
       },
+    ),
+    GoRoute(
+      path: '/ai-quiz-generator',
+      builder: (context, state) => const AIQuizGeneratorScreen(),
     ),
     GoRoute(
       path: '/create-lesson',
