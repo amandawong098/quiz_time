@@ -477,7 +477,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        isQuit ? 'QUIT (0%)' : '$accuracyInt%',
+                        isQuit ? 'QUIT ($accuracyInt%)' : '$accuracyInt%',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: isQuit ? Colors.redAccent : Colors.deepPurple,

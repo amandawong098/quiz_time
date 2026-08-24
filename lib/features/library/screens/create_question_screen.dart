@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
@@ -42,7 +43,15 @@ class _QuestionFormData {
     }
 
     if (questionTextController.text.trim().isEmpty) return false;
-    if (durationController.text.trim().isEmpty) return false;
+    final dur = int.tryParse(durationController.text.trim());
+    if (dur == null || dur <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Time limit must be a positive number greater than 0'),
+        ),
+      );
+      return false;
+    }
 
     if (optionControllers.length < 2) {
       ScaffoldMessenger.of(
@@ -478,14 +487,19 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                       controller: formData.durationController,
                       decoration: const InputDecoration(
                         labelText: 'Duration (seconds)',
+                        hintText: 'e.g. 30',
                       ),
                       keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) {
                           return 'Required';
                         }
-                        if (int.tryParse(val.trim()) == null) {
-                          return 'Must be a number';
+                        final numVal = int.tryParse(val.trim());
+                        if (numVal == null || numVal <= 0) {
+                          return 'Must be greater than 0';
                         }
                         return null;
                       },

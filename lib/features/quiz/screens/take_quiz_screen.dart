@@ -234,8 +234,8 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     }
 
     final totalQuestions = _questions.isEmpty ? 1 : _questions.length;
-    int score = isQuit ? 0 : (_correctCount * 100) ~/ totalQuestions;
-    double accuracy = isQuit ? 0.0 : (_correctCount / totalQuestions) * 100.0;
+    int score = (_correctCount * 100) ~/ totalQuestions;
+    double accuracy = (_correctCount / totalQuestions) * 100.0;
 
     final attempt = QuizAttempt(
       id: '', // Will be assigned by DB
