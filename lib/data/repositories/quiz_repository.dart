@@ -11,7 +11,7 @@ class QuizRepository {
   }) async {
     var req = _supabase
         .from('quizzes')
-        .select()
+        .select('*, questions(id)')
         .or(
           'is_public.eq.true,creator_id.eq.${_supabase.auth.currentUser!.id}',
         );
@@ -81,7 +81,7 @@ class QuizRepository {
   }) async {
     var req = _supabase
         .from('quizzes')
-        .select()
+        .select('*, questions(id)')
         .eq('creator_id', _supabase.auth.currentUser!.id);
 
     if (isPublic != null) {
@@ -212,6 +212,12 @@ class QuizRepository {
         }
       }
     }
+
+    // Sync question_count column in quizzes table
+    await _supabase
+        .from('quizzes')
+        .update({'question_count': questions.length})
+        .eq('id', quizId);
   }
 
   // Fetch attempts for a specific quiz for the current user

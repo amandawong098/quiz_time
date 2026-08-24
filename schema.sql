@@ -18,8 +18,6 @@ DROP TABLE IF EXISTS public.questions CASCADE;
 DROP TABLE IF EXISTS public.quiz_attempts CASCADE;
 DROP TABLE IF EXISTS public.quizzes CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
-DROP TABLE IF EXISTS public.subjects CASCADE;
-DROP TABLE IF EXISTS public.grades CASCADE;
 DROP TABLE IF EXISTS public.lesson_blocks CASCADE;
 DROP TABLE IF EXISTS public.lesson_pages CASCADE;
 DROP TABLE IF EXISTS public.lesson_sub_chapters CASCADE;
@@ -36,20 +34,6 @@ CREATE TABLE public.profiles (
     avatar_url TEXT,
     xp INTEGER DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Subjects Table (For localized dropdowns)
-CREATE TABLE public.subjects (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Grades Table (For localized dropdowns)
-CREATE TABLE public.grades (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Quizzes Table
@@ -171,8 +155,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 5. ROW LEVEL SECURITY (RLS)
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.grades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quizzes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.options ENABLE ROW LEVEL SECURITY;
@@ -182,10 +164,6 @@ ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-
--- Subjects & Grades Policies (Read only for public)
-CREATE POLICY "Public read subjects" ON public.subjects FOR SELECT USING (true);
-CREATE POLICY "Public read grades" ON public.grades FOR SELECT USING (true);
 
 -- Quizzes Policies
 CREATE POLICY "Viewable quizzes" ON public.quizzes FOR SELECT USING (is_public = true OR auth.uid() = creator_id);
@@ -781,8 +759,58 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Only trusted server-side jobs should run the real weekly rollover.
-REVOKE EXECUTE ON FUNCTION public.reset_weekly_leagues() FROM anon, authenticated;
+-- System Settings table to track last weekly reset timestamp
+CREATE TABLE IF NOT EXISTS public.system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO public.system_settings (key, value)
+VALUES ('last_weekly_reset_at', '1970-01-01T00:00:00Z')
+ON CONFLICT (key) DO NOTHING;
+
+-- RPC Function to check if a new week has started and trigger weekly reset automatically or forcefully
+CREATE OR REPLACE FUNCTION public.check_and_reset_weekly_leagues(p_force BOOLEAN DEFAULT FALSE)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_last_reset_str TEXT;
+    v_last_reset TIMESTAMPTZ;
+    v_current_sunday_start TIMESTAMPTZ;
+BEGIN
+    -- Calculate the start of the current week (Sunday 00:00:00 UTC)
+    v_current_sunday_start := date_trunc('day', NOW()) - (EXTRACT(ISODOW FROM NOW())::integer % 7 * INTERVAL '1 day');
+
+    -- Lock system_settings row to prevent concurrent race conditions
+    SELECT value INTO v_last_reset_str 
+    FROM public.system_settings 
+    WHERE key = 'last_weekly_reset_at' 
+    FOR UPDATE;
+    
+    IF v_last_reset_str IS NOT NULL THEN
+        v_last_reset := v_last_reset_str::TIMESTAMPTZ;
+    ELSE
+        v_last_reset := '1970-01-01T00:00:00Z'::TIMESTAMPTZ;
+    END IF;
+
+    IF p_force OR v_last_reset < v_current_sunday_start THEN
+        -- Immediately update last_weekly_reset_at timestamp before performing reset
+        INSERT INTO public.system_settings (key, value, updated_at)
+        VALUES ('last_weekly_reset_at', NOW()::TEXT, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
+
+        PERFORM public.reset_weekly_leagues();
+
+        RETURN TRUE;
+    END IF;
+
+    RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Allow authenticated users to execute weekly reset functions
+GRANT EXECUTE ON FUNCTION public.reset_weekly_leagues() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_and_reset_weekly_leagues(BOOLEAN) TO authenticated;
 
 -- =======================================================
 -- 14. LEADERBOARD SANDBOX SAFETY

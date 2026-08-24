@@ -45,6 +45,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
+    final didReset = await _repository.checkAndResetWeeklyLeagues();
+    if (didReset && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Weekly leaderboard reset completed! Check your mailbox.'),
+          backgroundColor: Colors.deepPurple,
+        ),
+      );
+    }
     await _loadUserProfile();
     _configs = await _repository.getLeagueConfigs();
     if (_configs.isEmpty) {
@@ -132,8 +141,46 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
-        actions: const [
-          NotificationIconBadge(),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (val) async {
+              if (val == 'test_reset') {
+                setState(() => _isLoading = true);
+                final success =
+                    await _repository.checkAndResetWeeklyLeagues(force: true);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? 'Weekly reset completed! Check your mailbox notifications.'
+                            : 'Failed to run weekly reset.',
+                      ),
+                      backgroundColor:
+                          success ? Colors.deepPurple : Colors.red,
+                    ),
+                  );
+                  await _loadUserProfile();
+                  _selectedLeague = _userLeague;
+                  await _loadLeaderboard();
+                }
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'test_reset',
+                child: Row(
+                  children: [
+                    Icon(Icons.restart_alt_rounded, color: Colors.deepPurple),
+                    SizedBox(width: 8),
+                    Text('Simulate Weekly Reset'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const NotificationIconBadge(),
         ],
       ),
       body: _isLoading

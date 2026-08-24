@@ -110,4 +110,16 @@ class LeaderboardRepository {
     }
   }
 
+  /// Check and reset weekly leagues automatically if a new week has started, or force reset if requested
+  Future<bool> checkAndResetWeeklyLeagues({bool force = false}) async {
+    try {
+      final response = await _client.rpc(
+        'check_and_reset_weekly_leagues',
+        params: {'p_force': force},
+      );
+      return response as bool? ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

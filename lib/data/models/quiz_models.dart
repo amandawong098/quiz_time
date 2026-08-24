@@ -34,6 +34,13 @@ class Quiz {
       cAvatar = json['profiles']['avatar_url'] as String?;
     }
 
+    int qCount = 0;
+    if (json['questions'] is List) {
+      qCount = (json['questions'] as List).length;
+    } else if (json['question_count'] != null) {
+      qCount = (json['question_count'] as num).toInt();
+    }
+
     return Quiz(
       id: json['id'],
       creatorId: json['creator_id'] ?? '',
@@ -42,7 +49,7 @@ class Quiz {
       isPublic: json['is_public'] ?? false,
       imageUrl: json['image_url'],
       createdAt: DateTime.parse(json['created_at']),
-      questionCount: json['question_count'] ?? 0,
+      questionCount: qCount,
       creatorName: cName ?? (json['creator_id'] == null ? 'Deleted User' : null),
       creatorAvatarUrl: cAvatar,
     );
