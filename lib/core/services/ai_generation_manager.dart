@@ -3,44 +3,56 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/quiz_models.dart';
 import '../../data/repositories/quiz_repository.dart';
+import '../../data/repositories/flashcard_repository.dart';
 import 'ai_quiz_service.dart';
+import 'ai_flashcard_service.dart';
 
+enum AITaskType { quiz, flashcard }
 enum AITaskStatus { idle, generating, completed, failed }
 
 class AIGenerationTask {
   final String id;
+  final AITaskType taskType;
   final String prompt;
   final String? fileName;
-  final int questionCount;
+  final int count; // questionCount or cardCount
   final String difficulty;
-  final int durationSeconds;
+  final int durationSeconds; // for quiz
+  final String cardStyle; // for flashcard
   final bool generateCover;
   final String modelName;
   AITaskStatus status;
   String statusMessage;
   String? error;
-  String? generatedQuizId;
-  String? generatedQuizTitle;
+  String? generatedId; // quizId or deckId
+  String? generatedTitle;
   String? generatedCoverUrl;
   DateTime createdAt;
 
   AIGenerationTask({
     required this.id,
+    this.taskType = AITaskType.quiz,
     required this.prompt,
     this.fileName,
-    required this.questionCount,
+    required this.count,
     required this.difficulty,
-    required this.durationSeconds,
+    this.durationSeconds = 0,
+    this.cardStyle = 'Mixed',
     this.generateCover = true,
     required this.modelName,
     this.status = AITaskStatus.generating,
     this.statusMessage = 'Preparing study materials...',
     this.error,
-    this.generatedQuizId,
-    this.generatedQuizTitle,
+    this.generatedId,
+    this.generatedTitle,
     this.generatedCoverUrl,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  // Backward compatibility getters
+  int get questionCount => count;
+  String? get generatedQuizId => generatedId;
+  String? get generatedQuizTitle => generatedTitle;
 }
 
 class AIGenerationManager extends ChangeNotifier {
@@ -56,7 +68,6 @@ class AIGenerationManager extends ChangeNotifier {
   List<AIGenerationTask> get completedTasks => List.unmodifiable(_completedTasks);
 
   /// Starts an asynchronous AI Quiz generation task.
-  /// Automatically saves the finished quiz directly to Supabase as a Draft Quiz.
   Future<void> startGeneration({
     required BuildContext context,
     required String prompt,
@@ -72,9 +83,10 @@ class AIGenerationManager extends ChangeNotifier {
     final taskId = DateTime.now().millisecondsSinceEpoch.toString();
     final task = AIGenerationTask(
       id: taskId,
+      taskType: AITaskType.quiz,
       prompt: prompt,
       fileName: fileName,
-      questionCount: questionCount,
+      count: questionCount,
       difficulty: difficulty,
       durationSeconds: durationSeconds,
       generateCover: generateCover,
@@ -84,7 +96,7 @@ class AIGenerationManager extends ChangeNotifier {
     _currentTask = task;
     notifyListeners();
 
-    _runBackgroundTask(
+    _runBackgroundQuizTask(
       task: task,
       fileBytes: fileBytes,
       fileName: fileName,
@@ -92,7 +104,44 @@ class AIGenerationManager extends ChangeNotifier {
     );
   }
 
-  Future<void> _runBackgroundTask({
+  /// Starts an asynchronous AI Flashcard generation task.
+  Future<void> startFlashcardGeneration({
+    required BuildContext context,
+    required String prompt,
+    Uint8List? fileBytes,
+    String? fileName,
+    String? fileMimeType,
+    required int cardCount,
+    required String cardStyle,
+    required String difficulty,
+    bool generateCover = true,
+    required String modelName,
+  }) async {
+    final taskId = DateTime.now().millisecondsSinceEpoch.toString();
+    final task = AIGenerationTask(
+      id: taskId,
+      taskType: AITaskType.flashcard,
+      prompt: prompt,
+      fileName: fileName,
+      count: cardCount,
+      difficulty: difficulty,
+      cardStyle: cardStyle,
+      generateCover: generateCover,
+      modelName: modelName,
+    );
+
+    _currentTask = task;
+    notifyListeners();
+
+    _runBackgroundFlashcardTask(
+      task: task,
+      fileBytes: fileBytes,
+      fileName: fileName,
+      fileMimeType: fileMimeType,
+    );
+  }
+
+  Future<void> _runBackgroundQuizTask({
     required AIGenerationTask task,
     Uint8List? fileBytes,
     String? fileName,
@@ -128,7 +177,7 @@ class AIGenerationManager extends ChangeNotifier {
         fileBytes: fileBytes,
         fileName: fileName,
         fileMimeType: fileMimeType,
-        questionCount: task.questionCount,
+        questionCount: task.count,
         difficulty: task.difficulty,
         durationSeconds: task.durationSeconds,
         generateCover: task.generateCover,
@@ -143,7 +192,6 @@ class AIGenerationManager extends ChangeNotifier {
       task.statusMessage = 'Saving draft quiz to your library...';
       notifyListeners();
 
-      // Save directly to Supabase
       final repo = QuizRepository();
       final user = Supabase.instance.client.auth.currentUser;
 
@@ -159,7 +207,6 @@ class AIGenerationManager extends ChangeNotifier {
 
       final quizId = await repo.createQuiz(newQuiz);
 
-      // Convert questions
       final List<Question> questions = [];
       for (int i = 0; i < questionsData.length; i++) {
         final qData = questionsData[i];
@@ -192,13 +239,98 @@ class AIGenerationManager extends ChangeNotifier {
 
       task.status = AITaskStatus.completed;
       task.statusMessage = 'Quiz generated and saved successfully!';
-      task.generatedQuizId = quizId;
-      task.generatedQuizTitle = title;
+      task.generatedId = quizId;
+      task.generatedTitle = title;
       task.generatedCoverUrl = imageUrl;
       _completedTasks.insert(0, task);
       notifyListeners();
     } catch (e) {
-      debugPrint('Background AI Generation failed: $e');
+      debugPrint('Background AI Quiz Generation failed: $e');
+      task.status = AITaskStatus.failed;
+      task.error = e.toString().replaceAll('Exception: ', '');
+      task.statusMessage = 'Generation failed';
+      notifyListeners();
+    }
+  }
+
+  Future<void> _runBackgroundFlashcardTask({
+    required AIGenerationTask task,
+    Uint8List? fileBytes,
+    String? fileName,
+    String? fileMimeType,
+  }) async {
+    try {
+      task.statusMessage = 'Reading study materials...';
+      notifyListeners();
+
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating) {
+          task.statusMessage = 'Gemini AI extracting high-yield flashcard concepts...';
+          notifyListeners();
+        }
+      });
+
+      Future.delayed(const Duration(milliseconds: 2200), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating) {
+          task.statusMessage = 'Formulating study terms & breakdowns...';
+          notifyListeners();
+        }
+      });
+
+      Future.delayed(const Duration(milliseconds: 4000), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating && task.generateCover) {
+          task.statusMessage = 'Generating AI 3D cover illustration...';
+          notifyListeners();
+        }
+      });
+
+      final result = await AIFlashcardService.generateFlashcardDeck(
+        promptOrInstructions: task.prompt,
+        fileBytes: fileBytes,
+        fileName: fileName,
+        fileMimeType: fileMimeType,
+        cardCount: task.count,
+        cardStyle: task.cardStyle,
+        difficulty: task.difficulty,
+        generateCover: task.generateCover,
+        modelName: task.modelName,
+      );
+
+      final title = result['title'] as String? ?? 'AI Flashcard Deck';
+      final desc = result['description'] as String? ?? 'Generated with AI in LearnByte';
+      final imageUrl = result['imageUrl'] as String?;
+      final cardsData = result['cards'] as List<Map<String, String>>? ?? [];
+
+      task.statusMessage = 'Saving flashcard deck to your library...';
+      notifyListeners();
+
+      final repo = FlashcardRepository();
+      final deck = await repo.createDeck(
+        title: title,
+        description: desc,
+        isPublic: false,
+        imageUrl: imageUrl,
+      );
+
+      for (int i = 0; i < cardsData.length; i++) {
+        final card = cardsData[i];
+        await repo.createFlashcard(
+          deckId: deck.id,
+          front: card['front'] ?? '',
+          back: card['back'] ?? '',
+          position: i + 1,
+        );
+      }
+
+      task.status = AITaskStatus.completed;
+      task.statusMessage = 'Flashcard deck generated and saved successfully!';
+      task.generatedId = deck.id;
+      task.generatedTitle = title;
+      task.generatedCoverUrl = imageUrl;
+      _completedTasks.insert(0, task);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Background AI Flashcard Generation failed: $e');
       task.status = AITaskStatus.failed;
       task.error = e.toString().replaceAll('Exception: ', '');
       task.statusMessage = 'Generation failed';

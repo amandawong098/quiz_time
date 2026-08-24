@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../core/widgets/flashcard_filter_bar.dart';
+import '../../../core/services/ai_generation_manager.dart';
 import '../models/flashcard_models.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
@@ -24,6 +25,24 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
   void initState() {
     super.initState();
     _loadDecks();
+    AIGenerationManager().addListener(_onAIManagerStateChanged);
+  }
+
+  @override
+  void dispose() {
+    AIGenerationManager().removeListener(_onAIManagerStateChanged);
+    super.dispose();
+  }
+
+  void _onAIManagerStateChanged() {
+    if (mounted) {
+      final task = AIGenerationManager().currentTask;
+      if (task?.taskType == AITaskType.flashcard &&
+          task?.status == AITaskStatus.completed) {
+        _loadDecks();
+      }
+      setState(() {});
+    }
   }
 
   Future<void> _loadDecks() async {
@@ -354,6 +373,75 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                         padding: const EdgeInsets.all(20.0),
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
+                            // AI Flashcard Generator Banner
+                            InkWell(
+                              onTap: () {
+                                context.push('/ai-flashcard-generator');
+                              },
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.deepPurple.shade600,
+                                      Colors.purple.shade500,
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.deepPurple
+                                          .withValues(alpha: 0.25),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: Colors.white24,
+                                      child: Icon(
+                                        Icons.auto_awesome,
+                                        color: Colors.amberAccent,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '✨ Generate Flashcards with AI',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Auto-generate high-yield study cards from topics or notes',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      color: Colors.white70,
+                                      size: 14,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                             FlashcardFilterBar(
                               searchQuery: _searchQuery,
                               selectedRange: _selectedRange,

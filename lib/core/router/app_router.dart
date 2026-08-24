@@ -28,6 +28,7 @@ import '../../features/profile/screens/my_discussions_screen.dart';
 import '../../features/profile/screens/friends_screen.dart';
 import '../../features/learn/screens/my_flashcards_screen.dart';
 import '../../features/learn/screens/create_flashcard_deck_screen.dart';
+import '../../features/learn/screens/ai_flashcard_generator_screen.dart';
 import '../../features/learn/screens/manage_cards_screen.dart';
 import '../../features/learn/screens/play_flashcards_screen.dart';
 import '../../features/learn/screens/flashcard_details_screen.dart';
@@ -151,6 +152,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/ai-quiz-generator',
       builder: (context, state) => const AIQuizGeneratorScreen(),
+    ),
+    GoRoute(
+      path: '/ai-flashcard-generator',
+      builder: (context, state) => const AIFlashcardGeneratorScreen(),
     ),
     GoRoute(
       path: '/create-lesson',

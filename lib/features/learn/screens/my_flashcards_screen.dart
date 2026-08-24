@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../core/widgets/flashcard_filter_bar.dart';
+import '../../../core/services/ai_generation_manager.dart';
 import '../models/flashcard_models.dart';
 
 class MyFlashcardsScreen extends StatefulWidget {
@@ -24,6 +25,24 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
   void initState() {
     super.initState();
     _loadDecks();
+    AIGenerationManager().addListener(_onAIManagerStateChanged);
+  }
+
+  @override
+  void dispose() {
+    AIGenerationManager().removeListener(_onAIManagerStateChanged);
+    super.dispose();
+  }
+
+  void _onAIManagerStateChanged() {
+    if (mounted) {
+      final task = AIGenerationManager().currentTask;
+      if (task?.taskType == AITaskType.flashcard &&
+          task?.status == AITaskStatus.completed) {
+        _loadDecks();
+      }
+      setState(() {});
+    }
   }
 
   Future<void> _loadDecks() async {
@@ -315,6 +334,26 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: FilledButton.tonalIcon(
+              onPressed: () {
+                context.push('/ai-flashcard-generator');
+              },
+              icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.amber),
+              label: const Text(
+                'AI Generator',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.deepPurple.shade50,
+                foregroundColor: Colors.deepPurple.shade900,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Container(
         color: Colors.grey.shade50,
@@ -322,6 +361,52 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
+              // Background AI Flashcard Generation Status Banner
+              Builder(
+                builder: (context) {
+                  final aiTask = AIGenerationManager().currentTask;
+                  if (aiTask == null ||
+                      aiTask.taskType != AITaskType.flashcard ||
+                      aiTask.status != AITaskStatus.generating) {
+                    return const SizedBox.shrink();
+                  }
+                  return Card(
+                    color: Colors.deepPurple.shade50,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(color: Colors.deepPurple.shade200),
+                    ),
+                    child: ListTile(
+                      leading: const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                      title: Text(
+                        'AI Generating: ${aiTask.prompt.isNotEmpty ? aiTask.prompt : (aiTask.fileName ?? "Flashcards")}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.deepPurple,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        aiTask.statusMessage,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: TextButton(
+                        onPressed: () {
+                          context.push('/ai-flashcard-generator');
+                        },
+                        child: const Text('View', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                  );
+                },
+              ),
               // Filter Bar
               FlashcardFilterBar(
                 searchQuery: _searchQuery,
