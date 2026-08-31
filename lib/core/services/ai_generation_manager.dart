@@ -4,10 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/quiz_models.dart';
 import '../../data/repositories/quiz_repository.dart';
 import '../../data/repositories/flashcard_repository.dart';
+import '../../data/repositories/lesson_repository.dart';
 import 'ai_quiz_service.dart';
 import 'ai_flashcard_service.dart';
+import 'ai_lesson_service.dart';
 
-enum AITaskType { quiz, flashcard }
+enum AITaskType { quiz, flashcard, lesson }
 enum AITaskStatus { idle, generating, completed, failed }
 
 class AIGenerationTask {
@@ -15,16 +17,18 @@ class AIGenerationTask {
   final AITaskType taskType;
   final String prompt;
   final String? fileName;
-  final int count; // questionCount or cardCount
+  final int count; // questionCount or cardCount or subChapterCount
   final String difficulty;
   final int durationSeconds; // for quiz
   final String cardStyle; // for flashcard
+  final String lessonScope; // for lesson
   final bool generateCover;
+  final bool generateInSlideImages;
   final String modelName;
   AITaskStatus status;
   String statusMessage;
   String? error;
-  String? generatedId; // quizId or deckId
+  String? generatedId; // quizId, deckId, or courseId
   String? generatedTitle;
   String? generatedCoverUrl;
   DateTime createdAt;
@@ -34,11 +38,13 @@ class AIGenerationTask {
     this.taskType = AITaskType.quiz,
     required this.prompt,
     this.fileName,
-    required this.count,
+    this.count = 5,
     required this.difficulty,
     this.durationSeconds = 0,
     this.cardStyle = 'Mixed',
+    this.lessonScope = 'Standard',
     this.generateCover = true,
+    this.generateInSlideImages = true,
     required this.modelName,
     this.status = AITaskStatus.generating,
     this.statusMessage = 'Preparing study materials...',
@@ -49,7 +55,6 @@ class AIGenerationTask {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  // Backward compatibility getters
   int get questionCount => count;
   String? get generatedQuizId => generatedId;
   String? get generatedQuizTitle => generatedTitle;
@@ -134,6 +139,43 @@ class AIGenerationManager extends ChangeNotifier {
     notifyListeners();
 
     _runBackgroundFlashcardTask(
+      task: task,
+      fileBytes: fileBytes,
+      fileName: fileName,
+      fileMimeType: fileMimeType,
+    );
+  }
+
+  /// Starts an asynchronous AI Lesson generation task.
+  Future<void> startLessonGeneration({
+    required BuildContext context,
+    required String prompt,
+    Uint8List? fileBytes,
+    String? fileName,
+    String? fileMimeType,
+    required String lessonScope,
+    required String audience,
+    bool generateCover = true,
+    bool generateInSlideImages = true,
+    required String modelName,
+  }) async {
+    final taskId = DateTime.now().millisecondsSinceEpoch.toString();
+    final task = AIGenerationTask(
+      id: taskId,
+      taskType: AITaskType.lesson,
+      prompt: prompt,
+      fileName: fileName,
+      lessonScope: lessonScope,
+      difficulty: audience,
+      generateCover: generateCover,
+      generateInSlideImages: generateInSlideImages,
+      modelName: modelName,
+    );
+
+    _currentTask = task;
+    notifyListeners();
+
+    _runBackgroundLessonTask(
       task: task,
       fileBytes: fileBytes,
       fileName: fileName,
@@ -331,6 +373,146 @@ class AIGenerationManager extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Background AI Flashcard Generation failed: $e');
+      task.status = AITaskStatus.failed;
+      task.error = e.toString().replaceAll('Exception: ', '');
+      task.statusMessage = 'Generation failed';
+      notifyListeners();
+    }
+  }
+
+  Future<void> _runBackgroundLessonTask({
+    required AIGenerationTask task,
+    Uint8List? fileBytes,
+    String? fileName,
+    String? fileMimeType,
+  }) async {
+    try {
+      task.statusMessage = 'Reading study materials & syllabus...';
+      notifyListeners();
+
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating) {
+          task.statusMessage = 'Gemini AI designing curriculum & slide structure...';
+          notifyListeners();
+        }
+      });
+
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating) {
+          task.statusMessage = 'Drafting slide pages & interactive checkpoints...';
+          notifyListeners();
+        }
+      });
+
+      Future.delayed(const Duration(milliseconds: 4500), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating && task.generateInSlideImages) {
+          task.statusMessage = 'Rendering AI visual diagrams & cover art...';
+          notifyListeners();
+        }
+      });
+
+      final result = await AILessonService.generateLesson(
+        promptOrInstructions: task.prompt,
+        fileBytes: fileBytes,
+        fileName: fileName,
+        fileMimeType: fileMimeType,
+        lessonScope: task.lessonScope,
+        audience: task.difficulty,
+        generateCover: task.generateCover,
+        generateInSlideImages: task.generateInSlideImages,
+        modelName: task.modelName,
+      );
+
+      final title = result['title'] as String? ?? 'AI Generated Course';
+      final desc = result['description'] as String? ?? 'Interactive AI Course in LearnByte';
+      final imageUrl = result['imageUrl'] as String?;
+      final chaptersData = result['chapters'] as List? ?? [];
+
+      task.statusMessage = 'Saving course, subchapters, and slides to database...';
+      notifyListeners();
+
+      final repo = LessonRepository();
+
+      // 1. Create Course
+      final course = await repo.createCourse(
+        title: title,
+        description: desc,
+        isPublic: false,
+        imageUrl: imageUrl,
+      );
+
+      final List<Map<String, dynamic>> allBlockPayloads = [];
+
+      // 2. Iterate Chapters
+      for (int cIdx = 0; cIdx < chaptersData.length; cIdx++) {
+        final cData = chaptersData[cIdx];
+        if (cData is! Map) continue;
+        final cTitle = (cData['title'] ?? 'Chapter ${cIdx + 1}').toString();
+        final chapter = await repo.createChapter(
+          title: cTitle,
+          position: cIdx + 1,
+          courseId: course.id,
+        );
+
+        // 3. Iterate SubChapters
+        final subChaptersData = cData['subChapters'] as List? ?? [];
+        for (int sIdx = 0; sIdx < subChaptersData.length; sIdx++) {
+          final sData = subChaptersData[sIdx];
+          if (sData is! Map) continue;
+          final sTitle = (sData['title'] ?? 'Module ${sIdx + 1}').toString();
+          final xp = (sData['xpReward'] as num?)?.toInt() ?? 15;
+
+          final subChapter = await repo.createSubChapter(
+            chapterId: chapter.id,
+            title: sTitle,
+            position: sIdx + 1,
+            xpReward: xp,
+          );
+
+          // 4. Iterate Pages
+          final pagesData = sData['pages'] as List? ?? [];
+          for (int pIdx = 0; pIdx < pagesData.length; pIdx++) {
+            final pData = pagesData[pIdx];
+            if (pData is! Map) continue;
+
+            final page = await repo.createPage(
+              subChapterId: subChapter.id,
+              position: pIdx + 1,
+            );
+
+            // 5. Collect Block Payloads
+            final blocksData = pData['blocks'] as List? ?? [];
+            for (int bIdx = 0; bIdx < blocksData.length; bIdx++) {
+              final bData = blocksData[bIdx];
+              if (bData is! Map) continue;
+              final bType = (bData['blockType'] ?? 'text').toString();
+              final bContent = bData['content'] as Map<String, dynamic>? ?? {};
+
+              allBlockPayloads.add({
+                'page_id': page.id,
+                'block_type': bType,
+                'content': bContent,
+                'position': bIdx + 1,
+              });
+            }
+          }
+        }
+      }
+
+      // 6. Bulk Insert All Blocks in a single lightning-fast query
+      if (allBlockPayloads.isNotEmpty) {
+        await repo.insertBlocks(allBlockPayloads);
+      }
+
+      task.status = AITaskStatus.completed;
+      task.statusMessage = 'Course and interactive slides created successfully!';
+      task.generatedId = course.id;
+      task.generatedTitle = title;
+      task.generatedCoverUrl = imageUrl;
+      _completedTasks.insert(0, task);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Background AI Lesson Generation failed: $e');
       task.status = AITaskStatus.failed;
       task.error = e.toString().replaceAll('Exception: ', '');
       task.statusMessage = 'Generation failed';

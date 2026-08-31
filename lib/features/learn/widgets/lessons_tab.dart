@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../core/services/ai_generation_manager.dart';
 import '../models/lesson_models.dart';
 import './lesson_discussions_sheet.dart';
 import '../models/lesson_progress.dart';
@@ -58,12 +59,25 @@ class LessonsTabState extends State<LessonsTab> {
   void initState() {
     super.initState();
     _loadInitialCourseAndLessons();
+    AIGenerationManager().addListener(_onAIManagerStateChanged);
   }
 
   @override
   void dispose() {
+    AIGenerationManager().removeListener(_onAIManagerStateChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onAIManagerStateChanged() {
+    if (mounted) {
+      final task = AIGenerationManager().currentTask;
+      if (task?.taskType == AITaskType.lesson &&
+          task?.status == AITaskStatus.completed) {
+        _loadInitialCourseAndLessons();
+      }
+      setState(() {});
+    }
   }
 
   Future<void> _loadInitialCourseAndLessons() async {
@@ -650,6 +664,76 @@ class LessonsTabState extends State<LessonsTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // AI Lesson Generator Banner
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                  child: InkWell(
+                    onTap: () {
+                      context.push('/ai-lesson-generator');
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.deepPurple.shade600,
+                            Colors.indigo.shade500,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.deepPurple.withValues(alpha: 0.25),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.white24,
+                            child: Icon(
+                              Icons.auto_awesome,
+                              color: Colors.amberAccent,
+                              size: 20,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '✨ Generate Lesson with AI',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  'Auto-generate multi-page courses with slides & diagrams',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            color: Colors.white70,
+                            size: 14,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
                 if (displayedCourses.isEmpty)
                   _buildEmptyPlaceholder(
                     _searchQuery.isNotEmpty

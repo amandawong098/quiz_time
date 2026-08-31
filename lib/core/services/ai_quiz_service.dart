@@ -4,6 +4,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'ai_attachment_helper.dart';
 
 class AIQuizService {
   static const String _prefKey = 'gemini_api_key';
@@ -11,10 +12,14 @@ class AIQuizService {
   static const String _prefTopicSuggestionsKey = 'gemini_topic_suggestions';
 
   static const List<String> availableModels = [
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-latest',
+    'gemini-3.6-flash',
+    'gemini-3.0-flash',
     'gemini-2.0-flash',
     'gemini-2.0-flash-exp',
+    'gemini-2.0-flash-thinking-exp',
+    'gemini-2.0-pro-exp',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
     'gemini-1.5-pro',
     'gemini-1.5-pro-latest',
   ];
@@ -174,22 +179,43 @@ class AIQuizService {
     return defaultTopicSuggestions;
   }
 
-  /// Generates a photorealistic / 3D illustration AI cover image matching the quiz topic
+  /// Generates a high-quality educational illustration / diagram using the Flux AI visual model
   /// and saves it permanently into the Supabase storage bucket `quiz_images`.
   static Future<String?> generateAndUploadCoverImage(
-    String titleOrPrompt,
-  ) async {
+    String titleOrPrompt, {
+    bool isDiagram = false,
+  }) async {
     try {
-      final prompt =
-          '$titleOrPrompt, modern 3D digital illustration, clean educational cover art, vibrant gradient colors, vector graphic, high resolution, no text';
+      final isDiagramOrScience = isDiagram ||
+          titleOrPrompt.toLowerCase().contains('diagram') ||
+          titleOrPrompt.toLowerCase().contains('cross-section') ||
+          titleOrPrompt.toLowerCase().contains('structure') ||
+          titleOrPrompt.toLowerCase().contains('anatomy') ||
+          titleOrPrompt.toLowerCase().contains('cycle') ||
+          titleOrPrompt.toLowerCase().contains('process') ||
+          titleOrPrompt.toLowerCase().contains('chart') ||
+          titleOrPrompt.toLowerCase().contains('infographic');
+
+      final String prompt;
+      if (isDiagramOrScience) {
+        prompt =
+            'Detailed educational diagram and scientific infographic of $titleOrPrompt, textbook educational illustration style, clean white background, high clarity concept visual, accurate educational schema, 8k resolution';
+      } else {
+        prompt =
+            'Educational 3D conceptual illustration of $titleOrPrompt, modern educational textbook art, clean composition, vibrant lighting, highly detailed, high resolution';
+      }
+
       final encoded = Uri.encodeComponent(prompt);
       final seed = DateTime.now().millisecondsSinceEpoch % 100000;
+      final width = isDiagramOrScience ? 768 : 512;
+      const height = 512;
+      // Using model=flux for realistic educational and structural diagrams
       final url =
-          'https://image.pollinations.ai/prompt/$encoded?width=512&height=512&nologo=true&seed=$seed';
+          'https://image.pollinations.ai/prompt/$encoded?width=$width&height=$height&model=flux&nologo=true&seed=$seed';
 
       final response = await http
           .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 20));
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         try {
           final fileName = 'ai_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -402,23 +428,44 @@ Return STRICT JSON matching this schema:
       systemInstruction: Content.system(systemPrompt),
     );
 
+    // Process uploaded attachment if any (PPTX, DOCX, Images, PDF, Audio, etc.)
+    ProcessedAttachment? attachment;
+    if (fileBytes != null && (fileName != null || fileMimeType != null)) {
+      attachment = await AIAttachmentHelper.processAttachment(
+        fileBytes: fileBytes,
+        fileName: fileName ?? 'study_file.pdf',
+      );
+    }
+
     final List<Content> contentParts = [];
 
     // Add multimodal document/file if present
-    if (fileBytes != null && fileBytes.isNotEmpty) {
-      final mimeType =
-          fileMimeType ?? _resolveMimeType(fileName ?? 'document.pdf');
-      contentParts.add(
-        Content.multi([
-          DataPart(mimeType, fileBytes),
-          TextPart(
-            'Generate a $questionCount-question quiz based on the attached document.\n'
+    if (attachment != null) {
+      if (attachment.extractedText != null &&
+          attachment.extractedText!.isNotEmpty) {
+        contentParts.add(
+          Content.text(
+            'Extracted Study Content from attached presentation/document ($fileName):\n\n'
+            '${attachment.extractedText}\n\n'
+            'Generate a $questionCount-question quiz based on this study content.\n'
             'Difficulty: $difficulty\n'
             'Duration setting: ${isAutoDuration ? "Auto (AI-set per question based on complexity)" : "$durationSeconds seconds per question"}\n'
             'Additional user focus/instructions: ${promptOrInstructions.isEmpty ? "Cover key concepts thoroughly" : promptOrInstructions}',
           ),
-        ]),
-      );
+        );
+      } else if (attachment.rawBytesForGemini != null) {
+        contentParts.add(
+          Content.multi([
+            DataPart(attachment.mimeType, attachment.rawBytesForGemini!),
+            TextPart(
+              'Generate a $questionCount-question quiz based on the attached file ($fileName).\n'
+              'Difficulty: $difficulty\n'
+              'Duration setting: ${isAutoDuration ? "Auto (AI-set per question based on complexity)" : "$durationSeconds seconds per question"}\n'
+              'Additional user focus/instructions: ${promptOrInstructions.isEmpty ? "Cover key concepts thoroughly" : promptOrInstructions}',
+            ),
+          ]),
+        );
+      }
     } else {
       contentParts.add(
         Content.text(
@@ -511,26 +558,5 @@ Return STRICT JSON matching this schema:
       'imagePrompt': (decoded['imagePrompt'] ?? '').toString().trim(),
       'questions': sanitizedQuestions,
     };
-  }
-
-  static String _resolveMimeType(String fileName) {
-    final ext = fileName.split('.').last.toLowerCase();
-    switch (ext) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'txt':
-        return 'text/plain';
-      case 'md':
-        return 'text/markdown';
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'webp':
-        return 'image/webp';
-      default:
-        return 'application/octet-stream';
-    }
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'ai_quiz_service.dart';
+import 'ai_attachment_helper.dart';
 
 class AIFlashcardService {
   static const String _prefFlashcardTopicsKey = 'gemini_flashcard_topics';
@@ -251,23 +252,44 @@ Return STRICT JSON matching this schema:
       systemInstruction: Content.system(systemPrompt),
     );
 
+    // Process uploaded attachment if any (PPTX, DOCX, Images, PDF, Audio, etc.)
+    ProcessedAttachment? attachment;
+    if (fileBytes != null && (fileName != null || fileMimeType != null)) {
+      attachment = await AIAttachmentHelper.processAttachment(
+        fileBytes: fileBytes,
+        fileName: fileName ?? 'study_file.pdf',
+      );
+    }
+
     final List<Content> contentParts = [];
 
     // Add multimodal document/file if present
-    if (fileBytes != null && fileBytes.isNotEmpty) {
-      final mimeType =
-          fileMimeType ?? _resolveMimeType(fileName ?? 'document.pdf');
-      contentParts.add(
-        Content.multi([
-          DataPart(mimeType, fileBytes),
-          TextPart(
-            'Generate a $cardCount-card flashcard deck based on the attached document.\n'
+    if (attachment != null) {
+      if (attachment.extractedText != null &&
+          attachment.extractedText!.isNotEmpty) {
+        contentParts.add(
+          Content.text(
+            'Extracted Study Content from attached presentation/document ($fileName):\n\n'
+            '${attachment.extractedText}\n\n'
+            'Generate a $cardCount-card flashcard deck based on this study content.\n'
             'Card Style: $cardStyle\n'
             'Difficulty: $difficulty\n'
             'Additional user focus/instructions: ${promptOrInstructions.isEmpty ? "Extract key concepts thoroughly" : promptOrInstructions}',
           ),
-        ]),
-      );
+        );
+      } else if (attachment.rawBytesForGemini != null) {
+        contentParts.add(
+          Content.multi([
+            DataPart(attachment.mimeType, attachment.rawBytesForGemini!),
+            TextPart(
+              'Generate a $cardCount-card flashcard deck based on the attached file ($fileName).\n'
+              'Card Style: $cardStyle\n'
+              'Difficulty: $difficulty\n'
+              'Additional user focus/instructions: ${promptOrInstructions.isEmpty ? "Extract key concepts thoroughly" : promptOrInstructions}',
+            ),
+          ]),
+        );
+      }
     } else {
       contentParts.add(
         Content.text(
@@ -333,26 +355,5 @@ Return STRICT JSON matching this schema:
       'imagePrompt': (decoded['imagePrompt'] ?? '').toString().trim(),
       'cards': sanitizedCards,
     };
-  }
-
-  static String _resolveMimeType(String fileName) {
-    final ext = fileName.split('.').last.toLowerCase();
-    switch (ext) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'txt':
-        return 'text/plain';
-      case 'md':
-        return 'text/markdown';
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'webp':
-        return 'image/webp';
-      default:
-        return 'application/octet-stream';
-    }
   }
 }

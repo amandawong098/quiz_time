@@ -1,31 +1,27 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/ai_quiz_service.dart';
 import '../../../core/services/ai_generation_manager.dart';
 
-class AIFlashcardGeneratorScreen extends StatefulWidget {
-  const AIFlashcardGeneratorScreen({super.key});
+class AILessonGeneratorScreen extends StatefulWidget {
+  const AILessonGeneratorScreen({super.key});
 
   @override
-  State<AIFlashcardGeneratorScreen> createState() =>
-      _AIFlashcardGeneratorScreenState();
+  State<AILessonGeneratorScreen> createState() =>
+      _AILessonGeneratorScreenState();
 }
 
-class _AIFlashcardGeneratorScreenState
-    extends State<AIFlashcardGeneratorScreen> {
+class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
   final _promptController = TextEditingController();
-  final _customCountController = TextEditingController(text: '10');
   final _focusNode = FocusNode();
 
-  // Flashcard Generation options
-  int _selectedCardCount = 10;
-  bool _isCustomCount = false;
-  String _selectedCardStyle = 'Mixed';
-  String _selectedDifficulty = 'Intermediate';
+  // Lesson Generation options
+  String _selectedScope = 'Standard'; // Quick, Standard, Comprehensive
+  String _selectedAudience = 'Intermediate'; // Beginner, Intermediate, Advanced
   final bool _generateCoverImage = true;
   String _selectedModel = 'gemini-1.5-flash';
 
@@ -64,7 +60,6 @@ class _AIFlashcardGeneratorScreenState
   void dispose() {
     AIGenerationManager().removeListener(_onAIManagerUpdated);
     _promptController.dispose();
-    _customCountController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -108,8 +103,8 @@ class _AIFlashcardGeneratorScreenState
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text(
-                    'File is too large. Maximum allowed size is 15MB.'),
+                content:
+                    Text('File is too large. Maximum allowed size is 15MB.'),
                 backgroundColor: Colors.redAccent,
               ),
             );
@@ -321,32 +316,18 @@ class _AIFlashcardGeneratorScreenState
     );
   }
 
-  Future<void> _startFlashcardGeneration() async {
+  Future<void> _startLessonGeneration() async {
     final promptText = _promptController.text.trim();
     final hasFile = _selectedFile != null && _fileBytes != null;
 
     if (promptText.isEmpty && !hasFile) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Please enter a study topic or attach notes/documents.'),
+          content:
+              Text('Please enter a lesson topic or attach syllabus/notes.'),
         ),
       );
       return;
-    }
-
-    int cardCount = _selectedCardCount;
-    if (_isCustomCount) {
-      final parsed = int.tryParse(_customCountController.text.trim());
-      if (parsed == null || parsed <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid positive number of cards.'),
-          ),
-        );
-        return;
-      }
-      cardCount = parsed.clamp(1, 50);
     }
 
     final apiKey = await AIQuizService.getApiKey();
@@ -360,16 +341,16 @@ class _AIFlashcardGeneratorScreenState
 
     if (!mounted) return;
 
-    // Launch background flashcard generation
-    await AIGenerationManager().startFlashcardGeneration(
+    // Launch background lesson generation
+    await AIGenerationManager().startLessonGeneration(
       context: context,
       prompt: promptText,
       fileBytes: hasFile ? _fileBytes : null,
       fileName: hasFile ? _selectedFile?.name : null,
-      cardCount: cardCount,
-      cardStyle: _selectedCardStyle,
-      difficulty: _selectedDifficulty,
+      lessonScope: _selectedScope,
+      audience: _selectedAudience,
       generateCover: _generateCoverImage,
+      generateInSlideImages: hasFile,
       modelName: _selectedModel,
     );
   }
@@ -381,16 +362,16 @@ class _AIFlashcardGeneratorScreenState
     final primaryColor = theme.colorScheme.primary;
     final aiManager = AIGenerationManager();
     final currentTask = aiManager.currentTask;
-    final isCurrentFlashcardTask =
-        currentTask != null && currentTask.taskType == AITaskType.flashcard;
+    final isCurrentLessonTask =
+        currentTask != null && currentTask.taskType == AITaskType.lesson;
 
     return Scaffold(
       appBar: AppBar(
         title: const Row(
           children: [
-            Icon(Icons.style_rounded, color: Colors.amber, size: 22),
+            Icon(Icons.menu_book_rounded, color: Colors.amber, size: 22),
             SizedBox(width: 8),
-            Text('AI Flashcard Generator',
+            Text('AI Lesson Generator',
                 style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
@@ -419,7 +400,7 @@ class _AIFlashcardGeneratorScreenState
           ),
         ],
       ),
-      body: isCurrentFlashcardTask &&
+      body: isCurrentLessonTask &&
               currentTask.status == AITaskStatus.generating
           ? _buildActiveTaskView(theme, currentTask)
           : SingleChildScrollView(
@@ -428,12 +409,12 @@ class _AIFlashcardGeneratorScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Completed task card (if any recent finished task)
-                  if (isCurrentFlashcardTask &&
+                  if (isCurrentLessonTask &&
                       currentTask.status == AITaskStatus.completed)
                     _buildCompletedTaskBanner(currentTask),
 
                   // Failed task banner (if any recent failed task)
-                  if (isCurrentFlashcardTask &&
+                  if (isCurrentLessonTask &&
                       currentTask.status == AITaskStatus.failed)
                     _buildFailedTaskBanner(currentTask),
 
@@ -442,17 +423,17 @@ class _AIFlashcardGeneratorScreenState
 
                   const SizedBox(height: 16),
 
-                  // Configuration section (Card Count, Card Style, Difficulty)
+                  // Configuration section (Scope, Diagrams, Audience)
                   _buildConfigurationCard(theme, primaryColor),
 
                   const SizedBox(height: 28),
 
                   // Main Action Button
                   ElevatedButton.icon(
-                    onPressed: _startFlashcardGeneration,
+                    onPressed: _startLessonGeneration,
                     icon: const Icon(Icons.auto_awesome, color: Colors.white),
                     label: const Text(
-                      'Generate Flashcards with AI',
+                      'Generate Lesson with AI',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -504,7 +485,7 @@ class _AIFlashcardGeneratorScreenState
             style: const TextStyle(fontSize: 15),
             decoration: InputDecoration(
               hintText:
-                  'Type flashcard topic, concepts, or attach any study file (PPTX, PDF, Audio, Images, Docs)...',
+                  'Type course topic, syllabus, or attach any study file (PPTX, PDF, Audio, Images, Docs)...',
               hintStyle: TextStyle(
                 color:
                     isDark ? Colors.grey.shade500 : Colors.grey.shade600,
@@ -640,7 +621,7 @@ class _AIFlashcardGeneratorScreenState
               const Spacer(),
 
               InkWell(
-                onTap: _startFlashcardGeneration,
+                onTap: _startLessonGeneration,
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   width: 36,
@@ -681,7 +662,7 @@ class _AIFlashcardGeneratorScreenState
                     size: 20, color: Colors.deepPurple),
                 SizedBox(width: 8),
                 Text(
-                  'Flashcard Settings',
+                  'Lesson Scope & Structure',
                   style:
                       TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
@@ -689,68 +670,9 @@ class _AIFlashcardGeneratorScreenState
             ),
             const Divider(height: 24),
 
-            // Number of cards
+            // Lesson Scope
             const Text(
-              'Number of Flashcards',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                ...[5, 10, 15, 20].map((count) {
-                  final isSelected =
-                      !_isCustomCount && _selectedCardCount == count;
-                  return ChoiceChip(
-                    label: Text('$count Cards'),
-                    selected: isSelected,
-                    selectedColor: Colors.deepPurple.shade100,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          _isCustomCount = false;
-                          _selectedCardCount = count;
-                        });
-                      }
-                    },
-                  );
-                }),
-                ChoiceChip(
-                  label: const Text('Custom'),
-                  selected: _isCustomCount,
-                  selectedColor: Colors.deepPurple.shade100,
-                  onSelected: (selected) {
-                    setState(() {
-                      _isCustomCount = true;
-                    });
-                  },
-                ),
-              ],
-            ),
-            if (_isCustomCount) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                width: 160,
-                child: TextField(
-                  controller: _customCountController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(
-                    labelText: 'Custom Count (1-50)',
-                    isDense: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 16),
-
-            // Card Style Focus
-            const Text(
-              'Card Study Style',
+              'Lesson Scope',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
             const SizedBox(height: 8),
@@ -758,20 +680,18 @@ class _AIFlashcardGeneratorScreenState
               spacing: 8,
               runSpacing: 8,
               children: [
-                'Definitions & Terms',
-                'Question & Answer',
-                'Concept & Breakdown',
-                'Formulas & Examples',
-                'Mixed'
-              ].map((style) {
-                final isSelected = _selectedCardStyle == style;
+                {'title': 'Quick Overview', 'val': 'Quick', 'desc': '1 Module, 3 Slides'},
+                {'title': 'Standard Lesson', 'val': 'Standard', 'desc': '2 Modules, 6 Slides'},
+                {'title': 'Comprehensive', 'val': 'Comprehensive', 'desc': '3 Modules, 12 Slides'},
+              ].map((item) {
+                final isSelected = _selectedScope == item['val'];
                 return ChoiceChip(
-                  label: Text(style),
+                  label: Text('${item['title']} (${item['desc']})'),
                   selected: isSelected,
                   selectedColor: Colors.deepPurple.shade100,
                   onSelected: (selected) {
                     if (selected) {
-                      setState(() => _selectedCardStyle = style);
+                      setState(() => _selectedScope = item['val']!);
                     }
                   },
                 );
@@ -780,28 +700,84 @@ class _AIFlashcardGeneratorScreenState
 
             const SizedBox(height: 16),
 
-            // Difficulty Level
+            // Audience / Difficulty
             const Text(
-              'Difficulty Level',
+              'Technical Depth / Audience',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children:
-                  ['Beginner', 'Intermediate', 'Advanced'].map((diff) {
-                final isSelected = _selectedDifficulty == diff;
+              children: [
+                'Beginner / Intro',
+                'Intermediate / College',
+                'Advanced / Expert'
+              ].map((lvl) {
+                final isSelected = _selectedAudience == lvl;
                 return ChoiceChip(
-                  label: Text(diff),
+                  label: Text(lvl),
                   selected: isSelected,
                   selectedColor: Colors.deepPurple.shade100,
                   onSelected: (selected) {
                     if (selected) {
-                      setState(() => _selectedDifficulty = diff);
+                      setState(() => _selectedAudience = lvl);
                     }
                   },
                 );
               }).toList(),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Authentic In-Slide Visuals Notice Card
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey.shade900
+                    : Colors.deepPurple.shade50.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.deepPurple.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.auto_stories_rounded,
+                    color: Colors.deepPurple,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Authentic In-Slide Visuals',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '• From Attachments: Authentic figures, charts, and diagrams from your attached file (.pptx, .pdf, .docx, images) are automatically extracted and embedded into slides.\n'
+                          '• Prompt-Only: Lessons generated from text prompts focus on clean, structured conceptual text, formulas, and interactive checkpoints.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.35,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -845,7 +821,7 @@ class _AIFlashcardGeneratorScreenState
             ),
             const SizedBox(height: 28),
             Text(
-              'Generating Flashcards...',
+              'Generating Lesson & Slides...',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Colors.deepPurple,
@@ -855,7 +831,7 @@ class _AIFlashcardGeneratorScreenState
             Text(
               task.prompt.isNotEmpty
                   ? task.prompt
-                  : (task.fileName ?? 'Study notes'),
+                  : (task.fileName ?? 'Course syllabus'),
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
@@ -889,7 +865,7 @@ class _AIFlashcardGeneratorScreenState
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'AI Flashcard generation running in background. You will find it in My Flashcards when done!',
+                      'AI Lesson generation running in background. You will find it in My Lessons when complete!',
                     ),
                     duration: Duration(seconds: 4),
                   ),
@@ -942,16 +918,15 @@ class _AIFlashcardGeneratorScreenState
                 child: Icon(Icons.check, color: Colors.white, size: 20),
               ),
         title: Text(
-          'Deck Ready: ${task.generatedTitle ?? "Flashcard Deck"}',
+          'Course Ready: ${task.generatedTitle ?? "New Course"}',
           style:
               const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
         ),
-        subtitle: const Text('Saved to your library in My Flashcards.'),
+        subtitle: const Text('Saved to your library in My Lessons.'),
         trailing: ElevatedButton(
           onPressed: () {
             if (task.generatedId != null) {
-              context.push('/manage-cards/${task.generatedId}',
-                  extra: task.generatedTitle ?? 'Flashcard Deck');
+              context.push('/my-lessons');
             }
           },
           style: ElevatedButton.styleFrom(
@@ -960,7 +935,7 @@ class _AIFlashcardGeneratorScreenState
             padding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
-          child: const Text('Manage Cards'),
+          child: const Text('View Lessons'),
         ),
       ),
     );

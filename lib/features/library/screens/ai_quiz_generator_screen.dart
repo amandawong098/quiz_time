@@ -32,20 +32,20 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
   Uint8List? _fileBytes;
   bool _isUploadingFile = false;
 
-  // Dynamic topic suggestions (capped to 5)
-  List<String> _dynamicTopics = [];
-  bool _isLoadingTopics = false;
-
   // API Key state
   bool _hasApiKey = false;
 
-  static const int _maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
+  static const int _maxFileSizeBytes = 15 * 1024 * 1024; // 15MB
 
   final Map<String, String> _modelDisplayNames = {
-    'gemini-1.5-flash': 'Gemini 1.5 Flash',
-    'gemini-1.5-flash-latest': 'Gemini 1.5 Flash (Latest)',
+    'gemini-3.6-flash': 'Gemini 3.6 Flash (Next-Gen)',
+    'gemini-3.0-flash': 'Gemini 3.0 Flash',
     'gemini-2.0-flash': 'Gemini 2.0 Flash',
     'gemini-2.0-flash-exp': 'Gemini 2.0 Flash (Exp)',
+    'gemini-2.0-flash-thinking-exp': 'Gemini 2.0 Flash Thinking',
+    'gemini-2.0-pro-exp': 'Gemini 2.0 Pro',
+    'gemini-1.5-flash': 'Gemini 1.5 Flash',
+    'gemini-1.5-flash-latest': 'Gemini 1.5 Flash (Latest)',
     'gemini-1.5-pro': 'Gemini 1.5 Pro',
     'gemini-1.5-pro-latest': 'Gemini 1.5 Pro (Latest)',
   };
@@ -55,7 +55,6 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
     super.initState();
     _checkApiKeyStatus();
     _loadSelectedModel();
-    _loadDynamicTopics();
     AIGenerationManager().addListener(_onAIManagerUpdated);
   }
 
@@ -92,34 +91,11 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
     }
   }
 
-  Future<void> _loadDynamicTopics({bool forceRefresh = false}) async {
-    setState(() => _isLoadingTopics = true);
-    try {
-      final topics = await AIQuizService.fetchDynamicTopicSuggestions(
-        forceRefresh: forceRefresh,
-      );
-      if (mounted) {
-        setState(() {
-          _dynamicTopics = topics.take(5).toList();
-          _isLoadingTopics = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _dynamicTopics = AIQuizService.defaultTopicSuggestions.take(5).toList();
-          _isLoadingTopics = false;
-        });
-      }
-    }
-  }
-
   Future<void> _pickFile() async {
     setState(() => _isUploadingFile = true);
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'txt', 'md', 'png', 'jpg', 'jpeg', 'webp'],
+        type: FileType.any,
         withData: true,
       );
 
@@ -130,7 +106,7 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('File is too large. Maximum allowed size is 10MB.'),
+                content: Text('File is too large. Maximum allowed size is 15MB.'),
                 backgroundColor: Colors.redAccent,
               ),
             );
@@ -451,11 +427,6 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Dynamic Wrapped Quick topic suggestions (5 topics)
-                  _buildDynamicWrappedSuggestions(),
-
-                  const SizedBox(height: 20),
-
                   // Configuration section (Auto duration, Count, Difficulty, Cover Image)
                   _buildConfigurationCard(theme, primaryColor),
 
@@ -665,90 +636,6 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDynamicWrappedSuggestions() {
-    final topics = (_dynamicTopics.isNotEmpty
-            ? _dynamicTopics
-            : AIQuizService.defaultTopicSuggestions)
-        .take(5)
-        .toList();
-
-    return Card(
-      elevation: 0,
-      color: Theme.of(context).brightness == Brightness.dark
-          ? Colors.grey.shade900.withValues(alpha: 0.5)
-          : Colors.grey.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
-                const SizedBox(width: 6),
-                const Text(
-                  'Quick Topic Ideas (5 Suggestions)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                  ),
-                ),
-                const Spacer(),
-                if (_isLoadingTopics)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  InkWell(
-                    onTap: () => _loadDynamicTopics(forceRefresh: true),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.refresh_rounded, size: 14, color: Colors.deepPurple),
-                        SizedBox(width: 2),
-                        Text(
-                          'Refresh',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.deepPurple,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 8.0,
-              children: topics.map((suggestion) {
-                return ActionChip(
-                  label: Text(suggestion, style: const TextStyle(fontSize: 11)),
-                  backgroundColor: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey.shade800
-                      : Colors.white,
-                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
-                  onPressed: () {
-                    _promptController.text = suggestion;
-                  },
-                );
-              }).toList(),
-            ),
-          ],
-        ),
       ),
     );
   }

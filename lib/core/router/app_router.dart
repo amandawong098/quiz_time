@@ -12,6 +12,7 @@ import '../../features/learn/screens/my_lessons_screen.dart';
 import '../../features/learn/screens/sub_chapter_slides_screen.dart';
 import '../../features/learn/screens/slide_block_editor_screen.dart';
 import '../../features/learn/screens/create_lesson_screen.dart';
+import '../../features/learn/screens/ai_lesson_generator_screen.dart';
 import '../../features/leaderboard/screens/leaderboard_screen.dart';
 import '../../features/discussions/screens/discussions_dummy_screen.dart';
 import '../../features/discussions/screens/create_topic_screen.dart';
@@ -156,6 +157,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/ai-flashcard-generator',
       builder: (context, state) => const AIFlashcardGeneratorScreen(),
+    ),
+    GoRoute(
+      path: '/ai-lesson-generator',
+      builder: (context, state) => const AILessonGeneratorScreen(),
     ),
     GoRoute(
       path: '/create-lesson',

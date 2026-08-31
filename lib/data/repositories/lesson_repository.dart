@@ -263,6 +263,13 @@ class LessonRepository {
     }
   }
 
+  /// Bulk inserts blocks for newly created pages without redundant DELETE queries
+  Future<void> insertBlocks(List<Map<String, dynamic>> blockPayloads) async {
+    if (blockPayloads.isNotEmpty) {
+      await _supabase.from('lesson_blocks').insert(blockPayloads);
+    }
+  }
+
   Future<Map<String, dynamic>?> getPageMetadata(String pageId) async {
     final response = await _supabase
         .from('lesson_pages')
