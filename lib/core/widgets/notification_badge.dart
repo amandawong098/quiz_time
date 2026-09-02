@@ -83,10 +83,10 @@ class NotificationIconBadge extends StatelessWidget {
                                     ),
                                     child: ListTile(
                                       leading: CircleAvatar(
-                                        backgroundColor: isUnread ? Colors.white : Colors.deepPurple,
+                                        backgroundColor: isUnread ? Colors.white : (n.type == 'discussion_report' ? Colors.red.shade700 : Colors.deepPurple),
                                         child: Icon(
-                                          Icons.notifications,
-                                          color: isUnread ? Colors.deepPurple.shade800 : Colors.white,
+                                          n.type == 'discussion_report' ? Icons.shield_rounded : Icons.notifications,
+                                          color: isUnread ? (n.type == 'discussion_report' ? Colors.red.shade700 : Colors.deepPurple.shade800) : Colors.white,
                                         ),
                                       ),
                                       title: Text(
@@ -115,12 +115,14 @@ class NotificationIconBadge extends StatelessWidget {
                                         Navigator.pop(ctx);
                                         final topicId = n.data?['topic_id'] as String?;
                                         final type = n.type;
-                                        if (topicId != null &&
+                                        if (type == 'discussion_report') {
+                                          appRouter.push('/moderation');
+                                        } else if (topicId != null &&
                                             (type == 'discussion_upvote' ||
                                              type == 'comment_upvote' ||
                                              type == 'discussion_reply' ||
                                              type == 'comment_reply')) {
-                                          appRouter.push('/discussion/$topicId');
+                                          appRouter.push('/discussions/$topicId');
                                         } else if (type == 'league_promotion' ||
                                                    type == 'league_demotion' ||
                                                    type == 'league_stay') {

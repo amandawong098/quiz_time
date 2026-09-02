@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../core/services/ai_generation_manager.dart';
 import '../models/lesson_models.dart';
@@ -1307,6 +1308,9 @@ class LessonsTabState extends State<LessonsTab> {
     LessonSubChapter sub,
     List<LessonSubChapter> allSubs,
   ) {
+    if (context.read<AuthRepository>().isAdmin) {
+      return true;
+    }
     final globalIdx = allSubs.indexWhere((s) => s.id == sub.id);
     return globalIdx == 0 ||
         (globalIdx > 0 &&

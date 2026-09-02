@@ -593,4 +593,126 @@ class DiscussionRepository {
       }
     }
   }
+
+  // --- Reporting & Moderation ---
+
+  Future<void> _notifyAdminsOnReport({
+    required String reason,
+    String? topicId,
+    String? replyId,
+  }) async {
+    try {
+      final adminProfiles = await _supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin');
+      
+      final reporterName = await _getCurrentUserName();
+
+      for (var admin in (adminProfiles as List)) {
+        final adminId = admin['id'] as String;
+        if (adminId == _currentUserId) continue; // Don't notify self
+        await _createNotification(
+          targetUserId: adminId,
+          title: '⚠️ Discussion Reported',
+          message: '$reporterName reported content for "$reason". Tap to review.',
+          type: 'discussion_report',
+          data: {
+            'topic_id': ?topicId,
+            'reply_id': ?replyId,
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('Error notifying admins of report: $e');
+    }
+  }
+
+  Future<void> reportTopic({
+    required String topicId,
+    required String reason,
+    String? details,
+  }) async {
+    await _supabase.from('discussion_reports').insert({
+      'reporter_id': _currentUserId,
+      'topic_id': topicId,
+      'reason': reason,
+      'details': details,
+      'status': 'pending',
+    });
+    await _notifyAdminsOnReport(reason: reason, topicId: topicId);
+  }
+
+  Future<void> reportReply({
+    required String replyId,
+    required String topicId,
+    required String reason,
+    String? details,
+  }) async {
+    await _supabase.from('discussion_reports').insert({
+      'reporter_id': _currentUserId,
+      'reply_id': replyId,
+      'topic_id': topicId,
+      'reason': reason,
+      'details': details,
+      'status': 'pending',
+    });
+    await _notifyAdminsOnReport(reason: reason, topicId: topicId, replyId: replyId);
+  }
+
+  Future<List<DiscussionReport>> getPendingReports() async {
+    try {
+      final res = await _supabase
+          .from('discussion_reports')
+          .select('*, profiles!reporter_id(name, avatar_url), discussion_topics(title), discussion_replies(content)')
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+      return (res as List).map((e) => DiscussionReport.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('Error fetching pending reports with joins: $e');
+      try {
+        final fallback = await _supabase
+            .from('discussion_reports')
+            .select('*')
+            .eq('status', 'pending')
+            .order('created_at', ascending: false);
+        return (fallback as List).map((e) => DiscussionReport.fromJson(e)).toList();
+      } catch (_) {
+        return [];
+      }
+    }
+  }
+
+  Future<void> dismissReport(String reportId) async {
+    await _supabase.from('discussion_reports').update({
+      'status': 'dismissed',
+      'reviewed_at': DateTime.now().toIso8601String(),
+      'reviewed_by': _currentUserId,
+    }).eq('id', reportId);
+  }
+
+  Future<void> deleteReportedContent({
+    required String reportId,
+    String? topicId,
+    String? replyId,
+  }) async {
+    if (replyId != null && replyId.isNotEmpty) {
+      await adminDeleteReply(replyId);
+    } else if (topicId != null && topicId.isNotEmpty) {
+      await adminDeleteTopic(topicId);
+    }
+    await _supabase.from('discussion_reports').update({
+      'status': 'resolved',
+      'reviewed_at': DateTime.now().toIso8601String(),
+      'reviewed_by': _currentUserId,
+    }).eq('id', reportId);
+  }
+
+  Future<void> adminDeleteTopic(String topicId) async {
+    await _supabase.from('discussion_topics').delete().eq('id', topicId);
+  }
+
+  Future<void> adminDeleteReply(String replyId) async {
+    await _supabase.from('discussion_replies').delete().eq('id', replyId);
+  }
 }

@@ -365,121 +365,182 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Lifetime XP
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.shade50,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.amber.shade200),
+                  if (context.watch<AuthRepository>().isAdmin)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade900],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.deepPurple.withValues(alpha: 0.25),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${profile?.xp ?? user?.userMetadata?['xp'] ?? 0}',
-                                style: TextStyle(
-                                  color: Colors.amber.shade900,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.admin_panel_settings_rounded,
+                              color: Colors.amber,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'System Administrator',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                'Lifetime XP',
-                                style: TextStyle(
-                                  color: Colors.amber.shade700,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
+                                SizedBox(height: 2),
+                                Text(
+                                  'Full content authoring & moderation hub access',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Lifetime XP
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.amber.shade200),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${profile?.xp ?? user?.userMetadata?['xp'] ?? 0}',
+                                  style: TextStyle(
+                                    color: Colors.amber.shade900,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  'Lifetime XP',
+                                  style: TextStyle(
+                                    color: Colors.amber.shade700,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Weekly XP
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.shade50,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.deepPurple.shade200),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${profile?.weeklyXp ?? user?.userMetadata?['weekly_xp'] ?? 0}',
-                                style: TextStyle(
-                                  color: Colors.deepPurple.shade900,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                        const SizedBox(width: 8),
+                        // Weekly XP
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.deepPurple.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.deepPurple.shade200),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${profile?.weeklyXp ?? user?.userMetadata?['weekly_xp'] ?? 0}',
+                                  style: TextStyle(
+                                    color: Colors.deepPurple.shade900,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                'Weekly XP',
-                                style: TextStyle(
-                                  color: Colors.deepPurple.shade700,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
+                                Text(
+                                  'Weekly XP',
+                                  style: TextStyle(
+                                    color: Colors.deepPurple.shade700,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Current League
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: leagueStyle['bg'],
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: leagueStyle['border']),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                leagueStyle['icon'] as IconData,
-                                color: leagueStyle['iconColor'] as Color,
-                                size: 16,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                profile?.league ?? 'Stargazer',
-                                style: TextStyle(
-                                  color: leagueStyle['text'] as Color,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                'Current League',
-                                style: TextStyle(
-                                  color: leagueStyle['labelColor'] as Color,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 8),
+                        // Current League
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: leagueStyle['bg'],
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: leagueStyle['border']),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  leagueStyle['icon'] as IconData,
+                                  color: leagueStyle['iconColor'] as Color,
+                                  size: 16,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  profile?.league ?? 'Stargazer',
+                                  style: TextStyle(
+                                    color: leagueStyle['text'] as Color,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'Current League',
+                                  style: TextStyle(
+                                    color: leagueStyle['labelColor'] as Color,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 32),
                   const Divider(),
                   const SizedBox(height: 24),
@@ -522,24 +583,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     isDummy: false,
                     onTap: () => context.push('/my-discussions'),
                   ),
-                  const SizedBox(height: 32),
-                  const Divider(),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Manage Your Network',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  if (!context.watch<AuthRepository>().isAdmin) ...[
+                    const SizedBox(height: 32),
+                    const Divider(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Manage Your Network',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildManageOptionItem(
-                    context: context,
-                    icon: Icons.group_rounded,
-                    title: 'My Friends',
-                    isDummy: false,
-                    onTap: () => context.push('/me/friends'),
-                  ),
+                    const SizedBox(height: 16),
+                    _buildManageOptionItem(
+                      context: context,
+                      icon: Icons.group_rounded,
+                      title: 'My Friends',
+                      isDummy: false,
+                      onTap: () => context.push('/me/friends'),
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   const Divider(),
                   const SizedBox(height: 24),
@@ -548,6 +611,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.deepPurple.shade100),
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(
+                        context.watch<AuthRepository>().isAdmin
+                            ? Icons.admin_panel_settings_rounded
+                            : Icons.school_rounded,
+                        color: Colors.deepPurple,
+                      ),
+                      title: Text(
+                        'Account Role: ${context.watch<AuthRepository>().isAdmin ? "Administrator" : "Learner"}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      subtitle: const Text(
+                        'Toggle switch to test Admin vs Learner permissions',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      trailing: Switch(
+                        value: context.watch<AuthRepository>().isAdmin,
+                        activeThumbColor: Colors.deepPurple,
+                        onChanged: (val) async {
+                          final newRole = val ? 'admin' : 'learner';
+                          await context.read<AuthRepository>().updateUserRole(newRole);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Switched account role to "$newRole".'),
+                                backgroundColor: Colors.deepPurple,
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),

@@ -6,6 +6,9 @@ class UserProfile {
   final int xp;
   final int weeklyXp;
   final String league;
+  final String role;
+
+  bool get isAdmin => role.toLowerCase() == 'admin';
 
   UserProfile({
     required this.id,
@@ -15,6 +18,7 @@ class UserProfile {
     required this.xp,
     required this.weeklyXp,
     required this.league,
+    this.role = 'learner',
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -26,6 +30,7 @@ class UserProfile {
       xp: json['xp'] as int? ?? 0,
       weeklyXp: json['weekly_xp'] as int? ?? 0,
       league: json['league'] as String? ?? 'Stargazer',
+      role: json['role'] as String? ?? 'learner',
     );
   }
 }

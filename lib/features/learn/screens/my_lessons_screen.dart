@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../core/services/ai_generation_manager.dart';
 import '../../../core/services/ai_quiz_service.dart';
 import '../models/lesson_models.dart';
@@ -1418,41 +1419,48 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                     }),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => _addChapter(course),
-                              icon: const Icon(Icons.add_rounded, size: 18),
-                              label: const Text('Add Blank Chapter'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.deepPurple,
-                                side: BorderSide(color: Colors.deepPurple.shade200),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                      child: Builder(
+                        builder: (context) {
+                          final isAdmin = context.watch<AuthRepository>().isAdmin;
+                          return Row(
+                            children: [
+                              if (isAdmin) ...[
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _addChapter(course),
+                                    icon: const Icon(Icons.add_rounded, size: 18),
+                                    label: const Text('Add Blank Chapter'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.deepPurple,
+                                      side: BorderSide(color: Colors.deepPurple.shade200),
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _showAddChapterWithAISheet(course),
+                                  icon: const Icon(Icons.auto_awesome, size: 16),
+                                  label: const Text('Add with AI'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.deepPurple,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    elevation: 1,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _showAddChapterWithAISheet(course),
-                              icon: const Icon(Icons.auto_awesome, size: 16),
-                              label: const Text('Add with AI'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                elevation: 1,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                            ],
+                          );
+                        },
                       ),
                     ),
                 ],
@@ -1554,12 +1562,14 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-        onPressed: _addCourse,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: context.watch<AuthRepository>().isAdmin
+          ? FloatingActionButton(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              onPressed: _addCourse,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

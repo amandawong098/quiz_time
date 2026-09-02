@@ -8,11 +8,16 @@ class AuthRepository extends ChangeNotifier {
 
   AuthRepository() {
     _currentUser = _supabase.auth.currentUser;
+    if (_currentUser != null) {
+      fetchUserRole();
+    }
     _supabase.auth.onAuthStateChange.listen((data) {
       _currentUser = data.session?.user;
       if (_currentUser == null) {
+        _currentRole = 'learner';
         LessonProgress().clear();
       } else {
+        fetchUserRole();
         LessonProgress().loadFromSupabase();
       }
       notifyListeners();
@@ -20,6 +25,50 @@ class AuthRepository extends ChangeNotifier {
   }
 
   User? get currentUser => _currentUser;
+  String _currentRole = 'learner';
+  String get currentRole => _currentRole;
+  bool get isAdmin => _currentRole.toLowerCase() == 'admin';
+
+  Future<void> fetchUserRole() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      _currentRole = 'learner';
+      notifyListeners();
+      return;
+    }
+    try {
+      final res = await _supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (res != null && res['role'] != null) {
+        _currentRole = res['role'] as String;
+      } else {
+        _currentRole = 'learner';
+      }
+    } catch (_) {
+      _currentRole = 'learner';
+    }
+    notifyListeners();
+  }
+
+  Future<void> setRole(String newRole) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    _currentRole = newRole;
+    notifyListeners();
+    try {
+      await _supabase
+          .from('profiles')
+          .update({'role': newRole})
+          .eq('id', user.id);
+    } catch (e) {
+      debugPrint('Error updating role in profiles: $e');
+    }
+  }
+
+  Future<void> updateUserRole(String newRole) => setRole(newRole);
 
   Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
 

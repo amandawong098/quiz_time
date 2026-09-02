@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/notification_badge.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../widgets/lessons_tab.dart';
 import '../widgets/flashcards_tab.dart';
 
@@ -87,7 +89,8 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
         ],
       ),
       floatingActionButton: _tabController.index == 0 &&
-              (_lessonsTabKey.currentState?.isShowingBrowseMode ?? false)
+              (_lessonsTabKey.currentState?.isShowingBrowseMode ?? false) &&
+              context.watch<AuthRepository>().isAdmin
           ? FloatingActionButton(
               onPressed: () async {
                 final result = await context.push<bool>('/create-lesson');

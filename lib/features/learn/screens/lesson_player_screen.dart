@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/repositories/lesson_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/models/discussion_models.dart';
 import '../models/lesson_models.dart';
@@ -55,7 +56,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     super.initState();
     _pageController = PageController();
     _loadDynamicLesson();
-    if (widget.isPreview) {
+    final isAdmin = context.read<AuthRepository>().isAdmin;
+    if (widget.isPreview && !isAdmin) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         showDialog(
           context: context,
@@ -84,7 +86,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Future<void> _saveProgressStep(int pageIndex) async {
-    if (widget.isPreview) return;
+    final isAdmin = context.read<AuthRepository>().isAdmin;
+    if (widget.isPreview || isAdmin) return;
     if (widget.subChapterId != null) {
       await _progressTracker.saveSlideIndex(widget.subChapterId!, pageIndex);
     } else if (widget.courseId != null) {
@@ -165,7 +168,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         if (matchIdx != -1) {
           initialPage = matchIdx;
         }
-      } else if (!widget.isPreview) {
+      } else if (!widget.isPreview && !context.read<AuthRepository>().isAdmin) {
         if (widget.subChapterId != null) {
           await _progressTracker.loadFromSupabase();
           initialPage = _progressTracker.getSavedSlideIndex(widget.subChapterId!);
@@ -343,7 +346,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Future<void> _saveCompletionState() async {
-    if (!widget.isPreview) {
+    final isAdmin = context.read<AuthRepository>().isAdmin;
+    if (!widget.isPreview && !isAdmin) {
       await _clearProgressStep();
       if (widget.subChapterId != null) {
         await _progressTracker.complete(widget.subChapterId!);
@@ -366,6 +370,28 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     final bool wasAlreadyCompleted = targetSubChapterId != null && _progressTracker.isCompleted(targetSubChapterId);
 
     final completionFuture = _saveCompletionState();
+
+    final isAdmin = context.read<AuthRepository>().isAdmin;
+    if (isAdmin) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Lesson Finished'),
+          content: const Text('You have completed reviewing this lesson sub-chapter.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                context.pop(true);
+              },
+              child: const Text('Back to Lessons'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
     if (widget.isPreview) {
       showDialog(

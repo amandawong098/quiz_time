@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../learn/models/flashcard_models.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
+import '../widgets/discussion_report_dialog.dart';
 
 class DiscussionsDummyScreen extends StatefulWidget {
   const DiscussionsDummyScreen({super.key});
@@ -642,11 +645,18 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                                                       ),
                                                     ),
                                                   ],
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    '$dateStr$editedStr',
-                                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                                                  ),
+                                                   const SizedBox(width: 8),
+                                                   Row(
+                                                     mainAxisSize: MainAxisSize.min,
+                                                     children: [
+                                                       Text(
+                                                         '$dateStr$editedStr',
+                                                         style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                                                       ),
+                                                       const SizedBox(width: 4),
+                                                       _buildTopicCardMenu(topic),
+                                                     ],
+                                                   ),
                                                 ],
                                               ),
                                               const SizedBox(height: 8),
@@ -762,6 +772,173 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
         );
       },
     );
+  }
+
+  Widget _buildTopicCardMenu(DiscussionTopic topic) {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final isAdmin = context.watch<AuthRepository>().isAdmin;
+    final isOwn = topic.authorId == currentUserId;
+
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 16, color: Colors.grey),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      tooltip: 'Topic Options',
+      onSelected: (val) {
+        if (val == 'report') {
+          DiscussionReportDialog.show(
+            context,
+            topicId: topic.id,
+          );
+        } else if (val == 'admin_delete') {
+          _confirmAdminDeleteTopic(topic);
+        } else if (val == 'delete') {
+          _confirmDeleteTopic(topic);
+        }
+      },
+      itemBuilder: (context) {
+        final List<PopupMenuEntry<String>> items = [];
+        if (isOwn) {
+          items.add(
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, size: 16, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Delete Topic', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          );
+        }
+        if (!isAdmin) {
+          items.add(
+            const PopupMenuItem(
+              value: 'report',
+              child: Row(
+                children: [
+                  Icon(Icons.flag_outlined, size: 16, color: Colors.amber),
+                  SizedBox(width: 8),
+                  Text('Report Topic'),
+                ],
+              ),
+            ),
+          );
+        }
+        if (isAdmin) {
+          items.add(
+            const PopupMenuItem(
+              value: 'admin_delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_forever, size: 16, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Admin Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          );
+        }
+        return items;
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteTopic(DiscussionTopic topic) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Topic?'),
+        content: const Text(
+          'Are you sure you want to delete this topic? All replies will also be removed. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final repo = context.read<DiscussionRepository>();
+      await repo.deleteTopic(topic.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Topic deleted successfully.'),
+            backgroundColor: Colors.deepPurple,
+          ),
+        );
+        _loadTopics(showSpinner: false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete topic: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmAdminDeleteTopic(DiscussionTopic topic) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Admin: Delete Topic?'),
+        content: const Text(
+          'Are you sure you want to permanently delete this topic and all of its replies? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final repo = context.read<DiscussionRepository>();
+      await repo.adminDeleteTopic(topic.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Topic permanently deleted by Administrator.'),
+            backgroundColor: Colors.deepPurple,
+          ),
+        );
+        _loadTopics(showSpinner: false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete topic: $e')),
+        );
+      }
+    }
   }
 }
 

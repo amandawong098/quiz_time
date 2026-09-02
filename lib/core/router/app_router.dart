@@ -15,6 +15,7 @@ import '../../features/learn/screens/create_lesson_screen.dart';
 import '../../features/learn/screens/ai_lesson_generator_screen.dart';
 import '../../features/leaderboard/screens/leaderboard_screen.dart';
 import '../../features/discussions/screens/discussions_dummy_screen.dart';
+import '../../features/moderation/screens/discussion_moderation_screen.dart';
 import '../../features/discussions/screens/create_topic_screen.dart';
 import '../../features/discussions/screens/discussion_details_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
@@ -86,6 +87,10 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/discussions',
           builder: (context, state) => const DiscussionsDummyScreen(),
+        ),
+        GoRoute(
+          path: '/moderation',
+          builder: (context, state) => const DiscussionModerationScreen(),
         ),
         GoRoute(
           path: '/leaderboard',

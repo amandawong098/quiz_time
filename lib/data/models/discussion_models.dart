@@ -304,3 +304,61 @@ class DiscussionReply {
     );
   }
 }
+
+class DiscussionReport {
+  final String id;
+  final String reporterId;
+  final String? reporterName;
+  final String? reporterAvatarUrl;
+  final String? topicId;
+  final String? topicTitle;
+  final String? topicContent;
+  final String? replyId;
+  final String? replyContent;
+  final String reason;
+  final String? details;
+  final String status; // 'pending', 'dismissed', 'resolved'
+  final DateTime createdAt;
+
+  bool get isReply => replyId != null && replyId!.isNotEmpty;
+
+  DiscussionReport({
+    required this.id,
+    required this.reporterId,
+    this.reporterName,
+    this.reporterAvatarUrl,
+    this.topicId,
+    this.topicTitle,
+    this.topicContent,
+    this.replyId,
+    this.replyContent,
+    required this.reason,
+    this.details,
+    this.status = 'pending',
+    required this.createdAt,
+  });
+
+  factory DiscussionReport.fromJson(Map<String, dynamic> json) {
+    final reporterProfile = json['profiles'] as Map<String, dynamic>?;
+    final topic = json['discussion_topics'] as Map<String, dynamic>?;
+    final reply = json['discussion_replies'] as Map<String, dynamic>?;
+
+    return DiscussionReport(
+      id: json['id'] as String,
+      reporterId: json['reporter_id'] as String,
+      reporterName: reporterProfile?['name'] as String? ?? 'Anonymous Reporter',
+      reporterAvatarUrl: reporterProfile?['avatar_url'] as String?,
+      topicId: json['topic_id'] as String?,
+      topicTitle: topic?['title'] as String?,
+      topicContent: topic?['content'] as String?,
+      replyId: json['reply_id'] as String?,
+      replyContent: reply?['content'] as String?,
+      reason: json['reason'] as String? ?? 'Inappropriate content',
+      details: json['details'] as String?,
+      status: json['status'] as String? ?? 'pending',
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+    );
+  }
+}

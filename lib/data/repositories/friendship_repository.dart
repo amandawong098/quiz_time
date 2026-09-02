@@ -83,12 +83,22 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _loadUnreadCount() async {
     try {
-      final response = await _supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', _currentUserId)
-          .eq('is_read', false);
-      _unreadCount = (response as List).length;
+      if (_currentUserProfile?.isAdmin == true) {
+        final response = await _supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', _currentUserId)
+            .eq('is_read', false);
+        final list = (response as List).map((e) => AppNotification.fromJson(e)).toList();
+        _unreadCount = list.where((n) => n.type != null && n.type!.startsWith('discussion_')).length;
+      } else {
+        final response = await _supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', _currentUserId)
+            .eq('is_read', false);
+        _unreadCount = (response as List).length;
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading unread count: $e');
@@ -102,9 +112,14 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
           .select('*')
           .eq('user_id', _currentUserId)
           .order('created_at', ascending: false);
-      _notifications = (response as List)
+      final allNotifs = (response as List)
           .map((e) => AppNotification.fromJson(e))
           .toList();
+      if (_currentUserProfile?.isAdmin == true) {
+        _notifications = allNotifs.where((n) => n.type != null && n.type!.startsWith('discussion_')).toList();
+      } else {
+        _notifications = allNotifs;
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading notifications: $e');
@@ -129,6 +144,14 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
         callback: (payload) async {
           final newNotification = AppNotification.fromJson(payload.newRecord);
           
+          // If Admin, ignore quiz, multiplayer and leaderboard notifications
+          if (_currentUserProfile?.isAdmin == true) {
+            final type = newNotification.type ?? '';
+            if (!type.startsWith('discussion_')) {
+              return;
+            }
+          }
+
           // Re-load to ensure accurate lists
           await _loadUnreadCount();
           await _loadNotifications();

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../models/lesson_models.dart';
 import '../../../core/services/publish_reward_service.dart';
 
@@ -117,27 +118,34 @@ class _CreateLessonScreenState extends State<CreateLessonScreen> {
 
       String courseId;
       if (widget.lesson != null) {
+        final isAdmin = context.read<AuthRepository>().isAdmin;
+        final effectiveIsPublic = isAdmin ? _isPublic : false;
+
         // Edit existing lesson
         await repo.updateCourse(
           id: widget.lesson!.id,
           title: _titleController.text.trim(),
           description: _descController.text.trim(),
-          isPublic: _isPublic,
+          isPublic: effectiveIsPublic,
           imageUrl: _imageUrl,
         );
         courseId = widget.lesson!.id;
       } else {
+        final isAdmin = context.read<AuthRepository>().isAdmin;
+        final effectiveIsPublic = isAdmin ? _isPublic : false;
+
         // Create new lesson
         final newCourse = await repo.createCourse(
           title: _titleController.text.trim(),
           description: _descController.text.trim(),
-          isPublic: _isPublic,
+          isPublic: effectiveIsPublic,
           imageUrl: _imageUrl,
         );
         courseId = newCourse.id;
       }
 
-      if (_isPublic && mounted) {
+      final isAdmin = context.read<AuthRepository>().isAdmin;
+      if (_isPublic && mounted && !isAdmin) {
         final rewarded = await PublishRewardService.awardPublishXp(
           contentType: 'lesson',
           contentId: courseId,
@@ -344,24 +352,35 @@ class _CreateLessonScreenState extends State<CreateLessonScreen> {
                   decoration: const InputDecoration(labelText: 'Lesson Description (optional)'),
                   maxLines: 3,
                 ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Make this lesson public'),
-                  value: _isPublic,
-                  onChanged: (val) => setState(() => _isPublic = val),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 4.0, bottom: 12.0),
-                  child: Text(
-                    _isPublic
-                        ? '💡 Ready to publish! Shared with the community to learn.'
-                        : '💡 Save as draft. Only visible to you until published.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _isPublic ? Colors.deepPurple.shade700 : Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                Builder(
+                  builder: (context) {
+                    final isAdmin = context.watch<AuthRepository>().isAdmin;
+                    if (!isAdmin) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        SwitchListTile(
+                          title: const Text('Make this lesson public'),
+                          value: _isPublic,
+                          onChanged: (val) => setState(() => _isPublic = val),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 4.0, bottom: 12.0),
+                          child: Text(
+                            _isPublic
+                                ? '💡 Ready to publish! Shared with the community to learn.'
+                                : '💡 Save as draft. Only visible to you until published.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _isPublic ? Colors.deepPurple.shade700 : Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 32),
                 if (_isLoading)

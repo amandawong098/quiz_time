@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/repositories/flashcard_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../core/widgets/flashcard_filter_bar.dart';
 import '../../../core/services/ai_generation_manager.dart';
 import '../models/flashcard_models.dart';
@@ -341,22 +342,31 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                                     ),
                                   ),
                                   const SizedBox(height: 16),
-                                  ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final result = await context.push('/create-flashcard-deck');
-                                      if (result == true) {
-                                        _loadDecks();
-                                      }
+                                  Builder(
+                                    builder: (context) {
+                                      final isAdmin = context.watch<AuthRepository>().isAdmin;
+                                      return ElevatedButton.icon(
+                                        onPressed: () async {
+                                          if (isAdmin) {
+                                            final result = await context.push('/create-flashcard-deck');
+                                            if (result == true) {
+                                              _loadDecks();
+                                            }
+                                          } else {
+                                            context.push('/ai-flashcard-generator');
+                                          }
+                                        },
+                                        icon: Icon(isAdmin ? Icons.add : Icons.auto_awesome),
+                                        label: Text(isAdmin ? 'Create Deck' : 'Generate with AI'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.deepPurple,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                      );
                                     },
-                                    icon: const Icon(Icons.add),
-                                    label: const Text('Create Deck'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.deepPurple,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
                                   ),
                                 ],
                               ),
@@ -483,17 +493,19 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                     ],
                   ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await context.push('/create-flashcard-deck');
-          if (result == true) {
-            _loadDecks();
-          }
-        },
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: context.watch<AuthRepository>().isAdmin
+          ? FloatingActionButton(
+              onPressed: () async {
+                final result = await context.push('/create-flashcard-deck');
+                if (result == true) {
+                  _loadDecks();
+                }
+              },
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

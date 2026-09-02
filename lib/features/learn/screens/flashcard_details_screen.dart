@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/flashcard_models.dart';
 import '../widgets/flashcard_discussions_sheet.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class FlashcardDetailsScreen extends StatefulWidget {
@@ -107,7 +108,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
       builder: (context) => FlashcardDiscussionsSheet(
         deckId: _deck!.id,
         deckTitle: _deck!.title,
-        isLocked: !_hasPlayedBefore,
+        isLocked: !context.read<AuthRepository>().isAdmin && !_hasPlayedBefore,
         onTopicCreated: () {
           _loadDeckDetails();
         },
