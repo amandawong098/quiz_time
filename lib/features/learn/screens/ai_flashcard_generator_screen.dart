@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/ai_quiz_service.dart';
 import '../../../core/services/ai_generation_manager.dart';
+import '../../../core/widgets/gemini_model_selector_sheet.dart';
 
 class AIFlashcardGeneratorScreen extends StatefulWidget {
   const AIFlashcardGeneratorScreen({super.key});
@@ -147,81 +148,27 @@ class _AIFlashcardGeneratorScreenState
     });
   }
 
-  void _showModelSelectorSheet() {
-    showModalBottomSheet(
+  String _getModelDisplayName(String modelId) {
+    if (_modelDisplayNames.containsKey(modelId)) {
+      return _modelDisplayNames[modelId]!;
+    }
+    return modelId
+        .replaceAll('gemini-', 'Gemini ')
+        .replaceAll('-', ' ')
+        .split(' ')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
+  }
+
+  Future<void> _showModelSelectorSheet() async {
+    final selected = await showGeminiModelSelectorSheet(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final maxHeight = MediaQuery.of(ctx).size.height * 0.65;
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Select Gemini Model',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: AIQuizService.availableModels.map((m) {
-                      final isSelected = m == _selectedModel;
-                      return ListTile(
-                        leading: Icon(
-                          Icons.auto_awesome,
-                          color: isSelected ? Colors.deepPurple : Colors.grey,
-                        ),
-                        title: Text(
-                          _modelDisplayNames[m] ?? m,
-                          style: TextStyle(
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isSelected ? Colors.deepPurple : null,
-                          ),
-                        ),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle,
-                                color: Colors.deepPurple)
-                            : null,
-                        onTap: () async {
-                          setState(() {
-                            _selectedModel = m;
-                          });
-                          await AIQuizService.saveSelectedModel(m);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      currentModel: _selectedModel,
+      onApiKeyRequested: _showApiKeyDialog,
     );
+    if (selected != null && mounted) {
+      setState(() => _selectedModel = selected);
+    }
   }
 
   Future<void> _showApiKeyDialog() async {
@@ -390,8 +337,14 @@ class _AIFlashcardGeneratorScreenState
           children: [
             Icon(Icons.style_rounded, color: Colors.amber, size: 22),
             SizedBox(width: 8),
-            Text('AI Flashcard Generator',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            Expanded(
+              child: Text(
+                'AI Flashcard Generator',
+                style: TextStyle(fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
           ],
         ),
         actions: [
@@ -518,6 +471,9 @@ class _AIFlashcardGeneratorScreenState
           if (_selectedFile != null) ...[
             const SizedBox(height: 10),
             Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width - 64,
+              ),
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -538,8 +494,7 @@ class _AIFlashcardGeneratorScreenState
                     color: Colors.deepPurple,
                   ),
                   const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 200),
+                  Flexible(
                     child: Text(
                       _selectedFile!.name,
                       style: const TextStyle(
@@ -548,17 +503,18 @@ class _AIFlashcardGeneratorScreenState
                         color: Colors.deepPurple,
                       ),
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                   Text(
                     '(${(_selectedFile!.size / 1024).toStringAsFixed(1)} KB)',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade600,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                   InkWell(
                     onTap: _removeSelectedFile,
                     child: const Icon(
@@ -616,8 +572,7 @@ class _AIFlashcardGeneratorScreenState
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _modelDisplayNames[_selectedModel] ??
-                            _selectedModel,
+                        _getModelDisplayName(_selectedModel),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,

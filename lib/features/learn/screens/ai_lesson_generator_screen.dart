@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/ai_quiz_service.dart';
 import '../../../core/services/ai_generation_manager.dart';
+import '../../../core/widgets/gemini_model_selector_sheet.dart';
 
 class AILessonGeneratorScreen extends StatefulWidget {
   const AILessonGeneratorScreen({super.key});
@@ -20,15 +21,50 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
   final _focusNode = FocusNode();
 
   // Lesson Generation options
-  String _selectedScope = 'Standard'; // Quick, Standard, Comprehensive
   String _selectedAudience = 'Intermediate'; // Beginner, Intermediate, Advanced
   final bool _generateCoverImage = true;
   String _selectedModel = 'gemini-1.5-flash';
 
-  // File upload state
-  PlatformFile? _selectedFile;
-  Uint8List? _fileBytes;
+  // File upload state (supports multi-file selection)
+  final List<PlatformFile> _selectedFiles = [];
   bool _isUploadingFile = false;
+
+  IconData _getFileIcon(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pptx':
+      case 'ppt':
+        return Icons.slideshow_rounded;
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+      case 'txt':
+      case 'md':
+        return Icons.description_rounded;
+      case 'mp3':
+      case 'wav':
+      case 'm4a':
+      case 'aac':
+      case 'flac':
+        return Icons.audiotrack_rounded;
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'webp':
+      case 'gif':
+        return Icons.image_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / 1024).toStringAsFixed(0)} KB';
+  }
 
   // API Key state
   bool _hasApiKey = false;
@@ -93,39 +129,53 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
+        allowMultiple: true,
         withData: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-
-        if (file.size > _maxFileSizeBytes) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content:
-                    Text('File is too large. Maximum allowed size is 15MB.'),
-                backgroundColor: Colors.redAccent,
-              ),
+        final List<PlatformFile> validFiles = [];
+        for (final file in result.files) {
+          if (file.size > _maxFileSizeBytes) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      'File "${file.name}" exceeds maximum allowed size of 15MB.'),
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            }
+          } else {
+            Uint8List? bytes = file.bytes;
+            if (bytes == null && file.path != null) {
+              bytes = await File(file.path!).readAsBytes();
+            }
+            final readyFile = PlatformFile(
+              name: file.name,
+              size: file.size,
+              bytes: bytes,
+              path: file.path,
             );
+            final alreadyExists = _selectedFiles.any(
+              (f) => f.name == file.name && f.size == file.size,
+            );
+            if (!alreadyExists) {
+              validFiles.add(readyFile);
+            }
           }
-          return;
         }
 
-        Uint8List? bytes = file.bytes;
-        if (bytes == null && file.path != null) {
-          bytes = await File(file.path!).readAsBytes();
+        if (validFiles.isNotEmpty) {
+          setState(() {
+            _selectedFiles.addAll(validFiles);
+          });
         }
-
-        setState(() {
-          _selectedFile = file;
-          _fileBytes = bytes;
-        });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking file: $e')),
+          SnackBar(content: Text('Error picking files: $e')),
         );
       }
     } finally {
@@ -135,88 +185,35 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
     }
   }
 
-  void _removeSelectedFile() {
+  void _removeSelectedFile(int index) {
     setState(() {
-      _selectedFile = null;
-      _fileBytes = null;
+      if (index >= 0 && index < _selectedFiles.length) {
+        _selectedFiles.removeAt(index);
+      }
     });
   }
 
-  void _showModelSelectorSheet() {
-    showModalBottomSheet(
+  String _getModelDisplayName(String modelId) {
+    if (_modelDisplayNames.containsKey(modelId)) {
+      return _modelDisplayNames[modelId]!;
+    }
+    return modelId
+        .replaceAll('gemini-', 'Gemini ')
+        .replaceAll('-', ' ')
+        .split(' ')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
+  }
+
+  Future<void> _showModelSelectorSheet() async {
+    final selected = await showGeminiModelSelectorSheet(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final maxHeight = MediaQuery.of(ctx).size.height * 0.65;
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Select Gemini Model',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: AIQuizService.availableModels.map((m) {
-                      final isSelected = m == _selectedModel;
-                      return ListTile(
-                        leading: Icon(
-                          Icons.auto_awesome,
-                          color: isSelected ? Colors.deepPurple : Colors.grey,
-                        ),
-                        title: Text(
-                          _modelDisplayNames[m] ?? m,
-                          style: TextStyle(
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isSelected ? Colors.deepPurple : null,
-                          ),
-                        ),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle,
-                                color: Colors.deepPurple)
-                            : null,
-                        onTap: () async {
-                          setState(() {
-                            _selectedModel = m;
-                          });
-                          await AIQuizService.saveSelectedModel(m);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      currentModel: _selectedModel,
+      onApiKeyRequested: _showApiKeyDialog,
     );
+    if (selected != null && mounted) {
+      setState(() => _selectedModel = selected);
+    }
   }
 
   Future<void> _showApiKeyDialog() async {
@@ -318,9 +315,9 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
 
   Future<void> _startLessonGeneration() async {
     final promptText = _promptController.text.trim();
-    final hasFile = _selectedFile != null && _fileBytes != null;
+    final hasFiles = _selectedFiles.isNotEmpty;
 
-    if (promptText.isEmpty && !hasFile) {
+    if (promptText.isEmpty && !hasFiles) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content:
@@ -345,12 +342,12 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
     await AIGenerationManager().startLessonGeneration(
       context: context,
       prompt: promptText,
-      fileBytes: hasFile ? _fileBytes : null,
-      fileName: hasFile ? _selectedFile?.name : null,
-      lessonScope: _selectedScope,
+      filesBytes: _selectedFiles.map((f) => f.bytes!).toList(),
+      filesNames: _selectedFiles.map((f) => f.name).toList(),
+      lessonScope: 'Auto',
       audience: _selectedAudience,
       generateCover: _generateCoverImage,
-      generateInSlideImages: hasFile,
+      generateInSlideImages: hasFiles,
       modelName: _selectedModel,
     );
   }
@@ -371,8 +368,14 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
           children: [
             Icon(Icons.menu_book_rounded, color: Colors.amber, size: 22),
             SizedBox(width: 8),
-            Text('AI Lesson Generator',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            Expanded(
+              child: Text(
+                'AI Lesson Generator',
+                style: TextStyle(fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
           ],
         ),
         actions: [
@@ -496,60 +499,72 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
             ),
           ),
 
-          if (_selectedFile != null) ...[
+          if (_selectedFiles.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.deepPurple.shade900.withValues(alpha: 0.5)
-                    : Colors.deepPurple.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.deepPurple.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.description_rounded,
-                    size: 16,
-                    color: Colors.deepPurple,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: List.generate(_selectedFiles.length, (idx) {
+                final file = _selectedFiles[idx];
+                return Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width - 64,
                   ),
-                  const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 200),
-                    child: Text(
-                      _selectedFile!.name,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.deepPurple.shade900.withValues(alpha: 0.5)
+                        : Colors.deepPurple.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.deepPurple.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _getFileIcon(file.name),
+                        size: 16,
                         color: Colors.deepPurple,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          file.name,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.deepPurple,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '(${_formatFileSize(file.size)})',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () => _removeSelectedFile(idx),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '(${(_selectedFile!.size / 1024).toStringAsFixed(1)} KB)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: _removeSelectedFile,
-                    child: const Icon(
-                      Icons.close_rounded,
-                      size: 16,
-                      color: Colors.redAccent,
-                    ),
-                  ),
-                ],
-              ),
+                );
+              }),
             ),
           ],
 
@@ -597,8 +612,7 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _modelDisplayNames[_selectedModel] ??
-                            _selectedModel,
+                        _getModelDisplayName(_selectedModel),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -670,32 +684,60 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
             ),
             const Divider(height: 24),
 
-            // Lesson Scope
-            const Text(
-              'Lesson Scope',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                {'title': 'Quick Overview', 'val': 'Quick', 'desc': '1 Module, 3 Slides'},
-                {'title': 'Standard Lesson', 'val': 'Standard', 'desc': '2 Modules, 6 Slides'},
-                {'title': 'Comprehensive', 'val': 'Comprehensive', 'desc': '3 Modules, 12 Slides'},
-              ].map((item) {
-                final isSelected = _selectedScope == item['val'];
-                return ChoiceChip(
-                  label: Text('${item['title']} (${item['desc']})'),
-                  selected: isSelected,
-                  selectedColor: Colors.deepPurple.shade100,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _selectedScope = item['val']!);
-                    }
-                  },
-                );
-              }).toList(),
+            // Adaptive Curriculum Structure Card
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.deepPurple.shade900.withValues(alpha: 0.3)
+                    : Colors.deepPurple.shade50.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.deepPurple.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome,
+                      color: Colors.deepPurple,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Adaptive Modules & Slide Sizing',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Modules and slides are automatically determined by AI based on the complexity, syllabus breadth, and length of your topic.',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            height: 1.35,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -925,9 +967,7 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
         subtitle: const Text('Saved to your library in My Lessons.'),
         trailing: ElevatedButton(
           onPressed: () {
-            if (task.generatedId != null) {
-              context.push('/my-lessons');
-            }
+            context.go('/my-lessons');
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,

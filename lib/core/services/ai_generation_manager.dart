@@ -42,7 +42,7 @@ class AIGenerationTask {
     required this.difficulty,
     this.durationSeconds = 0,
     this.cardStyle = 'Mixed',
-    this.lessonScope = 'Standard',
+    this.lessonScope = 'Auto',
     this.generateCover = true,
     this.generateInSlideImages = true,
     required this.modelName,
@@ -150,21 +150,24 @@ class AIGenerationManager extends ChangeNotifier {
   Future<void> startLessonGeneration({
     required BuildContext context,
     required String prompt,
+    List<Uint8List>? filesBytes,
+    List<String>? filesNames,
     Uint8List? fileBytes,
     String? fileName,
     String? fileMimeType,
-    required String lessonScope,
+    String lessonScope = 'Auto',
     required String audience,
     bool generateCover = true,
     bool generateInSlideImages = true,
     required String modelName,
   }) async {
+    final effectiveNames = filesNames ?? (fileName != null ? [fileName] : <String>[]);
     final taskId = DateTime.now().millisecondsSinceEpoch.toString();
     final task = AIGenerationTask(
       id: taskId,
       taskType: AITaskType.lesson,
       prompt: prompt,
-      fileName: fileName,
+      fileName: effectiveNames.isNotEmpty ? effectiveNames.join(', ') : fileName,
       lessonScope: lessonScope,
       difficulty: audience,
       generateCover: generateCover,
@@ -177,6 +180,8 @@ class AIGenerationManager extends ChangeNotifier {
 
     _runBackgroundLessonTask(
       task: task,
+      filesBytes: filesBytes,
+      filesNames: filesNames,
       fileBytes: fileBytes,
       fileName: fileName,
       fileMimeType: fileMimeType,
@@ -382,6 +387,8 @@ class AIGenerationManager extends ChangeNotifier {
 
   Future<void> _runBackgroundLessonTask({
     required AIGenerationTask task,
+    List<Uint8List>? filesBytes,
+    List<String>? filesNames,
     Uint8List? fileBytes,
     String? fileName,
     String? fileMimeType,
@@ -413,6 +420,8 @@ class AIGenerationManager extends ChangeNotifier {
 
       final result = await AILessonService.generateLesson(
         promptOrInstructions: task.prompt,
+        filesBytes: filesBytes,
+        filesNames: filesNames,
         fileBytes: fileBytes,
         fileName: fileName,
         fileMimeType: fileMimeType,
@@ -460,7 +469,7 @@ class AIGenerationManager extends ChangeNotifier {
           final sData = subChaptersData[sIdx];
           if (sData is! Map) continue;
           final sTitle = (sData['title'] ?? 'Module ${sIdx + 1}').toString();
-          final xp = (sData['xpReward'] as num?)?.toInt() ?? 15;
+          final xp = (sData['xpReward'] as num?)?.toInt() ?? 10;
 
           final subChapter = await repo.createSubChapter(
             chapterId: chapter.id,

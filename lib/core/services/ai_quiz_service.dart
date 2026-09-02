@@ -6,10 +6,45 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'ai_attachment_helper.dart';
 
+class GeminiModelInfo {
+  final String id;
+  final String displayName;
+  final String description;
+  final int? inputTokenLimit;
+  final int? outputTokenLimit;
+
+  GeminiModelInfo({
+    required this.id,
+    required this.displayName,
+    required this.description,
+    this.inputTokenLimit,
+    this.outputTokenLimit,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'displayName': displayName,
+        'description': description,
+        'inputTokenLimit': inputTokenLimit,
+        'outputTokenLimit': outputTokenLimit,
+      };
+
+  factory GeminiModelInfo.fromJson(Map<String, dynamic> json) =>
+      GeminiModelInfo(
+        id: json['id'] as String? ?? '',
+        displayName:
+            json['displayName'] as String? ?? json['id'] as String? ?? '',
+        description: json['description'] as String? ?? '',
+        inputTokenLimit: json['inputTokenLimit'] as int?,
+        outputTokenLimit: json['outputTokenLimit'] as int?,
+      );
+}
+
 class AIQuizService {
   static const String _prefKey = 'gemini_api_key';
   static const String _prefModelKey = 'gemini_selected_model';
   static const String _prefTopicSuggestionsKey = 'gemini_topic_suggestions';
+  static const String _prefCachedModelsKey = 'gemini_cached_models_v1';
 
   static const List<String> availableModels = [
     'gemini-3.6-flash',
@@ -46,16 +81,18 @@ class AIQuizService {
     return null;
   }
 
-  /// Saves the user-provided Gemini API Key locally.
+  /// Saves the user-provided Gemini API Key locally and resets model cache.
   static Future<void> saveApiKey(String key) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, key.trim());
+    await prefs.remove(_prefCachedModelsKey);
   }
 
-  /// Clears the locally stored API key.
+  /// Clears the locally stored API key and model cache.
   static Future<void> clearApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefKey);
+    await prefs.remove(_prefCachedModelsKey);
   }
 
   /// Gets the selected model name or default.
@@ -74,6 +111,33 @@ class AIQuizService {
   static Future<List<String>> listAvailableModelsForApiKey(
     String apiKey,
   ) async {
+    final details = await fetchAvailableModelDetailsForApiKey(apiKey);
+    return details.map((m) => m.id).toList();
+  }
+
+  /// Dynamically queries Google Generative Language API to list all models available for the provided API key with rich metadata.
+  static Future<List<GeminiModelInfo>> fetchAvailableModelDetailsForApiKey(
+    String apiKey, {
+    bool forceRefresh = false,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!forceRefresh) {
+      final cachedJson = prefs.getString(_prefCachedModelsKey);
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        try {
+          final List decoded = jsonDecode(cachedJson);
+          final cachedModels = decoded
+              .map((item) =>
+                  GeminiModelInfo.fromJson(item as Map<String, dynamic>))
+              .toList();
+          if (cachedModels.isNotEmpty) {
+            return cachedModels;
+          }
+        } catch (_) {}
+      }
+    }
+
     final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey',
     );
@@ -82,7 +146,7 @@ class AIQuizService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final modelsList = data['models'] as List? ?? [];
-      final List<String> supported = [];
+      final List<GeminiModelInfo> supported = [];
 
       for (var m in modelsList) {
         if (m is! Map) continue;
@@ -94,10 +158,40 @@ class AIQuizService {
             name = name.substring(7);
           }
           if (name.isNotEmpty) {
-            supported.add(name);
+            final displayName = (m['displayName'] as String?)?.trim() ?? name;
+            final description = (m['description'] as String?)?.trim() ?? '';
+            final inputTokenLimit = m['inputTokenLimit'] as int?;
+            final outputTokenLimit = m['outputTokenLimit'] as int?;
+
+            supported.add(
+              GeminiModelInfo(
+                id: name,
+                displayName: displayName,
+                description: description,
+                inputTokenLimit: inputTokenLimit,
+                outputTokenLimit: outputTokenLimit,
+              ),
+            );
           }
         }
       }
+
+      // Sort models: Flash models first, then Pro models, then others
+      supported.sort((a, b) {
+        final aIsFlash = a.id.contains('flash');
+        final bIsFlash = b.id.contains('flash');
+        if (aIsFlash && !bIsFlash) return -1;
+        if (!aIsFlash && bIsFlash) return 1;
+        return a.displayName.compareTo(b.displayName);
+      });
+
+      // Cache the result
+      try {
+        final encoded =
+            jsonEncode(supported.map((e) => e.toJson()).toList());
+        await prefs.setString(_prefCachedModelsKey, encoded);
+      } catch (_) {}
+
       return supported;
     } else {
       try {
@@ -107,10 +201,62 @@ class AIQuizService {
       } catch (e) {
         if (e is Exception) rethrow;
         throw Exception(
-          'Failed to validate API key: HTTP ${response.statusCode}',
+          'Failed to retrieve Gemini models: HTTP ${response.statusCode}',
         );
       }
     }
+  }
+
+  /// Convenience method that retrieves models for the saved API key,
+  /// falling back to static models if no key is set or if offline.
+  static Future<List<GeminiModelInfo>> fetchLiveModelsWithFallback({
+    bool forceRefresh = false,
+  }) async {
+    final apiKey = await getApiKey();
+    if (apiKey != null && apiKey.isNotEmpty) {
+      try {
+        final liveModels = await fetchAvailableModelDetailsForApiKey(
+          apiKey,
+          forceRefresh: forceRefresh,
+        );
+        if (liveModels.isNotEmpty) {
+          return liveModels;
+        }
+      } catch (e) {
+        debugPrint('Failed to load live Gemini models: $e');
+      }
+    }
+
+    // Static fallback list with descriptive metadata
+    return availableModels.map((id) {
+      String displayName = id;
+      String description = 'Google Gemini Generative AI Model';
+      if (id.contains('3.6-flash')) {
+        displayName = 'Gemini 3.6 Flash';
+        description = 'Next-generation ultra-fast multimodal model.';
+      } else if (id.contains('3.0-flash')) {
+        displayName = 'Gemini 3.0 Flash';
+        description = 'High-speed balanced model.';
+      } else if (id.contains('2.0-flash')) {
+        displayName = 'Gemini 2.0 Flash';
+        description = 'High frequency, low latency generative model.';
+      } else if (id.contains('2.0-pro')) {
+        displayName = 'Gemini 2.0 Pro';
+        description = 'Complex reasoning and instructional generation.';
+      } else if (id.contains('1.5-flash')) {
+        displayName = 'Gemini 1.5 Flash';
+        description = 'Fast multimodal model for structured tasks.';
+      } else if (id.contains('1.5-pro')) {
+        displayName = 'Gemini 1.5 Pro';
+        description = 'Advanced reasoning and large context capacity.';
+      }
+
+      return GeminiModelInfo(
+        id: id,
+        displayName: displayName,
+        description: description,
+      );
+    }).toList();
   }
 
   /// Fetches dynamic AI-generated quick topic suggestions.
