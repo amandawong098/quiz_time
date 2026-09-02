@@ -338,6 +338,54 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
 
     if (!mounted) return;
 
+    // Detect if multiple files or lengthy files were uploaded
+    final bool isMultiFile = _selectedFiles.length > 1;
+    final int totalBytes = _selectedFiles.fold(0, (acc, f) => acc + f.size);
+    final bool isLengthyContent = isMultiFile || totalBytes > 3 * 1024 * 1024;
+
+    if (isLengthyContent) {
+      final shouldProceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.auto_stories_rounded, color: Colors.deepPurple, size: 36),
+          title: const Text(
+            'Multi-Chapter Content Detected',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            isMultiFile
+                ? 'You have attached ${_selectedFiles.length} files. Because extensive study materials were provided, the AI may structure this course across multiple chapters or extended modules to cover the topics thoroughly.\n\nWould you like to proceed with generation, or go back to adjust your files?'
+                : 'Your uploaded document contains extensive content. The AI may generate multiple chapters or in-depth modules to ensure comprehensive coverage.\n\nWould you like to proceed with generation, or go back to adjust your files?',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Adjust Files', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Proceed & Generate'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldProceed != true) {
+        return;
+      }
+    }
+
+    if (!mounted) return;
+
     // Launch background lesson generation
     await AIGenerationManager().startLessonGeneration(
       context: context,
@@ -420,6 +468,33 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                   if (isCurrentLessonTask &&
                       currentTask.status == AITaskStatus.failed)
                     _buildFailedTaskBanner(currentTask),
+                  
+                  // Recommendation guidance banner
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade100),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lightbulb_outline, size: 20, color: Colors.blue.shade700),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Recommendation: Generating 1 chapter at a time provides the deepest explanations, figures, and interactive checkpoints.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade900,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                   // Unified Prompt + Attachment Box (Antigravity Style)
                   _buildUnifiedPromptContainer(isDark, theme),
@@ -449,6 +524,26 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
+                  ),
+
+                  // AI mistake disclaimer
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'AI can make mistakes. Please verify important educational information.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 32),
                 ],

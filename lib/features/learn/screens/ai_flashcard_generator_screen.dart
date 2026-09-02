@@ -419,7 +419,25 @@ class _AIFlashcardGeneratorScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'AI can make mistakes. Please verify important educational information.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),

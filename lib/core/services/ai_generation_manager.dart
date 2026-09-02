@@ -25,6 +25,7 @@ class AIGenerationTask {
   final bool generateCover;
   final bool generateInSlideImages;
   final String modelName;
+  final String? targetCourseId;
   AITaskStatus status;
   String statusMessage;
   String? error;
@@ -46,6 +47,7 @@ class AIGenerationTask {
     this.generateCover = true,
     this.generateInSlideImages = true,
     required this.modelName,
+    this.targetCourseId,
     this.status = AITaskStatus.generating,
     this.statusMessage = 'Preparing study materials...',
     this.error,
@@ -180,6 +182,50 @@ class AIGenerationManager extends ChangeNotifier {
 
     _runBackgroundLessonTask(
       task: task,
+      filesBytes: filesBytes,
+      filesNames: filesNames,
+      fileBytes: fileBytes,
+      fileName: fileName,
+      fileMimeType: fileMimeType,
+    );
+  }
+
+  /// Starts an asynchronous AI Chapter generation task to extend an existing course.
+  Future<void> startAddChapterGeneration({
+    required BuildContext context,
+    required String courseId,
+    required String courseTitle,
+    List<String> existingChapterTitles = const [],
+    required String prompt,
+    List<Uint8List>? filesBytes,
+    List<String>? filesNames,
+    Uint8List? fileBytes,
+    String? fileName,
+    String? fileMimeType,
+    required String audience,
+    required String modelName,
+  }) async {
+    final effectiveNames = filesNames ?? (fileName != null ? [fileName] : <String>[]);
+    final taskId = DateTime.now().millisecondsSinceEpoch.toString();
+    final task = AIGenerationTask(
+      id: taskId,
+      taskType: AITaskType.lesson,
+      prompt: prompt,
+      fileName: effectiveNames.isNotEmpty ? effectiveNames.join(', ') : fileName,
+      difficulty: audience,
+      generateCover: false,
+      modelName: modelName,
+      targetCourseId: courseId,
+    );
+
+    _currentTask = task;
+    notifyListeners();
+
+    _runBackgroundAddChapterTask(
+      task: task,
+      courseId: courseId,
+      courseTitle: courseTitle,
+      existingChapterTitles: existingChapterTitles,
       filesBytes: filesBytes,
       filesNames: filesNames,
       fileBytes: fileBytes,
@@ -525,6 +571,130 @@ class AIGenerationManager extends ChangeNotifier {
       task.status = AITaskStatus.failed;
       task.error = e.toString().replaceAll('Exception: ', '');
       task.statusMessage = 'Generation failed';
+      notifyListeners();
+    }
+  }
+
+  Future<void> _runBackgroundAddChapterTask({
+    required AIGenerationTask task,
+    required String courseId,
+    required String courseTitle,
+    List<String> existingChapterTitles = const [],
+    List<Uint8List>? filesBytes,
+    List<String>? filesNames,
+    Uint8List? fileBytes,
+    String? fileName,
+    String? fileMimeType,
+  }) async {
+    try {
+      task.statusMessage = 'Reading chapter materials & context...';
+      notifyListeners();
+
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating) {
+          task.statusMessage = 'Gemini AI structuring chapter modules...';
+          notifyListeners();
+        }
+      });
+
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating) {
+          task.statusMessage = 'Drafting slide pages & checkpoints for chapter...';
+          notifyListeners();
+        }
+      });
+
+      final chapterData = await AILessonService.generateChapterForCourse(
+        courseTitle: courseTitle,
+        existingChapterTitles: existingChapterTitles,
+        promptOrInstructions: task.prompt,
+        filesBytes: filesBytes,
+        filesNames: filesNames,
+        fileBytes: fileBytes,
+        fileName: fileName,
+        fileMimeType: fileMimeType,
+        audience: task.difficulty,
+        modelName: task.modelName,
+      );
+
+      final cTitle = (chapterData['title'] ?? 'New Chapter').toString();
+      final subChaptersData = chapterData['subChapters'] as List? ?? [];
+
+      task.statusMessage = 'Saving chapter to course in database...';
+      notifyListeners();
+
+      final repo = LessonRepository();
+      final existingChapters = await repo.getChapters(courseId);
+      final newPosition = existingChapters.length + 1;
+
+      // 1. Create Chapter
+      final chapter = await repo.createChapter(
+        title: cTitle,
+        position: newPosition,
+        courseId: courseId,
+      );
+
+      final List<Map<String, dynamic>> allBlockPayloads = [];
+
+      // 2. Iterate SubChapters
+      for (int sIdx = 0; sIdx < subChaptersData.length; sIdx++) {
+        final sData = subChaptersData[sIdx];
+        if (sData is! Map) continue;
+        final sTitle = (sData['title'] ?? 'Module ${sIdx + 1}').toString();
+        final xp = (sData['xpReward'] as num?)?.toInt() ?? 10;
+
+        final subChapter = await repo.createSubChapter(
+          chapterId: chapter.id,
+          title: sTitle,
+          position: sIdx + 1,
+          xpReward: xp,
+        );
+
+        // 3. Iterate Pages
+        final pagesData = sData['pages'] as List? ?? [];
+        for (int pIdx = 0; pIdx < pagesData.length; pIdx++) {
+          final pData = pagesData[pIdx];
+          if (pData is! Map) continue;
+
+          final page = await repo.createPage(
+            subChapterId: subChapter.id,
+            position: pIdx + 1,
+          );
+
+          // 4. Collect Block Payloads
+          final blocksData = pData['blocks'] as List? ?? [];
+          for (int bIdx = 0; bIdx < blocksData.length; bIdx++) {
+            final bData = blocksData[bIdx];
+            if (bData is! Map) continue;
+            final bType = (bData['blockType'] ?? 'text').toString();
+            final bContent = bData['content'] as Map<String, dynamic>? ?? {};
+
+            allBlockPayloads.add({
+              'page_id': page.id,
+              'block_type': bType,
+              'content': bContent,
+              'position': bIdx + 1,
+            });
+          }
+        }
+      }
+
+      // 5. Bulk Insert All Blocks
+      if (allBlockPayloads.isNotEmpty) {
+        await repo.insertBlocks(allBlockPayloads);
+      }
+
+      task.status = AITaskStatus.completed;
+      task.statusMessage = 'Chapter added successfully to "$courseTitle"!';
+      task.generatedId = courseId;
+      task.generatedTitle = cTitle;
+      _completedTasks.insert(0, task);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Background AI Chapter Generation failed: $e');
+      task.status = AITaskStatus.failed;
+      task.error = e.toString().replaceAll('Exception: ', '');
+      task.statusMessage = 'Chapter generation failed';
       notifyListeners();
     }
   }
