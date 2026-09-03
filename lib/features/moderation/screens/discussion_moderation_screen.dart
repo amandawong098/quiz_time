@@ -147,24 +147,24 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
       appBar: AppBar(
         title: const Row(
           children: [
-            Icon(Icons.shield_rounded, color: Colors.deepPurple),
+            Icon(Icons.shield_rounded, color: Colors.white),
             SizedBox(width: 8),
             Text(
               'Moderation Hub',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
             onPressed: _loadReports,
             tooltip: 'Refresh Reports',
           ),
         ],
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.deepPurple))
@@ -313,15 +313,21 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700),
+                      ),
                       const SizedBox(width: 6),
-                      Text(
-                        'Reason: ${report.reason}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade900,
+                      Expanded(
+                        child: Text(
+                          'Reason: ${report.reason}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade900,
+                          ),
                         ),
                       ),
                     ],
@@ -361,7 +367,7 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
                 children: [
                   if (!isReply) ...[
                     Text(
-                      report.topicTitle ?? 'Topic Title',
+                      report.topicTitle ?? 'Untitled Topic',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -370,25 +376,47 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      report.topicContent ?? 'No content',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+                      (report.topicContent != null && report.topicContent!.trim().isNotEmpty)
+                          ? report.topicContent!
+                          : '(No topic description provided)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: (report.topicContent != null && report.topicContent!.trim().isNotEmpty)
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade500,
+                        fontStyle: (report.topicContent != null && report.topicContent!.trim().isNotEmpty)
+                            ? FontStyle.normal
+                            : FontStyle.italic,
+                      ),
                       maxLines: 4,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ] else ...[
-                    if (report.topicTitle != null)
-                      Text(
-                        'Under: "${report.topicTitle}"',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade700,
+                    if (report.topicTitle != null && report.topicTitle!.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          'In Topic: "${report.topicTitle}"',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade700,
+                          ),
                         ),
                       ),
-                    const SizedBox(height: 4),
                     Text(
-                      report.replyContent ?? 'No reply content',
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      (report.replyContent != null && report.replyContent!.trim().isNotEmpty)
+                          ? report.replyContent!
+                          : '(Empty reply content)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: (report.replyContent != null && report.replyContent!.trim().isNotEmpty)
+                            ? Colors.black87
+                            : Colors.grey.shade500,
+                        fontStyle: (report.replyContent != null && report.replyContent!.trim().isNotEmpty)
+                            ? FontStyle.normal
+                            : FontStyle.italic,
+                      ),
                       maxLines: 4,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -399,41 +427,54 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
             const SizedBox(height: 16),
 
             // Moderation Actions Bar
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
-                    context.push('/discussions/${report.topicId}');
+                    context.push('/discussion/${report.topicId}');
                   },
                   icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                  label: const Text('View Thread'),
+                  label: const Text('View in Discussion'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.deepPurple,
                     side: BorderSide(color: Colors.deepPurple.shade300),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
-                const Spacer(),
-                OutlinedButton(
-                  onPressed: () => _dismissReport(report),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey.shade700,
-                    side: BorderSide(color: Colors.grey.shade400),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  child: const Text('Dismiss'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _deleteContent(report),
-                  icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('Delete Content'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    elevation: 1,
-                  ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _dismissReport(report),
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        label: const Text('Dismiss'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade700,
+                          side: BorderSide(color: Colors.grey.shade400),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _deleteContent(report),
+                        icon: const Icon(Icons.delete_forever_rounded, size: 16),
+                        label: const Text('Delete Content'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          elevation: 1,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

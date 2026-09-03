@@ -664,22 +664,134 @@ class DiscussionRepository {
     try {
       final res = await _supabase
           .from('discussion_reports')
-          .select('*, profiles!reporter_id(name, avatar_url), discussion_topics(title), discussion_replies(content)')
+          .select('*')
           .eq('status', 'pending')
           .order('created_at', ascending: false);
-      return (res as List).map((e) => DiscussionReport.fromJson(e)).toList();
-    } catch (e) {
-      debugPrint('Error fetching pending reports with joins: $e');
-      try {
-        final fallback = await _supabase
-            .from('discussion_reports')
-            .select('*')
-            .eq('status', 'pending')
-            .order('created_at', ascending: false);
-        return (fallback as List).map((e) => DiscussionReport.fromJson(e)).toList();
-      } catch (_) {
-        return [];
+
+      final reportsList = res as List;
+      if (reportsList.isEmpty) return [];
+
+      final Set<String> reporterIds = {};
+      final Set<String> topicIds = {};
+      final Set<String> replyIds = {};
+
+      for (var row in reportsList) {
+        final reporterId = row['reporter_id'] as String?;
+        final topicId = row['topic_id'] as String?;
+        final replyId = row['reply_id'] as String?;
+
+        if (reporterId != null && reporterId.isNotEmpty) reporterIds.add(reporterId);
+        if (topicId != null && topicId.isNotEmpty) topicIds.add(topicId);
+        if (replyId != null && replyId.isNotEmpty) replyIds.add(replyId);
       }
+
+      final Map<String, Map<String, dynamic>> profilesMap = {};
+      final Map<String, Map<String, dynamic>> topicsMap = {};
+      final Map<String, Map<String, dynamic>> repliesMap = {};
+
+      final futures = <Future>[];
+
+      if (reporterIds.isNotEmpty) {
+        futures.add(() async {
+          try {
+            final profilesRes = await _supabase
+                .from('profiles')
+                .select('id, name, avatar_url')
+                .inFilter('id', reporterIds.toList());
+            for (var p in profilesRes as List) {
+              profilesMap[p['id'] as String] = p as Map<String, dynamic>;
+            }
+          } catch (e) {
+            debugPrint('Error fetching reporter profiles: $e');
+          }
+        }());
+      }
+
+      if (topicIds.isNotEmpty) {
+        futures.add(() async {
+          try {
+            final topicsRes = await _supabase
+                .from('discussion_topics')
+                .select('id, title, content')
+                .inFilter('id', topicIds.toList());
+            for (var t in topicsRes as List) {
+              topicsMap[t['id'] as String] = t as Map<String, dynamic>;
+            }
+          } catch (e) {
+            debugPrint('Error fetching report topics: $e');
+          }
+        }());
+      }
+
+      if (replyIds.isNotEmpty) {
+        futures.add(() async {
+          try {
+            final repliesRes = await _supabase
+                .from('discussion_replies')
+                .select('id, topic_id, content')
+                .inFilter('id', replyIds.toList());
+            for (var r in repliesRes as List) {
+              repliesMap[r['id'] as String] = r as Map<String, dynamic>;
+            }
+          } catch (e) {
+            debugPrint('Error fetching report replies: $e');
+          }
+        }());
+      }
+
+      await Future.wait(futures);
+
+      // In case a reply has a topic_id not in the original list
+      final Set<String> extraTopicIds = {};
+      for (var r in repliesMap.values) {
+        final tId = r['topic_id'] as String?;
+        if (tId != null && !topicsMap.containsKey(tId)) {
+          extraTopicIds.add(tId);
+        }
+      }
+      if (extraTopicIds.isNotEmpty) {
+        try {
+          final extraTopicsRes = await _supabase
+              .from('discussion_topics')
+              .select('id, title, content')
+              .inFilter('id', extraTopicIds.toList());
+          for (var t in extraTopicsRes as List) {
+            topicsMap[t['id'] as String] = t as Map<String, dynamic>;
+          }
+        } catch (e) {
+          debugPrint('Error fetching extra topics: $e');
+        }
+      }
+
+      return reportsList.map((row) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final reporterId = map['reporter_id'] as String?;
+        var topicId = map['topic_id'] as String?;
+        final replyId = map['reply_id'] as String?;
+
+        final replyData = replyId != null ? repliesMap[replyId] : null;
+        if (topicId == null && replyData != null) {
+          topicId = replyData['topic_id'] as String?;
+        }
+
+        final topicData = topicId != null ? topicsMap[topicId] : null;
+        final profileData = reporterId != null ? profilesMap[reporterId] : null;
+
+        if (profileData != null) {
+          map['profiles'] = profileData;
+        }
+        if (topicData != null) {
+          map['discussion_topics'] = topicData;
+        }
+        if (replyData != null) {
+          map['discussion_replies'] = replyData;
+        }
+
+        return DiscussionReport.fromJson(map);
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching pending reports: $e');
+      return [];
     }
   }
 
