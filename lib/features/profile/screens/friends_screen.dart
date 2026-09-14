@@ -380,7 +380,9 @@ class _FriendsScreenState extends State<FriendsScreen>
   Widget _buildDiscoverTab() {
     final filtered = _discoverNewFriends
         .where(
-          (u) => u.name.toLowerCase().contains(_discoverQuery.toLowerCase()),
+          (u) =>
+              !u.isAdmin &&
+              u.name.toLowerCase().contains(_discoverQuery.toLowerCase()),
         )
         .toList();
 

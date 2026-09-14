@@ -239,11 +239,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
       final receiver = row['receiver'];
       if (row['sender_id'] == uid) {
         if (receiver != null) {
-          friends.add(UserProfile.fromJson(receiver));
+          final p = UserProfile.fromJson(receiver);
+          if (!p.isAdmin) friends.add(p);
         }
       } else {
         if (sender != null) {
-          friends.add(UserProfile.fromJson(sender));
+          final p = UserProfile.fromJson(sender);
+          if (!p.isAdmin) friends.add(p);
         }
       }
     }
@@ -262,6 +264,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
     return (response as List)
         .where((row) => row['sender'] != null)
         .map((row) => UserProfile.fromJson(row['sender'] as Map<String, dynamic>))
+        .where((u) => !u.isAdmin)
         .toList();
   }
 
@@ -277,6 +280,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
     return (response as List)
         .where((row) => row['receiver'] != null)
         .map((row) => UserProfile.fromJson(row['receiver'] as Map<String, dynamic>))
+        .where((u) => !u.isAdmin)
         .toList();
   }
 
@@ -300,13 +304,29 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
 
     return (response as List)
         .map((e) => UserProfile.fromJson(e))
-        .where((profile) => !excludedUserIds.contains(profile.id))
+        .where((profile) => !excludedUserIds.contains(profile.id) && !profile.isAdmin)
         .toList();
   }
 
   Future<void> sendFriendRequest(String receiverId) async {
     final uid = _currentUserId;
     if (uid == null) return;
+
+    if (_currentUserProfile?.isAdmin == true) {
+      throw Exception('Administrators cannot participate in friendships.');
+    }
+
+    // Check if receiver is admin
+    final receiverProfile = await _supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', receiverId)
+        .maybeSingle();
+    if (receiverProfile != null &&
+        (receiverProfile['role'] as String?)?.toLowerCase() == 'admin') {
+      throw Exception('Cannot send friend request to an administrator.');
+    }
+
     await _supabase.from('friendships').insert({
       'sender_id': uid,
       'receiver_id': receiverId,

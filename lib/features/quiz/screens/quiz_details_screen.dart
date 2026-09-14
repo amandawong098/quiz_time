@@ -27,6 +27,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   int _totalDiscussionsCount = 0;
   bool _hasPlayedBefore = false;
   bool _canPostDiscussion = false;
+  Map<String, int> _questionDiscussionCounts = {};
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
       final data = await repo.getQuizDetails(widget.quizId);
       final attempts = await repo.getQuizAttempts(widget.quizId);
       final count = await discRepo.getQuizTotalDiscussionsCount(widget.quizId);
+      final questionCounts = await discRepo.getQuizQuestionsDiscussionsCount(widget.quizId);
       var quiz = data['quiz'] as Quiz;
 
       if (quiz.creatorId.isNotEmpty &&
@@ -70,6 +72,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
 
       bool canPost = false;
       try {
+        if (!mounted) return;
         final authRepo = context.read<AuthRepository>();
         final perm = await discRepo.checkLearnerCanPostDiscussion(
           userId: Supabase.instance.client.auth.currentUser?.id,
@@ -84,6 +87,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
           _quiz = quiz;
           _questions = data['questions'] as List<Question>;
           _totalDiscussionsCount = count;
+          _questionDiscussionCounts = questionCounts;
           _hasPlayedBefore = attempts.isNotEmpty;
           _canPostDiscussion = canPost;
           _isLoading = false;
@@ -455,6 +459,57 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                               ),
                             ),
                           ),
+                          if (_canPostDiscussion) ...[
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (ctx) => QuizDiscussionsSheet(
+                                    quizId: widget.quizId,
+                                    questionId: q.id,
+                                    quizTitle: _quiz!.title,
+                                    questionText: q.questionText,
+                                    questionNumber: index + 1,
+                                    isLocked: false,
+                                    onTopicCreated: () => _loadData(),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.deepPurple.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.chat_bubble_outline_rounded,
+                                      size: 14,
+                                      color: Colors.deepPurple,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${_questionDiscussionCounts[q.id] ?? 0}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.deepPurple,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 12),

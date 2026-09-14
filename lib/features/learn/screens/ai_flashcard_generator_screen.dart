@@ -920,20 +920,31 @@ class _AIFlashcardGeneratorScreenState
               const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
         ),
         subtitle: const Text('Saved to your library in My Flashcards.'),
-        trailing: ElevatedButton(
-          onPressed: () {
-            if (task.generatedId != null) {
-              context.push('/manage-cards/${task.generatedId}',
-                  extra: task.generatedTitle ?? 'Flashcard Deck');
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          ),
-          child: const Text('Manage Cards'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () {
+                if (task.generatedId != null) {
+                  context.push('/flashcard-deck/${task.generatedId}/details');
+                }
+              },
+              icon: const Icon(Icons.visibility_rounded, size: 16),
+              label: const Text('View'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+              tooltip: 'Dismiss',
+              onPressed: () => AIGenerationManager().dismissCurrentTask(),
+            ),
+          ],
         ),
       ),
     );

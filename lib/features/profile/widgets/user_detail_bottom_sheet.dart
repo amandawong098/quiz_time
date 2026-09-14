@@ -13,12 +13,14 @@ class UserDetailBottomSheet extends StatefulWidget {
   final String userId;
   final String initialName;
   final String? initialAvatarUrl;
+  final String? initialRole;
 
   const UserDetailBottomSheet({
     super.key,
     required this.userId,
     required this.initialName,
     this.initialAvatarUrl,
+    this.initialRole,
   });
 
   static Future<void> show(
@@ -26,6 +28,7 @@ class UserDetailBottomSheet extends StatefulWidget {
     required String userId,
     required String name,
     String? avatarUrl,
+    String? role,
   }) {
     if (userId.isEmpty || name == 'Deleted User' || userId.toLowerCase() == 'deleted') {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -45,6 +48,7 @@ class UserDetailBottomSheet extends StatefulWidget {
         userId: userId,
         initialName: name,
         initialAvatarUrl: avatarUrl,
+        initialRole: role,
       ),
     );
   }
@@ -73,30 +77,63 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
       final supabase = Supabase.instance.client;
       final currentUserId = supabase.auth.currentUser?.id;
 
-      // Fetch profile and all contributions in parallel
-      final List<Future<dynamic>> futures = [
-        supabase.from('profiles').select('*').eq('id', widget.userId).single(),
-        supabase.from('lesson_courses').select('*').eq('creator_id', widget.userId).order('created_at', ascending: false),
-        supabase.from('quizzes').select('*').eq('creator_id', widget.userId).order('created_at', ascending: false),
-        supabase.from('flashcard_decks').select('*').eq('creator_id', widget.userId).order('created_at', ascending: false),
-      ];
+      // 1. Fetch user profile
+      final profileRes = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', widget.userId)
+          .single();
+      final profile = UserProfile.fromJson(profileRes);
 
-      // Only query friendship status if we are looking at someone else's profile
-      if (currentUserId != null && currentUserId != widget.userId) {
-        futures.add(
-          supabase
-              .from('friendships')
-              .select('*')
-              .or('and(sender_id.eq.$currentUserId,receiver_id.eq.${widget.userId}),and(sender_id.eq.${widget.userId},receiver_id.eq.$currentUserId)')
-              .maybeSingle()
-        );
-      }
-
-      final results = await Future.wait(futures);
-
+      List<LessonCourse> courses = [];
+      List<Quiz> quizzes = [];
+      List<FlashcardDeck> decks = [];
       String? friendshipStatus;
-      if (currentUserId != null && currentUserId != widget.userId && results.length > 4) {
-        final friendshipResult = results[4] as Map<String, dynamic>?;
+
+      if (profile.isAdmin) {
+        // Admin: Load contributions (public only for other users)
+        var coursesQuery = supabase
+            .from('lesson_courses')
+            .select('*')
+            .eq('creator_id', widget.userId);
+        var quizzesQuery = supabase
+            .from('quizzes')
+            .select('*')
+            .eq('creator_id', widget.userId);
+        var decksQuery = supabase
+            .from('flashcard_decks')
+            .select('*')
+            .eq('creator_id', widget.userId);
+
+        if (currentUserId != widget.userId) {
+          coursesQuery = coursesQuery.eq('is_public', true);
+          quizzesQuery = quizzesQuery.eq('is_public', true);
+          decksQuery = decksQuery.eq('is_public', true);
+        }
+
+        final results = await Future.wait([
+          coursesQuery.order('created_at', ascending: false),
+          quizzesQuery.order('created_at', ascending: false),
+          decksQuery.order('created_at', ascending: false),
+        ]);
+
+        courses = (results[0] as List)
+            .map((c) => LessonCourse.fromJson(c as Map<String, dynamic>))
+            .toList();
+        quizzes = (results[1] as List)
+            .map((q) => Quiz.fromJson(q as Map<String, dynamic>))
+            .toList();
+        decks = (results[2] as List)
+            .map((d) => FlashcardDeck.fromJson(d as Map<String, dynamic>))
+            .toList();
+      } else if (currentUserId != null && currentUserId != widget.userId) {
+        // Learner: Query friendship status only (no contributions needed)
+        final friendshipResult = await supabase
+            .from('friendships')
+            .select('*')
+            .or('and(sender_id.eq.$currentUserId,receiver_id.eq.${widget.userId}),and(sender_id.eq.${widget.userId},receiver_id.eq.$currentUserId)')
+            .maybeSingle();
+
         if (friendshipResult == null) {
           friendshipStatus = 'none';
         } else {
@@ -114,16 +151,14 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
             friendshipStatus = 'none';
           }
         }
-      } else {
-        friendshipStatus = null; // viewing own profile
       }
 
       if (mounted) {
         setState(() {
-          _profile = UserProfile.fromJson(results[0] as Map<String, dynamic>);
-          _courses = (results[1] as List).map((c) => LessonCourse.fromJson(c as Map<String, dynamic>)).toList();
-          _quizzes = (results[2] as List).map((q) => Quiz.fromJson(q as Map<String, dynamic>)).toList();
-          _decks = (results[3] as List).map((d) => FlashcardDeck.fromJson(d as Map<String, dynamic>)).toList();
+          _profile = profile;
+          _courses = courses;
+          _quizzes = quizzes;
+          _decks = decks;
           _friendshipStatus = friendshipStatus;
           _isLoading = false;
         });
@@ -250,6 +285,10 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
   }
 
   Widget _buildFriendshipSection() {
+    if (_profile?.isAdmin == true || widget.initialRole?.toLowerCase() == 'admin') {
+      return const SizedBox.shrink(); // Admins do not have friend requests
+    }
+
     if (_friendshipStatus == null) {
       return const SizedBox.shrink(); // Viewing own profile, or not loaded yet
     }
@@ -500,6 +539,7 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
   Widget build(BuildContext context) {
     final avatarUrl = _profile?.avatarUrl ?? widget.initialAvatarUrl;
     final name = _profile?.name ?? widget.initialName;
+    final bool isAdmin = _profile?.isAdmin ?? (widget.initialRole?.toLowerCase() == 'admin');
     final league = _profile?.league ?? 'Stargazer';
     final weeklyXp = _profile?.weeklyXp ?? 0;
     final lifetimeXp = _profile?.xp ?? 0;
@@ -546,133 +586,51 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
-          // League Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: leagueStyle['bg'] as Color,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: leagueStyle['border'] as Color),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  leagueStyle['icon'] as IconData,
-                  size: 14,
-                  color: leagueStyle['iconColor'] as Color,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  league.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: leagueStyle['text'] as Color,
+
+          if (_isLoading) ...[
+            const SizedBox(height: 36),
+            const Center(child: CircularProgressIndicator()),
+            const SizedBox(height: 36),
+          ] else if (isAdmin) ...[
+            // Admin Profile View:
+            // 1. Administrator Badge (no league)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.deepPurple.shade200),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.admin_panel_settings_rounded,
+                    size: 14,
+                    color: Colors.deepPurple.shade700,
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // XP Stats row
-          Row(
-            children: [
-              // Lifetime XP (Left)
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.deepPurple.shade700, Colors.indigo.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                  const SizedBox(width: 4),
+                  Text(
+                    'ADMINISTRATOR',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple.shade900,
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.deepPurple.withValues(alpha: 0.15),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      )
-                    ],
                   ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Lifetime XP',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '$lifetimeXp XP',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              // Weekly XP (Right)
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.deepPurple.shade50.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.deepPurple.shade100, width: 1.5),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Weekly XP',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.deepPurple.shade700,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '$weeklyXp XP',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(),
-          // Created Contributions section
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Text(
-              'Contributions',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
-          ),
-          if (_isLoading)
-            const SizedBox(
-              height: 150,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            // 2. Created Contributions section for Admin (No XP, No Friend Request)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                'Contributions',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ),
             SizedBox(
               height: 250,
               child: DefaultTabController(
@@ -707,6 +665,121 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                 ),
               ),
             ),
+          ] else ...[
+            // Learner Profile View:
+            // 1. League Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: leagueStyle['bg'] as Color,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: leagueStyle['border'] as Color),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    leagueStyle['icon'] as IconData,
+                    size: 14,
+                    color: leagueStyle['iconColor'] as Color,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    league.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: leagueStyle['text'] as Color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // 2. XP Stats row
+            Row(
+              children: [
+                // Lifetime XP (Left)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.deepPurple.shade700, Colors.indigo.shade600],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.deepPurple.withValues(alpha: 0.15),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        )
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Lifetime XP',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '$lifetimeXp XP',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Weekly XP (Right)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.shade50.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.deepPurple.shade100, width: 1.5),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Weekly XP',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.deepPurple.shade700,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '$weeklyXp XP',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepPurple,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // 3. Learner: NO CONTRIBUTIONS PART!
+            // 4. Send Friend Request / Friendship Section
             _buildFriendshipSection(),
           ],
         ],

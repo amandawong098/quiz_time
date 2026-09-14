@@ -276,11 +276,15 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                         TextButton.icon(
                           onPressed: () async {
                             if (!mounted) return;
+                            final targetQuestionId = widget.questionId ??
+                                (_selectedFilter != 'All' && _selectedFilter != 'General'
+                                    ? _selectedFilter
+                                    : null);
                             final created = await context.push<bool>(
                               '/create-topic',
                               extra: {
                                 'quizId': widget.quizId,
-                                'questionId': widget.questionId,
+                                'questionId': targetQuestionId,
                               },
                             );
                             if (created == true && mounted) {

@@ -290,6 +290,19 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     GoRoute(
+      path: '/manage-cards/:id',
+      builder: (context, state) {
+        final extra = state.extra;
+        final String deckTitle = extra is Map<String, dynamic>
+            ? (extra['deckTitle'] as String? ?? '')
+            : (extra is String ? extra : '');
+        return ManageCardsScreen(
+          deckId: state.pathParameters['id']!,
+          deckTitle: deckTitle,
+        );
+      },
+    ),
+    GoRoute(
       path: '/flashcard-deck/:id/play',
       builder: (context, state) {
         final Map<String, dynamic>? extra = state.extra as Map<String, dynamic>?;

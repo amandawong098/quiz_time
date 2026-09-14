@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/flashcard_models.dart';
 import '../widgets/flashcard_discussions_sheet.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../data/repositories/flashcard_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
@@ -19,6 +20,8 @@ class FlashcardDetailsScreen extends StatefulWidget {
 class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
   bool _isLoading = true;
   FlashcardDeck? _deck;
+  List<FlashcardItem> _cards = [];
+  Map<String, int> _cardDiscussionCounts = {};
   bool _shuffleCards = false;
   int _totalDiscussionsCount = 0;
   bool _hasPlayedBefore = false;
@@ -33,6 +36,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
   Future<void> _loadDeckDetails() async {
     setState(() => _isLoading = true);
     final discRepo = context.read<DiscussionRepository>();
+    final flashcardRepo = context.read<FlashcardRepository>();
     try {
       final client = Supabase.instance.client;
       final user = client.auth.currentUser;
@@ -69,9 +73,12 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
       }
 
       final count = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
+      final cards = await flashcardRepo.getFlashcards(widget.deckId);
+      final cardDiscussionCounts = await discRepo.getDeckCardsDiscussionsCount(widget.deckId);
 
       bool canPost = false;
       try {
+        if (!mounted) return;
         final authRepo = context.read<AuthRepository>();
         final perm = await discRepo.checkLearnerCanPostDiscussion(
           userId: user?.id,
@@ -96,6 +103,8 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
       if (mounted) {
         setState(() {
           _deck = deck;
+          _cards = cards;
+          _cardDiscussionCounts = cardDiscussionCounts;
           _totalDiscussionsCount = count;
           _hasPlayedBefore = hasPlayed;
           _canPostDiscussion = canPost;
@@ -155,6 +164,31 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
         actions: [
+          Builder(
+            builder: (context) {
+              final isCreator = _deck?.creatorId ==
+                  Supabase.instance.client.auth.currentUser?.id;
+              final isAdmin = context.watch<AuthRepository>().isAdmin;
+              if (isCreator || isAdmin) {
+                return IconButton(
+                  icon: const Icon(Icons.edit_note_rounded, color: Colors.white),
+                  tooltip: 'Manage Cards',
+                  onPressed: () async {
+                    if (_deck != null) {
+                      await context.push(
+                        '/manage-cards/${_deck!.id}',
+                        extra: _deck!.title,
+                      );
+                      if (mounted) {
+                        _loadDeckDetails();
+                      }
+                    }
+                  },
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
           if (_canPostDiscussion)
             TextButton.icon(
               onPressed: () => _showDeckDiscussions(context),
@@ -303,56 +337,391 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
                   backgroundColor: Colors.deepPurple.shade50,
                   side: BorderSide.none,
                 ),
-                const SizedBox(height: 40),
-                // Shuffle Toggle
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Shuffle Cards',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(width: 12),
-                    Switch(
-                      value: _shuffleCards,
-                      activeThumbColor: Colors.deepPurple,
-                      onChanged: (val) {
-                        setState(() {
-                          _shuffleCards = val;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                // Start Revision Button
-                SizedBox(
-                  width: 280,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      context.push(
-                        '/flashcard-deck/${_deck!.id}/play?shuffle=$_shuffleCards',
-                        extra: {'deckTitle': _deck!.title},
-                      );
-                    },
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Start Revision'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 32),
+                if (context.watch<AuthRepository>().isAdmin)
+                  _buildAdminCardInspection()
+                else
+                  Column(
+                    children: [
+                      // Shuffle Toggle
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Shuffle Cards',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          const SizedBox(width: 12),
+                          Switch(
+                            value: _shuffleCards,
+                            activeThumbColor: Colors.deepPurple,
+                            onChanged: (val) {
+                              setState(() {
+                                _shuffleCards = val;
+                              });
+                            },
+                          ),
+                        ],
                       ),
-                      elevation: 2,
-                    ),
+                      const SizedBox(height: 24),
+                      // Start Revision Button
+                      SizedBox(
+                        width: 280,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            context.push(
+                              '/flashcard-deck/${_deck!.id}/play?shuffle=$_shuffleCards',
+                              extra: {'deckTitle': _deck!.title},
+                            );
+                          },
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text('Start Revision'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                const SizedBox(height: 48),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAdminCardInspection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Admin Inspection Banner
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.amber.shade300),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: Colors.amber.shade900,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Admin Inspection Mode',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF78350F),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'All card prompts (front) and answers (back) are directly visible below without interactive flipping.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.amber.shade900,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Overview Header
+        Text(
+          'Cards Overview (${_cards.length})',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Cards List
+        if (_cards.isEmpty)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Column(
+                children: [
+                  Icon(Icons.style_outlined, size: 48, color: Colors.grey),
+                  SizedBox(height: 8),
+                  Text(
+                    'No flashcards found in this deck.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _cards.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final card = _cards[index];
+              final discussionCount = _cardDiscussionCounts[card.id] ?? 0;
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Card Header: Badge + Discussions
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.deepPurple.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.deepPurple.shade100,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.style_rounded,
+                                  size: 14,
+                                  color: Colors.deepPurple.shade700,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Card ${index + 1} of ${_cards.length}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.deepPurple.shade800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_canPostDiscussion)
+                            InkWell(
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (ctx) => FlashcardDiscussionsSheet(
+                                    deckId: widget.deckId,
+                                    cardId: card.id,
+                                    deckTitle: _deck!.title,
+                                    cardFrontText: card.front,
+                                    cardNumber: index + 1,
+                                    onTopicCreated: () => _loadDeckDetails(),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.deepPurple.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.chat_bubble_outline_rounded,
+                                      size: 14,
+                                      color: Colors.deepPurple,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$discussionCount',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.deepPurple,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Front (Prompt) Box
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F4F9),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.deepPurple.shade100.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepPurple.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'FRONT / PROMPT',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.deepPurple.shade800,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              card.front.trim().isEmpty ? '(Empty front)' : card.front,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1E1B4B),
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Connecting Icon Indicator
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Icon(
+                            Icons.arrow_downward_rounded,
+                            size: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Back (Answer) Box
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.green.shade200,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'BACK / ANSWER',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green.shade800,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              card.back.trim().isEmpty ? '(Empty back)' : card.back,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF064E3B),
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }

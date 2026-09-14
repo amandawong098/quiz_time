@@ -135,10 +135,25 @@ class DiscussionRepository {
     required bool isUserAdmin,
     String? courseId,
     String? quizId,
+    String? questionId,
     String? deckId,
   }) async {
     if (userId == null || userId.isEmpty) {
       return (canPost: false, reason: 'You must be signed in to post discussions.');
+    }
+
+    // If quizId is not supplied but questionId is, resolve quizId from question
+    if (quizId == null && questionId != null) {
+      try {
+        final qRes = await _supabase
+            .from('quiz_questions')
+            .select('quiz_id')
+            .eq('id', questionId)
+            .maybeSingle();
+        if (qRes != null) {
+          quizId = qRes['quiz_id'] as String?;
+        }
+      } catch (_) {}
     }
 
     // General topic without linked learning content is allowed
@@ -348,7 +363,7 @@ class DiscussionRepository {
     String? cardId,
   }) async {
     // Validate learner posting permission on learning content
-    if (courseId != null || quizId != null || deckId != null) {
+    if (courseId != null || quizId != null || deckId != null || questionId != null) {
       final userProfile = await _supabase
           .from('profiles')
           .select('role')
@@ -362,6 +377,7 @@ class DiscussionRepository {
         isUserAdmin: isUserAdmin,
         courseId: courseId,
         quizId: quizId,
+        questionId: questionId,
         deckId: deckId,
       );
 
