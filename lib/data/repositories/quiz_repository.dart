@@ -11,10 +11,13 @@ class QuizRepository {
   }) async {
     var req = _supabase
         .from('quizzes')
-        .select('*, questions(id)')
-        .or(
-          'is_public.eq.true,creator_id.eq.${_supabase.auth.currentUser!.id}',
-        );
+        .select('*, questions(id)');
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid != null) {
+      req = req.or('is_public.eq.true,creator_id.eq.$uid');
+    } else {
+      req = req.eq('is_public', true);
+    }
 
     if (query != null && query.isNotEmpty) {
       req = req.ilike('title', '%$query%');
@@ -79,10 +82,13 @@ class QuizRepository {
     String? questionRange,
     bool? isPublic,
   }) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return [];
+
     var req = _supabase
         .from('quizzes')
         .select('*, questions(id)')
-        .eq('creator_id', _supabase.auth.currentUser!.id);
+        .eq('creator_id', uid);
 
     if (isPublic != null) {
       req = req.eq('is_public', isPublic);
@@ -222,11 +228,13 @@ class QuizRepository {
 
   // Fetch attempts for a specific quiz for the current user
   Future<List<QuizAttempt>> getQuizAttempts(String quizId) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return [];
     final response = await _supabase
         .from('quiz_attempts')
         .select()
         .eq('quiz_id', quizId)
-        .eq('user_id', _supabase.auth.currentUser!.id)
+        .eq('user_id', uid)
         .order('created_at', ascending: true);
     return (response as List).map((e) => QuizAttempt.fromJson(e)).toList();
   }
@@ -236,10 +244,12 @@ class QuizRepository {
     String? query,
     String? questionRange,
   }) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return [];
     var req = _supabase
         .from('quiz_attempts')
         .select('*, quizzes!inner(*)')
-        .eq('user_id', _supabase.auth.currentUser!.id);
+        .eq('user_id', uid);
 
     if (query != null && query.isNotEmpty) {
       req = req.ilike('quizzes.title', '%$query%');

@@ -56,8 +56,10 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
       final repo = context.read<LessonRepository>();
       final allCourses = await repo.getCourses();
       final currentUser = Supabase.instance.client.auth.currentUser;
-      final courses = allCourses.where((c) => c.creatorId == currentUser?.id).toList();
-      
+      final courses = allCourses
+          .where((c) => c.creatorId == currentUser?.id)
+          .toList();
+
       final Map<String, List<LessonChapter>> chaptersMap = {};
       final Map<String, List<LessonSubChapter>> subChaptersMap = {};
       final Map<String, int> subChapterSlidesCountMap = {};
@@ -66,7 +68,7 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
         if (!mounted) return;
         final chapters = await repo.getChapters(course.id);
         chaptersMap[course.id] = chapters;
-        
+
         for (var ch in chapters) {
           if (!mounted) return;
           final subs = await repo.getSubChapters(ch.id);
@@ -275,7 +277,9 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
               ),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E1F24) : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -355,8 +359,11 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.lightbulb_outline,
-                              size: 18, color: Colors.blue.shade700),
+                          Icon(
+                            Icons.lightbulb_outline,
+                            size: 18,
+                            color: Colors.blue.shade700,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -412,7 +419,7 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                       minLines: 2,
                       decoration: InputDecoration(
                         labelText: 'Chapter Topic or Instructions',
-                        hintText: 'e.g. Proof of Stake vs Proof of Work, Byzantine Fault Tolerance...',
+                        hintText: 'e.g. Applying Mathematics in Daily Life',
                         hintStyle: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade500,
@@ -437,18 +444,19 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                               : () async {
                                   setSheetState(() => isPickingFile = true);
                                   try {
-                                    final result =
-                                        await FilePicker.platform.pickFiles(
-                                      type: FileType.any,
-                                      withData: true,
-                                    );
+                                    final result = await FilePicker.platform
+                                        .pickFiles(
+                                          type: FileType.any,
+                                          withData: true,
+                                        );
                                     if (result != null &&
                                         result.files.isNotEmpty) {
                                       final f = result.files.first;
                                       Uint8List? bytes = f.bytes;
                                       if (bytes == null && f.path != null) {
-                                        bytes =
-                                            await File(f.path!).readAsBytes();
+                                        bytes = await File(
+                                          f.path!,
+                                        ).readAsBytes();
                                       }
                                       setSheetState(() {
                                         selectedFile = PlatformFile(
@@ -734,7 +742,9 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error creating sub-chapter: ${e.toString()}')),
+            SnackBar(
+              content: Text('Error creating sub-chapter: ${e.toString()}'),
+            ),
           );
         }
       }
@@ -762,7 +772,9 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error updating sub-chapter: ${e.toString()}')),
+            SnackBar(
+              content: Text('Error updating sub-chapter: ${e.toString()}'),
+            ),
           );
         }
       }
@@ -800,7 +812,9 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting sub-chapter: ${e.toString()}')),
+            SnackBar(
+              content: Text('Error deleting sub-chapter: ${e.toString()}'),
+            ),
           );
         }
       }
@@ -937,11 +951,7 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.menu_book_outlined,
-            size: 64,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.menu_book_outlined, size: 64, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           Text(
             'No lessons created yet',
@@ -962,7 +972,9 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: _addCourse,
             icon: const Icon(Icons.add),
@@ -977,501 +989,658 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
     final warnings = _getWarnings();
     return Column(
       children: [
-        if (warnings.isNotEmpty)
-          ...warnings.map((w) => _buildWarningBanner(w)),
+        if (warnings.isNotEmpty) ...warnings.map((w) => _buildWarningBanner(w)),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadLessons,
             child: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: _courses.length,
-        itemBuilder: (context, courseIdx) {
-          final course = _courses[courseIdx];
-          final chapters = _chaptersMap[course.id] ?? [];
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _courses.length,
+              itemBuilder: (context, courseIdx) {
+                final course = _courses[courseIdx];
+                final chapters = _chaptersMap[course.id] ?? [];
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                dividerColor: Colors.transparent,
-              ),
-              child: ExpansionTile(
-                initiallyExpanded: true,
-                leading: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.deepPurple.shade50,
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: course.imageUrl != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            course.imageUrl!,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.menu_book_rounded,
-                          color: Colors.deepPurple,
-                          size: 28,
-                        ),
-                ),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            course.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: course.isPublic ? Colors.green.shade50 : Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: course.isPublic ? Colors.green.shade300 : Colors.grey.shade300,
-                                  ),
-                                ),
-                                child: Text(
-                                  course.isPublic ? 'Public' : 'Private',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: course.isPublic ? Colors.green.shade700 : Colors.grey.shade700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (course.description != null && course.description!.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              course.description!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.normal,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (val) {
-                    if (val == 'add_chapter_ai') {
-                      _showAddChapterWithAISheet(course);
-                    } else if (val == 'add_chapter') {
-                      _addChapter(course);
-                    } else if (val == 'edit') {
-                      _editCourse(course);
-                    } else if (val == 'delete') {
-                      _deleteCourse(course);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'add_chapter_ai',
-                      child: Row(
-                        children: [
-                          Icon(Icons.auto_awesome, color: Colors.deepPurple, size: 20),
-                          SizedBox(width: 8),
-                          Text('Add Chapter with AI', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'add_chapter',
-                      child: Row(
-                        children: [
-                          Icon(Icons.add_circle_outline, size: 20),
-                          SizedBox(width: 8),
-                          Text('Add Blank Chapter'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20),
-                          SizedBox(width: 8),
-                          Text('Edit Lesson'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, color: Colors.red, size: 20),
-                          SizedBox(width: 8),
-                          Text('Delete Lesson', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                children: [
-                  const Divider(height: 1),
-                  if (chapters.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'No chapters added yet.\nChoose how you want to add your first chapter:',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: () => _addChapter(course),
-                                icon: const Icon(Icons.add_rounded, size: 18),
-                                label: const Text('Add Blank'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.deepPurple,
-                                  side: BorderSide(color: Colors.deepPurple.shade200),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              ElevatedButton.icon(
-                                onPressed: () => _showAddChapterWithAISheet(course),
-                                icon: const Icon(Icons.auto_awesome, size: 16),
-                                label: const Text('Add with AI'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.deepPurple,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    ...List.generate(chapters.length, (chIdx) {
-                      final ch = chapters[chIdx];
-                      final subs = _subChaptersMap[ch.id] ?? [];
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Theme(
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      initiallyExpanded: true,
+                      leading: Container(
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
-                          color: Colors.deepPurple.shade50.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.deepPurple.shade50),
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.deepPurple.shade50,
                         ),
-                        child: Column(
-                          children: [
-                            ExpansionTile(
-                              initiallyExpanded: true,
-                              leading: Icon(
-                                Icons.book_rounded,
-                                color: Colors.deepPurple.shade700,
-                                size: 24,
-                              ),
-                              title: Text(
-                                ch.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: Colors.black87,
+                        child: course.imageUrl != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  course.imageUrl!,
+                                  fit: BoxFit.cover,
                                 ),
+                              )
+                            : const Icon(
+                                Icons.menu_book_rounded,
+                                color: Colors.deepPurple,
+                                size: 28,
                               ),
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (val) {
-                                  if (val == 'add_sub') {
-                                    _addSubChapter(ch);
-                                  } else if (val == 'edit') {
-                                    _editChapter(course.id, ch);
-                                  } else if (val == 'delete') {
-                                    _deleteChapter(ch);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'add_sub',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.add_circle_outline, size: 18),
-                                        SizedBox(width: 8),
-                                        Text('Add Sub-chapter'),
-                                      ],
-                                    ),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  course.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.black87,
                                   ),
-                                  const PopupMenuItem(
-                                    value: 'edit',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.edit, size: 18),
-                                        SizedBox(width: 8),
-                                        Text('Edit Chapter Title'),
-                                      ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: course.isPublic
+                                            ? Colors.green.shade50
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: course.isPublic
+                                              ? Colors.green.shade300
+                                              : Colors.grey.shade300,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        course.isPublic ? 'Public' : 'Private',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: course.isPublic
+                                              ? Colors.green.shade700
+                                              : Colors.grey.shade700,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.delete, color: Colors.red, size: 18),
-                                        SizedBox(width: 8),
-                                        Text('Delete Chapter', style: TextStyle(color: Colors.red)),
-                                      ],
+                                  ],
+                                ),
+                                if (course.description != null &&
+                                    course.description!.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    course.description!,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.normal,
                                     ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
-                              ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (val) {
+                          if (val == 'add_chapter_ai') {
+                            _showAddChapterWithAISheet(course);
+                          } else if (val == 'add_chapter') {
+                            _addChapter(course);
+                          } else if (val == 'edit') {
+                            _editCourse(course);
+                          } else if (val == 'delete') {
+                            _deleteCourse(course);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'add_chapter_ai',
+                            child: Row(
                               children: [
-                                const Divider(height: 1),
-                                if (subs.isEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 12.0),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Text(
-                                          'No sub-chapters added yet.\nClick the button below to add your first sub-chapter.',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12,
+                                Icon(
+                                  Icons.auto_awesome,
+                                  color: Colors.deepPurple,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Add Chapter with AI',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'add_chapter',
+                            child: Row(
+                              children: [
+                                Icon(Icons.add_circle_outline, size: 20),
+                                SizedBox(width: 8),
+                                Text('Add Blank Chapter'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit, size: 20),
+                                SizedBox(width: 8),
+                                Text('Edit Lesson'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, color: Colors.red, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Delete Lesson',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      children: [
+                        const Divider(height: 1),
+                        if (chapters.isEmpty)
+                          Builder(
+                            builder: (context) {
+                              final isAdmin = context
+                                  .watch<AuthRepository>()
+                                  .isAdmin;
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16.0,
+                                  20.0,
+                                  16.0,
+                                  8.0,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    isAdmin
+                                        ? 'No chapters added yet.\nChoose how you want to add your first chapter:'
+                                        : 'No chapters added yet.\nGenerate your first chapter with AI below:',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        else
+                          ...List.generate(chapters.length, (chIdx) {
+                            final ch = chapters[chIdx];
+                            final subs = _subChaptersMap[ch.id] ?? [];
+                            return Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                                vertical: 8.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.deepPurple.shade50.withValues(
+                                  alpha: 0.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.deepPurple.shade50,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  ExpansionTile(
+                                    initiallyExpanded: true,
+                                    leading: Icon(
+                                      Icons.book_rounded,
+                                      color: Colors.deepPurple.shade700,
+                                      size: 24,
+                                    ),
+                                    title: Text(
+                                      ch.title,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    trailing: PopupMenuButton<String>(
+                                      onSelected: (val) {
+                                        if (val == 'add_sub') {
+                                          _addSubChapter(ch);
+                                        } else if (val == 'edit') {
+                                          _editChapter(course.id, ch);
+                                        } else if (val == 'delete') {
+                                          _deleteChapter(ch);
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'add_sub',
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.add_circle_outline,
+                                                size: 18,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text('Add Sub-chapter'),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(height: 10),
-                                        IconButton(
-                                          onPressed: () => _addSubChapter(ch),
-                                          icon: const Icon(Icons.add, color: Colors.white),
-                                          style: IconButton.styleFrom(
-                                            backgroundColor: Colors.deepPurple,
-                                            padding: const EdgeInsets.all(8),
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.edit, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('Edit Chapter Title'),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.delete,
+                                                color: Colors.red,
+                                                size: 18,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Delete Chapter',
+                                                style: TextStyle(
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
                                     ),
-                                  )
-                                else
-                                  ...List.generate(subs.length, (subIdx) {
-                                    final sub = subs[subIdx];
-                                    return Card(
-                                      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        side: BorderSide(color: Colors.deepPurple.shade100.withValues(alpha: 0.5)),
-                                      ),
-                                      color: Colors.white,
-                                      child: Column(
-                                        children: [
-                                          ListTile(
-                                            contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 2,
+                                    children: [
+                                      const Divider(height: 1),
+                                      if (subs.isEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 20.0,
+                                            horizontal: 12.0,
+                                          ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Text(
+                                                'No sub-chapters added yet.\nClick the button below to add your first sub-chapter.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              IconButton(
+                                                onPressed: () =>
+                                                    _addSubChapter(ch),
+                                                icon: const Icon(
+                                                  Icons.add,
+                                                  color: Colors.white,
+                                                ),
+                                                style: IconButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.deepPurple,
+                                                  padding: const EdgeInsets.all(
+                                                    8,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      else
+                                        ...List.generate(subs.length, (subIdx) {
+                                          final sub = subs[subIdx];
+                                          return Card(
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 12.0,
+                                              vertical: 6.0,
                                             ),
-                                            leading: const Icon(
-                                              Icons.description_outlined,
-                                              color: Colors.deepPurple,
-                                              size: 20,
-                                            ),
-                                            title: Text(
-                                              sub.title,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 13,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              side: BorderSide(
+                                                color: Colors
+                                                    .deepPurple
+                                                    .shade100
+                                                    .withValues(alpha: 0.5),
                                               ),
                                             ),
-                                            subtitle: Text(
-                                              'XP Reward: ${sub.xpReward} • ${_subChapterSlidesCountMap[sub.id] ?? 0} slides',
-                                              style: const TextStyle(fontSize: 11),
-                                            ),
-                                            trailing: Row(
-                                              mainAxisSize: MainAxisSize.min,
+                                            color: Colors.white,
+                                            child: Column(
                                               children: [
-                                                IconButton(
-                                                  icon: const Icon(Icons.play_arrow_rounded, color: Colors.green),
-                                                  onPressed: () {
-                                                    context.push('/lesson-player?subChapterId=${sub.id}&preview=true');
+                                                ListTile(
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 2,
+                                                      ),
+                                                  leading: const Icon(
+                                                    Icons.description_outlined,
+                                                    color: Colors.deepPurple,
+                                                    size: 20,
+                                                  ),
+                                                  title: Text(
+                                                    sub.title,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  subtitle: Text(
+                                                    'XP Reward: ${sub.xpReward} • ${_subChapterSlidesCountMap[sub.id] ?? 0} slides',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .play_arrow_rounded,
+                                                          color: Colors.green,
+                                                        ),
+                                                        onPressed: () {
+                                                          context.push(
+                                                            '/lesson-player?subChapterId=${sub.id}&preview=true',
+                                                          );
+                                                        },
+                                                        tooltip:
+                                                            'Play Sub-chapter',
+                                                      ),
+                                                      PopupMenuButton<String>(
+                                                        onSelected: (val) {
+                                                          if (val == 'edit') {
+                                                            _editSubChapter(
+                                                              sub,
+                                                            );
+                                                          } else if (val ==
+                                                              'delete') {
+                                                            _deleteSubChapter(
+                                                              sub,
+                                                            );
+                                                          }
+                                                        },
+                                                        itemBuilder: (context) => [
+                                                          const PopupMenuItem(
+                                                            value: 'edit',
+                                                            child: Row(
+                                                              children: [
+                                                                Icon(
+                                                                  Icons.edit,
+                                                                  size: 20,
+                                                                ),
+                                                                SizedBox(
+                                                                  width: 8,
+                                                                ),
+                                                                Text(
+                                                                  'Edit Title',
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          const PopupMenuItem(
+                                                            value: 'delete',
+                                                            child: Row(
+                                                              children: [
+                                                                Icon(
+                                                                  Icons.delete,
+                                                                  color: Colors
+                                                                      .red,
+                                                                  size: 20,
+                                                                ),
+                                                                SizedBox(
+                                                                  width: 8,
+                                                                ),
+                                                                Text(
+                                                                  'Delete Sub-chapter',
+                                                                  style: TextStyle(
+                                                                    color: Colors
+                                                                        .red,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  onTap: () async {
+                                                    await context.push(
+                                                      '/my-lessons/sub-chapter/${sub.id}/slides',
+                                                      extra: {
+                                                        'subChapterTitle':
+                                                            sub.title,
+                                                      },
+                                                    );
+                                                    _loadLessons();
                                                   },
-                                                  tooltip: 'Play Sub-chapter',
                                                 ),
-                                                PopupMenuButton<String>(
-                                                  onSelected: (val) {
-                                                    if (val == 'edit') {
-                                                      _editSubChapter(sub);
-                                                    } else if (val == 'delete') {
-                                                      _deleteSubChapter(sub);
-                                                    }
-                                                  },
-                                                  itemBuilder: (context) => [
-                                                    const PopupMenuItem(
-                                                      value: 'edit',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.edit, size: 20),
-                                                          SizedBox(width: 8),
-                                                          Text('Edit Title'),
-                                                        ],
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        right: 12.0,
+                                                        bottom: 8.0,
                                                       ),
-                                                    ),
-                                                    const PopupMenuItem(
-                                                      value: 'delete',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.delete, color: Colors.red, size: 20),
-                                                          SizedBox(width: 8),
-                                                          Text('Delete Sub-chapter', style: TextStyle(color: Colors.red)),
-                                                        ],
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.end,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .arrow_upward_rounded,
+                                                          size: 16,
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed: subIdx == 0
+                                                            ? null
+                                                            : () =>
+                                                                  _moveSubChapter(
+                                                                    ch,
+                                                                    subIdx,
+                                                                    true,
+                                                                  ),
+                                                        tooltip:
+                                                            'Move Sub-chapter Up',
                                                       ),
-                                                    ),
-                                                  ],
+                                                      const SizedBox(width: 12),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .arrow_downward_rounded,
+                                                          size: 16,
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed:
+                                                            subIdx ==
+                                                                subs.length - 1
+                                                            ? null
+                                                            : () =>
+                                                                  _moveSubChapter(
+                                                                    ch,
+                                                                    subIdx,
+                                                                    false,
+                                                                  ),
+                                                        tooltip:
+                                                            'Move Sub-chapter Down',
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ],
                                             ),
-                                            onTap: () async {
-                                              await context.push(
-                                                '/my-lessons/sub-chapter/${sub.id}/slides',
-                                                extra: {'subChapterTitle': sub.title},
-                                              );
-                                              _loadLessons();
-                                            },
-                                          ),
-                                          Padding(
-                                            padding: const EdgeInsets.only(right: 12.0, bottom: 8.0),
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.end,
-                                              children: [
-                                                IconButton(
-                                                  icon: const Icon(Icons.arrow_upward_rounded, size: 16),
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: const BoxConstraints(),
-                                                  onPressed: subIdx == 0 ? null : () => _moveSubChapter(ch, subIdx, true),
-                                                  tooltip: 'Move Sub-chapter Up',
-                                                ),
-                                                const SizedBox(width: 12),
-                                                IconButton(
-                                                  icon: const Icon(Icons.arrow_downward_rounded, size: 16),
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: const BoxConstraints(),
-                                                  onPressed: subIdx == subs.length - 1 ? null : () => _moveSubChapter(ch, subIdx, false),
-                                                  tooltip: 'Move Sub-chapter Down',
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                              ],
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 16.0, bottom: 8.0, top: 4.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_upward_rounded, size: 20),
-                                    onPressed: chIdx == 0 ? null : () => _moveChapter(course, chIdx, true),
-                                    tooltip: 'Move Chapter Up',
+                                          );
+                                        }),
+                                    ],
                                   ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_downward_rounded, size: 20),
-                                    onPressed: chIdx == chapters.length - 1 ? null : () => _moveChapter(course, chIdx, false),
-                                    tooltip: 'Move Chapter Down',
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      right: 16.0,
+                                      bottom: 8.0,
+                                      top: 4.0,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.arrow_upward_rounded,
+                                            size: 20,
+                                          ),
+                                          onPressed: chIdx == 0
+                                              ? null
+                                              : () => _moveChapter(
+                                                  course,
+                                                  chIdx,
+                                                  true,
+                                                ),
+                                          tooltip: 'Move Chapter Up',
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.arrow_downward_rounded,
+                                            size: 20,
+                                          ),
+                                          onPressed:
+                                              chIdx == chapters.length - 1
+                                              ? null
+                                              : () => _moveChapter(
+                                                  course,
+                                                  chIdx,
+                                                  false,
+                                                ),
+                                          tooltip: 'Move Chapter Down',
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                      child: Builder(
-                        builder: (context) {
-                          final isAdmin = context.watch<AuthRepository>().isAdmin;
-                          return Row(
-                            children: [
-                              if (isAdmin) ...[
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () => _addChapter(course),
-                                    icon: const Icon(Icons.add_rounded, size: 18),
-                                    label: const Text('Add Blank Chapter'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.deepPurple,
-                                      side: BorderSide(color: Colors.deepPurple.shade200),
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
+                            );
+                          }),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 10.0,
+                          ),
+                          child: Builder(
+                            builder: (context) {
+                              final isAdmin = context
+                                  .watch<AuthRepository>()
+                                  .isAdmin;
+                              return Row(
+                                children: [
+                                  if (isAdmin) ...[
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _addChapter(course),
+                                        icon: const Icon(
+                                          Icons.add_rounded,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Add Blank Chapter'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.deepPurple,
+                                          side: BorderSide(
+                                            color: Colors.deepPurple.shade200,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 10,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                  ],
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () =>
+                                          _showAddChapterWithAISheet(course),
+                                      icon: const Icon(
+                                        Icons.auto_awesome,
+                                        size: 16,
+                                      ),
+                                      label: const Text('Add with AI'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.deepPurple,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        elevation: 1,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                              ],
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _showAddChapterWithAISheet(course),
-                                  icon: const Icon(Icons.auto_awesome, size: 16),
-                                  label: const Text('Add with AI'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.deepPurple,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    elevation: 1,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                ],
-              ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
-    ),
-  ),
-],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1487,7 +1656,11 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
               onPressed: () {
                 context.push('/ai-lesson-generator');
               },
-              icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.amber),
+              icon: const Icon(
+                Icons.auto_awesome,
+                size: 16,
+                color: Colors.amber,
+              ),
               label: const Text(
                 'AI Generator',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -1557,8 +1730,8 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _courses.isEmpty
-                    ? _buildNoCoursesView()
-                    : _buildCoursesListView(),
+                ? _buildNoCoursesView()
+                : _buildCoursesListView(),
           ),
         ],
       ),

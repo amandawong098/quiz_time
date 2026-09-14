@@ -1,12 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/leaderboard_repository.dart';
 
-class HomeShell extends StatelessWidget {
+class HomeShell extends StatefulWidget {
   final Widget child;
 
   const HomeShell({super.key, required this.child});
+
+  @override
+  State<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends State<HomeShell> {
+  @override
+  void initState() {
+    super.initState();
+    _checkWeeklyLeaderboard();
+  }
+
+  Future<void> _checkWeeklyLeaderboard() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) return;
+    try {
+      final repo = LeaderboardRepository();
+      final didReset = await repo.checkAndResetWeeklyLeagues();
+      if (didReset && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Weekly leaderboard reset completed! Check your mailbox.'),
+            backgroundColor: Colors.deepPurple,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error checking weekly leaderboard on launch: $e');
+    }
+  }
 
   int _calculateSelectedIndex(BuildContext context, bool isAdmin) {
     final String location = GoRouterState.of(context).uri.path;
@@ -22,12 +54,12 @@ class HomeShell extends StatelessWidget {
       return 1;
     }
     if (isAdmin) {
+      if (location.startsWith('/moderation')) {
+        return 2;
+      }
       if (location.startsWith('/discussions') ||
           location.startsWith('/create-topic') ||
           location.startsWith('/discussion/')) {
-        return 2;
-      }
-      if (location.startsWith('/moderation')) {
         return 3;
       }
       if (location.startsWith('/me') ||
@@ -65,10 +97,10 @@ class HomeShell extends StatelessWidget {
           context.go('/discover');
           break;
         case 2:
-          context.go('/discussions');
+          context.go('/moderation');
           break;
         case 3:
-          context.go('/moderation');
+          context.go('/discussions');
           break;
         case 4:
           context.go('/me');
@@ -156,7 +188,7 @@ class HomeShell extends StatelessWidget {
     final int selectedIndex = _calculateSelectedIndex(context, isAdmin);
 
     return Scaffold(
-      body: child,
+      body: widget.child,
       floatingActionButton: _buildFloatingActionButton(context, selectedIndex, isAdmin),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -187,13 +219,13 @@ class HomeShell extends StatelessWidget {
                     label: 'Quizzes',
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.forum_rounded),
-                    label: 'Discussions',
-                  ),
-                  BottomNavigationBarItem(
                     icon: Icon(Icons.shield_outlined),
                     activeIcon: Icon(Icons.shield_rounded),
                     label: 'Moderation',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.forum_rounded),
+                    label: 'Discussions',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.person),

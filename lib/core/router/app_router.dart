@@ -32,18 +32,34 @@ import '../../features/learn/screens/my_flashcards_screen.dart';
 import '../../features/learn/screens/create_flashcard_deck_screen.dart';
 import '../../features/learn/screens/ai_flashcard_generator_screen.dart';
 import '../../features/learn/screens/manage_cards_screen.dart';
+import 'dart:async';
 import '../../features/learn/screens/play_flashcards_screen.dart';
 import '../../features/learn/screens/flashcard_details_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
+class GoRouterRefreshStream extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _subscription;
+
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+
 final GoRouter appRouter = GoRouter(
   navigatorKey: rootNavigatorKey,
   initialLocation: '/',
+  refreshListenable: GoRouterRefreshStream(Supabase.instance.client.auth.onAuthStateChange),
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
-    final isGoingToLogin = state.uri.toString() == '/login';
+    final isGoingToLogin = state.matchedLocation == '/login';
 
     if (session == null && !isGoingToLogin) {
       return '/login';
@@ -165,7 +181,17 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/ai-lesson-generator',
-      builder: (context, state) => const AILessonGeneratorScreen(),
+      builder: (context, state) {
+        final Map<String, dynamic>? extra =
+            state.extra as Map<String, dynamic>?;
+        return AILessonGeneratorScreen(
+          targetCourseId: extra?['courseId'] as String?,
+          targetCourseTitle: extra?['courseTitle'] as String?,
+          existingChapterTitles: (extra?['existingChapterTitles'] as List?)
+              ?.map((e) => e.toString())
+              .toList(),
+        );
+      },
     ),
     GoRoute(
       path: '/create-lesson',

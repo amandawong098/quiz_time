@@ -6,7 +6,7 @@ import '../models/discussion_models.dart';
 class DiscussionRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  String get _currentUserId => _supabase.auth.currentUser!.id;
+  String get _currentUserId => _supabase.auth.currentUser?.id ?? '';
 
   // Fetch topics joined with author profile and votes
   // Fetch topics joined with author profile and votes
@@ -23,7 +23,9 @@ class DiscussionRepository {
   }) async {
     var req = _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title, is_public, creator_id), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title, is_public, creator_id), questions(question_text, order_index), flashcard_decks(title, is_public, creator_id), flashcards(front)');
+        .select(
+          '*, profiles(*), topic_votes(*), lesson_courses(title, is_public, creator_id), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title, is_public, creator_id), questions(question_text, order_index), flashcard_decks(title, is_public, creator_id), flashcards(front)',
+        );
 
     if (authorId != null) {
       req = req.eq('author_id', authorId);
@@ -60,7 +62,8 @@ class DiscussionRepository {
 
     // Hide discussions related to private content from general/un-targeted feed queries,
     // unless the current user is the creator of the private content.
-    final isSpecificEntityQuery = pageId != null ||
+    final isSpecificEntityQuery =
+        pageId != null ||
         courseId != null ||
         quizId != null ||
         questionId != null ||
@@ -71,20 +74,23 @@ class DiscussionRepository {
       topics.removeWhere((t) {
         // 1. Hide if course is private
         if (t.courseId != null) {
-          if (t.courseIsPublic == false && t.courseCreatorId != _currentUserId) return true;
+          if (t.courseIsPublic == false && t.courseCreatorId != _currentUserId)
+            return true;
           // Hide if metadata is completely missing due to RLS block (another user's private course)
           if (t.courseTitle == null) return true;
         }
 
         // 2. Hide if quiz is private
         if (t.quizId != null) {
-          if (t.quizIsPublic == false && t.quizCreatorId != _currentUserId) return true;
+          if (t.quizIsPublic == false && t.quizCreatorId != _currentUserId)
+            return true;
           if (t.quizTitle == null) return true;
         }
 
         // 3. Hide if deck is private
         if (t.deckId != null) {
-          if (t.deckIsPublic == false && t.deckCreatorId != _currentUserId) return true;
+          if (t.deckIsPublic == false && t.deckCreatorId != _currentUserId)
+            return true;
           if (t.deckTitle == null) return true;
         }
 
@@ -99,7 +105,9 @@ class DiscussionRepository {
   Future<DiscussionTopic> getTopicDetails(String topicId) async {
     final response = await _supabase
         .from('discussion_topics')
-        .select('*, profiles(*), topic_votes(*), lesson_courses(title, is_public, creator_id), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title, is_public, creator_id), questions(question_text, order_index), flashcard_decks(title, is_public, creator_id), flashcards(front)')
+        .select(
+          '*, profiles(*), topic_votes(*), lesson_courses(title, is_public, creator_id), lesson_chapters(title), lesson_sub_chapters(title), lesson_pages(position), quizzes(title, is_public, creator_id), questions(question_text, order_index), flashcard_decks(title, is_public, creator_id), flashcards(front)',
+        )
         .eq('id', topicId)
         .single();
 
@@ -162,7 +170,7 @@ class DiscussionRepository {
         .from('discussion_topics')
         .select('page_id')
         .eq('sub_chapter_id', subChapterId);
-    
+
     final Map<String, int> counts = {};
     final list = response as List;
     for (var row in list) {
@@ -175,12 +183,14 @@ class DiscussionRepository {
   }
 
   // Get post counts for all questions inside a quiz in a single query
-  Future<Map<String, int>> getQuizQuestionsDiscussionsCount(String quizId) async {
+  Future<Map<String, int>> getQuizQuestionsDiscussionsCount(
+    String quizId,
+  ) async {
     final response = await _supabase
         .from('discussion_topics')
         .select('question_id')
         .eq('quiz_id', quizId);
-    
+
     final Map<String, int> counts = {};
     final list = response as List;
     for (var row in list) {
@@ -274,10 +284,7 @@ class DiscussionRepository {
 
   // Delete a reply row
   Future<void> deleteReply(String replyId) async {
-    await _supabase
-        .from('discussion_replies')
-        .delete()
-        .eq('id', replyId);
+    await _supabase.from('discussion_replies').delete().eq('id', replyId);
   }
 
   // Upvote / downvote topic vote logic (with toggling & retract capability)
@@ -316,7 +323,8 @@ class DiscussionRepository {
     }
 
     if (voteType == 1) {
-      final bool shouldNotify = existing == null || (existing['vote_type'] as int) != 1;
+      final bool shouldNotify =
+          existing == null || (existing['vote_type'] as int) != 1;
       if (shouldNotify) {
         try {
           final topicData = await _supabase
@@ -379,7 +387,8 @@ class DiscussionRepository {
     }
 
     if (voteType == 1) {
-      final bool shouldNotify = existing == null || (existing['vote_type'] as int) != 1;
+      final bool shouldNotify =
+          existing == null || (existing['vote_type'] as int) != 1;
       if (shouldNotify) {
         try {
           final replyData = await _supabase
@@ -392,7 +401,9 @@ class DiscussionRepository {
           final topicId = replyData['topic_id'] as String;
           if (authorId != _currentUserId) {
             final voterName = await _getCurrentUserName();
-            final snippet = content.length > 30 ? '${content.substring(0, 30)}...' : content;
+            final snippet = content.length > 30
+                ? '${content.substring(0, 30)}...'
+                : content;
             await _createNotification(
               targetUserId: authorId,
               title: 'Comment Upvoted',
@@ -412,7 +423,7 @@ class DiscussionRepository {
   Future<String> uploadAttachment(String filePath, String fileName) async {
     final file = File(filePath);
     final uniqueName = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
-    
+
     await _supabase.storage
         .from('discussion_attachments')
         .upload(uniqueName, file);
@@ -469,7 +480,7 @@ class DiscussionRepository {
         .from('discussion_topics')
         .select('card_id')
         .eq('deck_id', deckId);
-    
+
     final Map<String, int> counts = {};
     final list = response as List;
     for (var row in list) {
@@ -483,10 +494,7 @@ class DiscussionRepository {
 
   // Delete a discussion topic row
   Future<void> deleteTopic(String topicId) async {
-    await _supabase
-        .from('discussion_topics')
-        .delete()
-        .eq('id', topicId);
+    await _supabase.from('discussion_topics').delete().eq('id', topicId);
   }
 
   Future<String> _getCurrentUserName() async {
@@ -510,14 +518,14 @@ class DiscussionRepository {
     Map<String, dynamic>? data,
   }) async {
     if (targetUserId == _currentUserId) return;
-    
+
     final payload = {
       'user_id': targetUserId,
       'title': title,
       'message': message,
       'is_read': false,
     };
-    
+
     if (type != null) {
       payload['type'] = type;
     }
@@ -528,7 +536,8 @@ class DiscussionRepository {
     try {
       await _supabase.from('notifications').insert(payload);
     } catch (e) {
-      if (e.toString().contains("column") && e.toString().contains("does not exist")) {
+      if (e.toString().contains("column") &&
+          e.toString().contains("does not exist")) {
         try {
           payload.remove('type');
           payload.remove('data');
@@ -580,8 +589,8 @@ class DiscussionRepository {
       final targetContent = targetData['content'] as String;
 
       if (targetAuthorId != _currentUserId) {
-        final snippet = targetContent.length > 30 
-            ? '${targetContent.substring(0, 30)}...' 
+        final snippet = targetContent.length > 30
+            ? '${targetContent.substring(0, 30)}...'
             : targetContent;
         await _createNotification(
           targetUserId: targetAuthorId,
@@ -606,7 +615,7 @@ class DiscussionRepository {
           .from('profiles')
           .select('id')
           .eq('role', 'admin');
-      
+
       final reporterName = await _getCurrentUserName();
 
       for (var admin in (adminProfiles as List)) {
@@ -615,16 +624,51 @@ class DiscussionRepository {
         await _createNotification(
           targetUserId: adminId,
           title: '⚠️ Discussion Reported',
-          message: '$reporterName reported content for "$reason". Tap to review.',
+          message:
+              '$reporterName reported content for "$reason". Tap to review.',
           type: 'discussion_report',
-          data: {
-            'topic_id': ?topicId,
-            'reply_id': ?replyId,
-          },
+          data: {'topic_id': ?topicId, 'reply_id': ?replyId},
         );
       }
     } catch (e) {
       debugPrint('Error notifying admins of report: $e');
+    }
+  }
+
+  /// Check if the current user has already reported this topic (regardless of pending/dismissed/resolved status)
+  Future<bool> hasUserReportedTopic(String topicId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+    try {
+      final res = await _supabase
+          .from('discussion_reports')
+          .select('id')
+          .eq('reporter_id', userId)
+          .eq('topic_id', topicId)
+          .isFilter('reply_id', null)
+          .limit(1);
+      return (res as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking if topic already reported: $e');
+      return false;
+    }
+  }
+
+  /// Check if the current user has already reported this reply (regardless of pending/dismissed/resolved status)
+  Future<bool> hasUserReportedReply(String replyId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+    try {
+      final res = await _supabase
+          .from('discussion_reports')
+          .select('id')
+          .eq('reporter_id', userId)
+          .eq('reply_id', replyId)
+          .limit(1);
+      return (res as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking if reply already reported: $e');
+      return false;
     }
   }
 
@@ -633,14 +677,32 @@ class DiscussionRepository {
     required String reason,
     String? details,
   }) async {
-    await _supabase.from('discussion_reports').insert({
-      'reporter_id': _currentUserId,
-      'topic_id': topicId,
-      'reason': reason,
-      'details': details,
-      'status': 'pending',
-    });
-    await _notifyAdminsOnReport(reason: reason, topicId: topicId);
+    final alreadyReported = await hasUserReportedTopic(topicId);
+    if (alreadyReported) {
+      throw Exception(
+        'You have already reported this discussion topic. Duplicate reports cannot be submitted.',
+      );
+    }
+
+    try {
+      await _supabase.from('discussion_reports').insert({
+        'reporter_id': _currentUserId,
+        'topic_id': topicId,
+        'reason': reason,
+        'details': details,
+        'status': 'pending',
+      });
+      await _notifyAdminsOnReport(reason: reason, topicId: topicId);
+    } on PostgrestException catch (e) {
+      if (e.code == '23505' ||
+          e.message.toLowerCase().contains('unique') ||
+          e.message.toLowerCase().contains('duplicate')) {
+        throw Exception(
+          'You have already reported this discussion topic. Duplicate reports cannot be submitted.',
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<void> reportReply({
@@ -649,15 +711,37 @@ class DiscussionRepository {
     required String reason,
     String? details,
   }) async {
-    await _supabase.from('discussion_reports').insert({
-      'reporter_id': _currentUserId,
-      'reply_id': replyId,
-      'topic_id': topicId,
-      'reason': reason,
-      'details': details,
-      'status': 'pending',
-    });
-    await _notifyAdminsOnReport(reason: reason, topicId: topicId, replyId: replyId);
+    final alreadyReported = await hasUserReportedReply(replyId);
+    if (alreadyReported) {
+      throw Exception(
+        'You have already reported this reply. Duplicate reports cannot be submitted.',
+      );
+    }
+
+    try {
+      await _supabase.from('discussion_reports').insert({
+        'reporter_id': _currentUserId,
+        'reply_id': replyId,
+        'topic_id': topicId,
+        'reason': reason,
+        'details': details,
+        'status': 'pending',
+      });
+      await _notifyAdminsOnReport(
+        reason: reason,
+        topicId: topicId,
+        replyId: replyId,
+      );
+    } on PostgrestException catch (e) {
+      if (e.code == '23505' ||
+          e.message.toLowerCase().contains('unique') ||
+          e.message.toLowerCase().contains('duplicate')) {
+        throw Exception(
+          'You have already reported this reply. Duplicate reports cannot be submitted.',
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<List<DiscussionReport>> getPendingReports() async {
@@ -680,7 +764,8 @@ class DiscussionRepository {
         final topicId = row['topic_id'] as String?;
         final replyId = row['reply_id'] as String?;
 
-        if (reporterId != null && reporterId.isNotEmpty) reporterIds.add(reporterId);
+        if (reporterId != null && reporterId.isNotEmpty)
+          reporterIds.add(reporterId);
         if (topicId != null && topicId.isNotEmpty) topicIds.add(topicId);
         if (replyId != null && replyId.isNotEmpty) replyIds.add(replyId);
       }
@@ -796,11 +881,14 @@ class DiscussionRepository {
   }
 
   Future<void> dismissReport(String reportId) async {
-    await _supabase.from('discussion_reports').update({
-      'status': 'dismissed',
-      'reviewed_at': DateTime.now().toIso8601String(),
-      'reviewed_by': _currentUserId,
-    }).eq('id', reportId);
+    await _supabase
+        .from('discussion_reports')
+        .update({
+          'status': 'dismissed',
+          'reviewed_at': DateTime.now().toIso8601String(),
+          'reviewed_by': _currentUserId,
+        })
+        .eq('id', reportId);
   }
 
   Future<void> deleteReportedContent({
@@ -813,11 +901,14 @@ class DiscussionRepository {
     } else if (topicId != null && topicId.isNotEmpty) {
       await adminDeleteTopic(topicId);
     }
-    await _supabase.from('discussion_reports').update({
-      'status': 'resolved',
-      'reviewed_at': DateTime.now().toIso8601String(),
-      'reviewed_by': _currentUserId,
-    }).eq('id', reportId);
+    await _supabase
+        .from('discussion_reports')
+        .update({
+          'status': 'resolved',
+          'reviewed_at': DateTime.now().toIso8601String(),
+          'reviewed_by': _currentUserId,
+        })
+        .eq('id', reportId);
   }
 
   Future<void> adminDeleteTopic(String topicId) async {

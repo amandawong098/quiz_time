@@ -689,12 +689,20 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             BorderSide borderSide = BorderSide(color: Colors.grey.shade300);
 
             if (state.checked) {
-              if (isCorrectOption) {
-                cardColor = Colors.green.shade200;
-                borderSide = BorderSide(color: Colors.green.shade400, width: 2);
-              } else if (isSelected) {
-                cardColor = Colors.red.shade200;
-                borderSide = BorderSide(color: Colors.red.shade400, width: 2);
+              if (state.isCorrect == true) {
+                // Correct answer: highlight the correct option in green
+                if (isCorrectOption) {
+                  cardColor = Colors.green.shade200;
+                  borderSide = BorderSide(color: Colors.green.shade400, width: 2);
+                }
+              } else {
+                // Incorrect answer:
+                // DO NOT reveal which option is correct!
+                // Only highlight the learner's chosen wrong option in red.
+                if (isSelected) {
+                  cardColor = Colors.red.shade200;
+                  borderSide = BorderSide(color: Colors.red.shade400, width: 2);
+                }
               }
             } else if (isSelected) {
               borderSide = const BorderSide(color: Colors.deepPurple, width: 2);
@@ -749,7 +757,75 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             );
           }),
         ),
-        if (state.checked && block.content['explanation'] != null && (block.content['explanation'] as String).trim().isNotEmpty) ...[
+        // When answered INCORRECTLY: Do not reveal explanation. Provide hint to review previous pages.
+        if (state.checked && state.isCorrect == false) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade300, width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.lightbulb_rounded, size: 20, color: Colors.amber.shade900),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Hint',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber.shade900,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Not quite right! Go back to the previous pages to review the lesson material and find the answer, then tap Try Again.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.amber.shade900,
+                    height: 1.35,
+                  ),
+                ),
+                if (pageIndex > 0) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 36,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.amber.shade900,
+                        side: BorderSide(color: Colors.amber.shade700),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                      label: const Text(
+                        'Review Previous Page',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () {
+                        _pageController.previousPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+        // When answered CORRECTLY: Reveal explanation if present
+        if (state.checked && (state.isCorrect == true) && block.content['explanation'] != null && (block.content['explanation'] as String).trim().isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),

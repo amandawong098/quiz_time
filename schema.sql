@@ -655,6 +655,11 @@ DECLARE
     v_msg TEXT;
     v_type TEXT;
 BEGIN
+    -- Clean up admin profiles so admins never participate in leaderboard rankings
+    UPDATE public.profiles
+    SET league = NULL, weekly_xp = 0
+    WHERE LOWER(COALESCE(role, 'learner')) = 'admin';
+
     -- Create temporary table to store updates
     CREATE TEMP TABLE temp_league_updates (
         user_id UUID PRIMARY KEY,
@@ -668,10 +673,11 @@ BEGIN
         FROM public.league_configs
         ORDER BY rank_order ASC
     LOOP
-        -- Count users currently in this league
+        -- Count users currently in this league (learners only, excluding admins)
         SELECT COUNT(*) INTO total_users 
         FROM public.profiles 
-        WHERE league = league_rec.league;
+        WHERE league = league_rec.league
+          AND LOWER(COALESCE(role, 'learner')) != 'admin';
 
         IF total_users > 0 THEN
             promo_pct := league_rec.promotion_pct;
@@ -683,11 +689,12 @@ BEGIN
             demo_count := CEIL(total_users * demo_pct);
 
             user_rank := 0;
-            -- Fetch all users in this league sorted by weekly_xp desc
+            -- Fetch all users in this league sorted by weekly_xp desc (learners only, excluding admins)
             FOR user_rec IN 
                 SELECT id, weekly_xp 
                 FROM public.profiles 
                 WHERE league = league_rec.league
+                  AND LOWER(COALESCE(role, 'learner')) != 'admin'
                 ORDER BY weekly_xp DESC, updated_at ASC, id ASC
             LOOP
                 user_rank := user_rank + 1;

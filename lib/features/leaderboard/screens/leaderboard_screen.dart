@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/notification_badge.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/leaderboard_repository.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
@@ -21,6 +23,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   String _selectedLeague = 'Stargazer';
 
   // Current logged in user info
+  String _userRole = 'learner';
+  bool get _isAdmin =>
+      _userRole.toLowerCase() == 'admin' ||
+      (mounted && context.read<AuthRepository>().isAdmin);
   String _userLeague = 'Stargazer';
   int _userXp = 0;
   int _userWeeklyXp = 0;
@@ -78,14 +84,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       try {
         final res = await Supabase.instance.client
             .from('profiles')
-            .select('league, xp, weekly_xp')
+            .select('league, xp, weekly_xp, role')
             .eq('id', user.id)
             .single();
-        setState(() {
-          _userLeague = res['league'] as String? ?? 'Stargazer';
-          _userXp = (res['xp'] as num? ?? 0).toInt();
-          _userWeeklyXp = (res['weekly_xp'] as num? ?? 0).toInt();
-        });
+        if (mounted) {
+          setState(() {
+            _userRole = res['role'] as String? ?? 'learner';
+            _userLeague = res['league'] as String? ?? 'Stargazer';
+            _userXp = (res['xp'] as num? ?? 0).toInt();
+            _userWeeklyXp = (res['weekly_xp'] as num? ?? 0).toInt();
+          });
+        }
       } catch (_) {}
     }
   }
@@ -112,6 +121,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   bool _isLeagueLocked(String leagueName) {
+    if (_isAdmin) return false;
     final userConf = _getLeagueConfig(_userLeague);
     final targetConf = _getLeagueConfig(leagueName);
     return targetConf.rankOrder > userConf.rankOrder;
@@ -146,11 +156,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             icon: const Icon(Icons.more_vert),
             onSelected: (val) async {
               if (val == 'test_reset') {
+                final messenger = ScaffoldMessenger.of(context);
                 setState(() => _isLoading = true);
                 final success =
                     await _repository.checkAndResetWeeklyLeagues(force: true);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text(
                         success
@@ -187,66 +198,112 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Top XP Summary Bar
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  color: Colors.white,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // XP Pills Row
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$_userXp XP',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
+                // Top Summary Bar
+                if (_isAdmin)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    color: Colors.deepPurple.shade50,
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.deepPurple.shade100,
+                            shape: BoxShape.circle,
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$_userWeeklyXp Weekly XP',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          child: const Icon(
+                            Icons.admin_panel_settings_rounded,
+                            color: Colors.deepPurple,
+                            size: 18,
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Administrator View',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.deepPurple,
+                                ),
+                              ),
+                              Text(
+                                'Viewing learner rankings. Admins do not participate in leaderboard rankings.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    color: Colors.white,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // XP Pills Row
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$_userXp XP',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$_userWeeklyXp Weekly XP',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 const Divider(height: 1),
                 
                 // League Badges tab bar container
@@ -389,7 +446,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildUserRow(LeaderboardUser user, int rank) {
-    final isMe = user.id == _currentUserId;
+    final isMe = !_isAdmin && user.id == _currentUserId;
     final totalCount = _users.length;
     final config = _getLeagueConfig(_selectedLeague);
     final promoCount = (totalCount * config.promotionPct).ceil();
@@ -563,7 +620,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             ? Border.all(color: Colors.green, width: 3)
             : Border.all(color: Colors.transparent, width: 3),
         boxShadow: isSelected
-            ? [BoxShadow(color: Colors.green.withOpacity(0.4), blurRadius: 8)]
+            ? [BoxShadow(color: Colors.green.withValues(alpha: 0.4), blurRadius: 8)]
             : null,
       ),
       child: Stack(

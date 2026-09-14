@@ -33,6 +33,7 @@ class LeaderboardUser {
   final int weeklyXp;
   final int xp;
   final String league;
+  final String? role;
 
   LeaderboardUser({
     required this.id,
@@ -41,6 +42,7 @@ class LeaderboardUser {
     required this.weeklyXp,
     required this.xp,
     required this.league,
+    this.role,
   });
 
   LeaderboardUser copyWith({
@@ -50,6 +52,7 @@ class LeaderboardUser {
     int? weeklyXp,
     int? xp,
     String? league,
+    String? role,
   }) {
     return LeaderboardUser(
       id: id ?? this.id,
@@ -58,6 +61,7 @@ class LeaderboardUser {
       weeklyXp: weeklyXp ?? this.weeklyXp,
       xp: xp ?? this.xp,
       league: league ?? this.league,
+      role: role ?? this.role,
     );
   }
 
@@ -69,6 +73,7 @@ class LeaderboardUser {
       weeklyXp: (json['weekly_xp'] as num? ?? 0).toInt(),
       xp: (json['xp'] as num? ?? 0).toInt(),
       league: json['league'] as String? ?? 'Stargazer',
+      role: json['role'] as String?,
     );
   }
 }
@@ -77,17 +82,20 @@ class LeaderboardRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
   /// Fetch all users in a specific league, sorted by weekly_xp desc, then updated_at asc, then id
+  /// Admins are strictly excluded from leaderboard rankings.
   Future<List<LeaderboardUser>> getLeaderboard(String league) async {
     try {
       final response = await _client
           .from('profiles')
-          .select('id, name, avatar_url, weekly_xp, xp, league')
+          .select('id, name, avatar_url, weekly_xp, xp, league, role')
           .eq('league', league)
+          .or('role.neq.admin,role.is.null')
           .order('weekly_xp', ascending: false)
           .order('updated_at', ascending: true);
 
       return (response as List)
           .map((json) => LeaderboardUser.fromJson(json as Map<String, dynamic>))
+          .where((user) => (user.role ?? 'learner').toLowerCase() != 'admin')
           .toList();
     } catch (_) {
       return [];

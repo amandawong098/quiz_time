@@ -56,7 +56,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  String get _currentUserId => _supabase.auth.currentUser!.id;
+  String? get _currentUserId => _supabase.auth.currentUser?.id;
   int get unreadCount => _unreadCount;
   List<AppNotification> get notifications => _notifications;
   UserProfile? get currentUserProfile => _currentUserProfile;
@@ -68,11 +68,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _loadCurrentUserProfile() async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     try {
       final response = await _supabase
           .from('profiles')
           .select('*')
-          .eq('id', _currentUserId)
+          .eq('id', uid)
           .single();
       _currentUserProfile = UserProfile.fromJson(response);
       notifyListeners();
@@ -82,12 +84,14 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _loadUnreadCount() async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     try {
       if (_currentUserProfile?.isAdmin == true) {
         final response = await _supabase
             .from('notifications')
             .select('*')
-            .eq('user_id', _currentUserId)
+            .eq('user_id', uid)
             .eq('is_read', false);
         final list = (response as List).map((e) => AppNotification.fromJson(e)).toList();
         _unreadCount = list.where((n) => n.type != null && n.type!.startsWith('discussion_')).length;
@@ -95,7 +99,7 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
         final response = await _supabase
             .from('notifications')
             .select('*')
-            .eq('user_id', _currentUserId)
+            .eq('user_id', uid)
             .eq('is_read', false);
         _unreadCount = (response as List).length;
       }
@@ -106,11 +110,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _loadNotifications() async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     try {
       final response = await _supabase
           .from('notifications')
           .select('*')
-          .eq('user_id', _currentUserId)
+          .eq('user_id', uid)
           .order('created_at', ascending: false);
       final allNotifs = (response as List)
           .map((e) => AppNotification.fromJson(e))
@@ -186,11 +192,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> markAllNotificationsRead() async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     try {
       await _supabase
           .from('notifications')
           .update({'is_read': true})
-          .eq('user_id', _currentUserId)
+          .eq('user_id', uid)
           .eq('is_read', false);
       _unreadCount = 0;
       await _loadNotifications();
@@ -217,17 +225,19 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   // --- FRIENDSHIP DATABASE ACTIONS ---
 
   Future<List<UserProfile>> getFriends() async {
+    final uid = _currentUserId;
+    if (uid == null) return [];
     final response = await _supabase
         .from('friendships')
         .select('*, sender:profiles!sender_id(*), receiver:profiles!receiver_id(*)')
         .eq('status', 'accepted')
-        .or('sender_id.eq.$_currentUserId,receiver_id.eq.$_currentUserId');
+        .or('sender_id.eq.$uid,receiver_id.eq.$uid');
 
     final List<UserProfile> friends = [];
     for (var row in response as List) {
       final sender = row['sender'];
       final receiver = row['receiver'];
-      if (row['sender_id'] == _currentUserId) {
+      if (row['sender_id'] == uid) {
         if (receiver != null) {
           friends.add(UserProfile.fromJson(receiver));
         }
@@ -241,11 +251,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<List<UserProfile>> getIncomingRequests() async {
+    final uid = _currentUserId;
+    if (uid == null) return [];
     final response = await _supabase
         .from('friendships')
         .select('*, sender:profiles!sender_id(*)')
         .eq('status', 'pending')
-        .eq('receiver_id', _currentUserId);
+        .eq('receiver_id', uid);
 
     return (response as List)
         .where((row) => row['sender'] != null)
@@ -254,11 +266,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<List<UserProfile>> getSentRequests() async {
+    final uid = _currentUserId;
+    if (uid == null) return [];
     final response = await _supabase
         .from('friendships')
         .select('*, receiver:profiles!receiver_id(*)')
         .eq('status', 'pending')
-        .eq('sender_id', _currentUserId);
+        .eq('sender_id', uid);
 
     return (response as List)
         .where((row) => row['receiver'] != null)
@@ -267,12 +281,14 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<List<UserProfile>> getDiscoverNewFriends() async {
+    final uid = _currentUserId;
+    if (uid == null) return [];
     final friendships = await _supabase
         .from('friendships')
         .select('sender_id, receiver_id')
-        .or('sender_id.eq.$_currentUserId,receiver_id.eq.$_currentUserId');
+        .or('sender_id.eq.$uid,receiver_id.eq.$uid');
 
-    final Set<String> excludedUserIds = {_currentUserId};
+    final Set<String> excludedUserIds = {uid};
     for (var row in friendships as List) {
       excludedUserIds.add(row['sender_id'] as String);
       excludedUserIds.add(row['receiver_id'] as String);
@@ -289,8 +305,10 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> sendFriendRequest(String receiverId) async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     await _supabase.from('friendships').insert({
-      'sender_id': _currentUserId,
+      'sender_id': uid,
       'receiver_id': receiverId,
       'status': 'pending',
     });
@@ -305,11 +323,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> acceptFriendRequest(String senderId) async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     await _supabase
         .from('friendships')
         .update({'status': 'accepted', 'updated_at': DateTime.now().toIso8601String()})
         .eq('sender_id', senderId)
-        .eq('receiver_id', _currentUserId);
+        .eq('receiver_id', uid);
 
     final receiverName = _currentUserProfile?.name ?? 'Someone';
     await _supabase.from('notifications').insert({
@@ -321,11 +341,13 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> declineFriendRequest(String senderId) async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     await _supabase
         .from('friendships')
         .delete()
         .eq('sender_id', senderId)
-        .eq('receiver_id', _currentUserId);
+        .eq('receiver_id', uid);
 
     final receiverName = _currentUserProfile?.name ?? 'Someone';
     await _supabase.from('notifications').insert({
@@ -337,19 +359,23 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> cancelFriendRequest(String receiverId) async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     await _supabase
         .from('friendships')
         .delete()
-        .eq('sender_id', _currentUserId)
+        .eq('sender_id', uid)
         .eq('receiver_id', receiverId)
         .eq('status', 'pending');
   }
 
   Future<void> unfriend(String friendId) async {
+    final uid = _currentUserId;
+    if (uid == null) return;
     await _supabase
         .from('friendships')
         .delete()
-        .or('and(sender_id.eq.$_currentUserId,receiver_id.eq.$friendId),and(sender_id.eq.$friendId,receiver_id.eq.$_currentUserId)');
+        .or('and(sender_id.eq.$uid,receiver_id.eq.$friendId),and(sender_id.eq.$friendId,receiver_id.eq.$uid)');
   }
 
   Future<void> _initLocalNotifications() async {

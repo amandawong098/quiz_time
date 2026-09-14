@@ -19,10 +19,8 @@ class DiscussionReportDialog extends StatefulWidget {
   }) {
     return showDialog<bool>(
       context: context,
-      builder: (context) => DiscussionReportDialog(
-        topicId: topicId,
-        replyId: replyId,
-      ),
+      builder: (context) =>
+          DiscussionReportDialog(topicId: topicId, replyId: replyId),
     );
   }
 
@@ -41,7 +39,35 @@ class _DiscussionReportDialogState extends State<DiscussionReportDialog> {
 
   String _selectedReason = _reasons.first;
   final TextEditingController _detailsController = TextEditingController();
+  bool _isChecking = true;
+  bool _alreadyReported = false;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPriorReport();
+  }
+
+  Future<void> _checkPriorReport() async {
+    try {
+      final repo = context.read<DiscussionRepository>();
+      final isReply = widget.replyId != null;
+      final reported = isReply
+          ? await repo.hasUserReportedReply(widget.replyId!)
+          : await repo.hasUserReportedTopic(widget.topicId);
+      if (mounted) {
+        setState(() {
+          _alreadyReported = reported;
+          _isChecking = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isChecking = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -86,11 +112,9 @@ class _DiscussionReportDialogState extends State<DiscussionReportDialog> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
+        final cleanMsg = e.toString().replaceAll('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to submit report: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(cleanMsg), backgroundColor: Colors.red),
         );
       }
     }
@@ -99,6 +123,101 @@ class _DiscussionReportDialogState extends State<DiscussionReportDialog> {
   @override
   Widget build(BuildContext context) {
     final isReply = widget.replyId != null;
+
+    if (_isChecking) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(strokeWidth: 2.5),
+              SizedBox(height: 16),
+              Text(
+                'Checking report status...',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_alreadyReported) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.amber.shade800),
+            const SizedBox(width: 8),
+            const Text('Already Reported'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.mark_email_read_outlined,
+                    color: Colors.amber.shade900,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Report on File',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.grey.shade900,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'You have already submitted a report for this ${isReply ? "reply" : "discussion topic"}.\n\nOur moderation team has received your submission. Even if a report has been reviewed or dismissed by an admin, duplicate reports cannot be submitted.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade800,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Understood'),
+          ),
+        ],
+      );
+    }
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -146,7 +265,9 @@ class _DiscussionReportDialogState extends State<DiscussionReportDialog> {
               decoration: InputDecoration(
                 hintText: 'Describe the issue...',
                 hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 contentPadding: const EdgeInsets.all(10),
               ),
             ),
@@ -163,13 +284,18 @@ class _DiscussionReportDialogState extends State<DiscussionReportDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red.shade700,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: _isSubmitting
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Text('Submit Report'),
         ),

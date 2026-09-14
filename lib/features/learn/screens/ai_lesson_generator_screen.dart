@@ -9,7 +9,16 @@ import '../../../core/services/ai_generation_manager.dart';
 import '../../../core/widgets/gemini_model_selector_sheet.dart';
 
 class AILessonGeneratorScreen extends StatefulWidget {
-  const AILessonGeneratorScreen({super.key});
+  final String? targetCourseId;
+  final String? targetCourseTitle;
+  final List<String>? existingChapterTitles;
+
+  const AILessonGeneratorScreen({
+    super.key,
+    this.targetCourseId,
+    this.targetCourseTitle,
+    this.existingChapterTitles,
+  });
 
   @override
   State<AILessonGeneratorScreen> createState() =>
@@ -20,8 +29,11 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
   final _promptController = TextEditingController();
   final _focusNode = FocusNode();
 
+  bool get _isChapterMode =>
+      widget.targetCourseId != null && widget.targetCourseId!.isNotEmpty;
+
   // Lesson Generation options
-  String _selectedAudience = 'Intermediate'; // Beginner, Intermediate, Advanced
+  String _selectedAudience = 'Intermediate / College'; // Beginner, Intermediate, Advanced
   final bool _generateCoverImage = true;
   String _selectedModel = 'gemini-1.5-flash';
 
@@ -319,9 +331,12 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
 
     if (promptText.isEmpty && !hasFiles) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Please enter a lesson topic or attach syllabus/notes.'),
+        SnackBar(
+          content: Text(
+            _isChapterMode
+                ? 'Please enter a chapter topic or attach notes/slides.'
+                : 'Please enter a lesson topic or attach syllabus/notes.',
+          ),
         ),
       );
       return;
@@ -338,66 +353,83 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
 
     if (!mounted) return;
 
-    // Detect if multiple files or lengthy files were uploaded
-    final bool isMultiFile = _selectedFiles.length > 1;
-    final int totalBytes = _selectedFiles.fold(0, (acc, f) => acc + f.size);
-    final bool isLengthyContent = isMultiFile || totalBytes > 3 * 1024 * 1024;
+    // For full lesson generation, warn if lengthy/multi-file
+    if (!_isChapterMode) {
+      final bool isMultiFile = _selectedFiles.length > 1;
+      final int totalBytes = _selectedFiles.fold(0, (acc, f) => acc + f.size);
+      final bool isLengthyContent = isMultiFile || totalBytes > 3 * 1024 * 1024;
 
-    if (isLengthyContent) {
-      final shouldProceed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(Icons.auto_stories_rounded, color: Colors.deepPurple, size: 36),
-          title: const Text(
-            'Multi-Chapter Content Detected',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            isMultiFile
-                ? 'You have attached ${_selectedFiles.length} files. Because extensive study materials were provided, the AI may structure this course across multiple chapters or extended modules to cover the topics thoroughly.\n\nWould you like to proceed with generation, or go back to adjust your files?'
-                : 'Your uploaded document contains extensive content. The AI may generate multiple chapters or in-depth modules to ensure comprehensive coverage.\n\nWould you like to proceed with generation, or go back to adjust your files?',
-            style: const TextStyle(fontSize: 14, height: 1.4),
-          ),
-          actionsAlignment: MainAxisAlignment.spaceBetween,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Adjust Files', style: TextStyle(color: Colors.grey)),
+      if (isLengthyContent) {
+        final shouldProceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            icon: const Icon(Icons.auto_stories_rounded, color: Colors.deepPurple, size: 36),
+            title: const Text(
+              'Multi-Chapter Content Detected',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              isMultiFile
+                  ? 'You have attached ${_selectedFiles.length} files. Because extensive study materials were provided, the AI may structure this course across multiple chapters or extended modules to cover the topics thoroughly.\n\nWould you like to proceed with generation, or go back to adjust your files?'
+                  : 'Your uploaded document contains extensive content. The AI may generate multiple chapters or in-depth modules to ensure comprehensive coverage.\n\nWould you like to proceed with generation, or go back to adjust your files?',
+              style: const TextStyle(fontSize: 14, height: 1.4),
+            ),
+            actionsAlignment: MainAxisAlignment.spaceBetween,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Adjust Files', style: TextStyle(color: Colors.grey)),
               ),
-              child: const Text('Proceed & Generate'),
-            ),
-          ],
-        ),
-      );
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Proceed & Generate'),
+              ),
+            ],
+          ),
+        );
 
-      if (shouldProceed != true) {
-        return;
+        if (shouldProceed != true) {
+          return;
+        }
       }
     }
 
     if (!mounted) return;
 
-    // Launch background lesson generation
-    await AIGenerationManager().startLessonGeneration(
-      context: context,
-      prompt: promptText,
-      filesBytes: _selectedFiles.map((f) => f.bytes!).toList(),
-      filesNames: _selectedFiles.map((f) => f.name).toList(),
-      lessonScope: 'Auto',
-      audience: _selectedAudience,
-      generateCover: _generateCoverImage,
-      generateInSlideImages: hasFiles,
-      modelName: _selectedModel,
-    );
+    if (_isChapterMode) {
+      // Launch background chapter generation
+      await AIGenerationManager().startAddChapterGeneration(
+        context: context,
+        courseId: widget.targetCourseId!,
+        courseTitle: widget.targetCourseTitle ?? 'Course',
+        existingChapterTitles: widget.existingChapterTitles ?? const [],
+        prompt: promptText,
+        filesBytes: _selectedFiles.map((f) => f.bytes!).toList(),
+        filesNames: _selectedFiles.map((f) => f.name).toList(),
+        audience: _selectedAudience,
+        modelName: _selectedModel,
+      );
+    } else {
+      // Launch background lesson generation
+      await AIGenerationManager().startLessonGeneration(
+        context: context,
+        prompt: promptText,
+        filesBytes: _selectedFiles.map((f) => f.bytes!).toList(),
+        filesNames: _selectedFiles.map((f) => f.name).toList(),
+        lessonScope: 'Auto',
+        audience: _selectedAudience,
+        generateCover: _generateCoverImage,
+        generateInSlideImages: hasFiles,
+        modelName: _selectedModel,
+      );
+    }
   }
 
   @override

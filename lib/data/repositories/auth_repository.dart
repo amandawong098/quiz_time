@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/learn/models/lesson_progress.dart';
+import 'leaderboard_repository.dart';
 
 class AuthRepository extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -10,6 +11,7 @@ class AuthRepository extends ChangeNotifier {
     _currentUser = _supabase.auth.currentUser;
     if (_currentUser != null) {
       fetchUserRole();
+      _checkWeeklyLeaderboard();
     }
     _supabase.auth.onAuthStateChange.listen((data) {
       _currentUser = data.session?.user;
@@ -19,9 +21,17 @@ class AuthRepository extends ChangeNotifier {
       } else {
         fetchUserRole();
         LessonProgress().loadFromSupabase();
+        _checkWeeklyLeaderboard();
       }
       notifyListeners();
     });
+  }
+
+  Future<void> _checkWeeklyLeaderboard() async {
+    try {
+      final repo = LeaderboardRepository();
+      await repo.checkAndResetWeeklyLeagues();
+    } catch (_) {}
   }
 
   User? get currentUser => _currentUser;
@@ -101,7 +111,19 @@ class AuthRepository extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
+    try {
+      await _supabase.auth.signOut();
+    } catch (e) {
+      debugPrint('Error signing out: $e');
+      try {
+        await _supabase.auth.signOut(scope: SignOutScope.local);
+      } catch (_) {}
+    } finally {
+      _currentUser = null;
+      _currentRole = 'learner';
+      LessonProgress().clear();
+      notifyListeners();
+    }
   }
 
   Future<void> updateProfile({
@@ -131,10 +153,13 @@ class AuthRepository extends ChangeNotifier {
     profileUpdates['updated_at'] = DateTime.now().toIso8601String();
 
     if (profileUpdates.isNotEmpty) {
-      await _supabase
-          .from('profiles')
-          .update(profileUpdates)
-          .eq('id', _supabase.auth.currentUser!.id);
+      final uid = _supabase.auth.currentUser?.id;
+      if (uid != null) {
+        await _supabase
+            .from('profiles')
+            .update(profileUpdates)
+            .eq('id', uid);
+      }
     }
   }
 

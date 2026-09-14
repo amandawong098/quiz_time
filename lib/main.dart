@@ -13,6 +13,7 @@ import 'data/repositories/discussion_repository.dart';
 import 'data/repositories/friendship_repository.dart';
 import 'data/repositories/lesson_repository.dart';
 import 'data/repositories/flashcard_repository.dart';
+import 'data/repositories/leaderboard_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,7 @@ Future<void> main() async {
         ),
         Provider<LessonRepository>(create: (_) => LessonRepository()),
         Provider<FlashcardRepository>(create: (_) => FlashcardRepository()),
+        Provider<LeaderboardRepository>(create: (_) => LeaderboardRepository()),
       ],
       child: const LearnByteApp(),
     ),

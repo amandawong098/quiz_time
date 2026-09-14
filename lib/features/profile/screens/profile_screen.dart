@@ -614,51 +614,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.deepPurple.shade100),
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      leading: Icon(
-                        context.watch<AuthRepository>().isAdmin
-                            ? Icons.admin_panel_settings_rounded
-                            : Icons.school_rounded,
-                        color: Colors.deepPurple,
-                      ),
-                      title: Text(
-                        'Account Role: ${context.watch<AuthRepository>().isAdmin ? "Administrator" : "Learner"}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                      subtitle: const Text(
-                        'Toggle switch to test Admin vs Learner permissions',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      trailing: Switch(
-                        value: context.watch<AuthRepository>().isAdmin,
-                        activeThumbColor: Colors.deepPurple,
-                        onChanged: (val) async {
-                          final newRole = val ? 'admin' : 'learner';
-                          await context.read<AuthRepository>().updateUserRole(newRole);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Switched account role to "$newRole".'),
-                                backgroundColor: Colors.deepPurple,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      await context.read<AuthRepository>().signOut();
-                      if (context.mounted) context.go('/login');
+                      try {
+                        await context.read<AuthRepository>().signOut();
+                      } catch (e) {
+                        debugPrint('Error during logout: $e');
+                      }
+                      if (context.mounted) {
+                        context.go('/login');
+                      }
                     },
                     icon: const Icon(Icons.logout),
                     label: const Text('Logout'),
