@@ -127,6 +127,212 @@ class DiscussionRepository {
         .toList();
   }
 
+  /// Checks if a user is permitted to post a discussion topic on a given learning content.
+  /// 1. Any learning content that is private shall not allow to post discussion, regardless of whether the poster is the creator or not.
+  /// 2. Learners are not allowed to post on self-created content, and can only post on public content created by admins.
+  Future<({bool canPost, String? reason})> checkLearnerCanPostDiscussion({
+    required String? userId,
+    required bool isUserAdmin,
+    String? courseId,
+    String? quizId,
+    String? deckId,
+  }) async {
+    if (userId == null || userId.isEmpty) {
+      return (canPost: false, reason: 'You must be signed in to post discussions.');
+    }
+
+    // General topic without linked learning content is allowed
+    if (courseId == null && quizId == null && deckId == null) {
+      return (canPost: true, reason: null);
+    }
+
+    // 1. Check Lesson Course
+    if (courseId != null) {
+      try {
+        final res = await _supabase
+            .from('lesson_courses')
+            .select('is_public, creator_id')
+            .eq('id', courseId)
+            .maybeSingle();
+        if (res == null) {
+          return (canPost: false, reason: 'Lesson not found.');
+        }
+        final creatorId = res['creator_id'] as String?;
+        final isPublic = res['is_public'] as bool? ?? false;
+
+        // Any private content strictly disallows discussions, regardless of creator or admin role
+        if (!isPublic) {
+          return (
+            canPost: false,
+            reason: 'Discussions are turned off for private lessons.',
+          );
+        }
+
+        // Admins can post on public lessons
+        if (isUserAdmin) {
+          return (canPost: true, reason: null);
+        }
+
+        // Learners cannot post on self-created lessons
+        if (creatorId != null && creatorId == userId) {
+          return (
+            canPost: false,
+            reason: 'Discussions cannot be posted on self-created lessons.',
+          );
+        }
+
+        // Learners can only post on public lessons created by admins
+        bool isCreatorAdmin = false;
+        if (creatorId != null && creatorId.isNotEmpty) {
+          final profileRes = await _supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', creatorId)
+              .maybeSingle();
+          isCreatorAdmin =
+              (profileRes?['role'] as String?)?.toLowerCase() == 'admin';
+        }
+
+        if (!isCreatorAdmin) {
+          return (
+            canPost: false,
+            reason:
+                'Discussions are only allowed on public lessons created by administrators.',
+          );
+        }
+        return (canPost: true, reason: null);
+      } catch (e) {
+        return (canPost: false, reason: 'Error checking lesson permissions: $e');
+      }
+    }
+
+    // 2. Check Quiz
+    if (quizId != null) {
+      try {
+        final res = await _supabase
+            .from('quizzes')
+            .select('is_public, creator_id')
+            .eq('id', quizId)
+            .maybeSingle();
+        if (res == null) {
+          return (canPost: false, reason: 'Quiz not found.');
+        }
+        final creatorId = res['creator_id'] as String?;
+        final isPublic = res['is_public'] as bool? ?? false;
+
+        // Any private content strictly disallows discussions, regardless of creator or admin role
+        if (!isPublic) {
+          return (
+            canPost: false,
+            reason: 'Discussions are turned off for private quizzes.',
+          );
+        }
+
+        // Admins can post on public quizzes
+        if (isUserAdmin) {
+          return (canPost: true, reason: null);
+        }
+
+        // Learners cannot post on self-created quizzes
+        if (creatorId != null && creatorId == userId) {
+          return (
+            canPost: false,
+            reason: 'Discussions cannot be posted on self-created quizzes.',
+          );
+        }
+
+        // Learners can only post on public quizzes created by admins
+        bool isCreatorAdmin = false;
+        if (creatorId != null && creatorId.isNotEmpty) {
+          final profileRes = await _supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', creatorId)
+              .maybeSingle();
+          isCreatorAdmin =
+              (profileRes?['role'] as String?)?.toLowerCase() == 'admin';
+        }
+
+        if (!isCreatorAdmin) {
+          return (
+            canPost: false,
+            reason:
+                'Discussions are only allowed on public quizzes created by administrators.',
+          );
+        }
+        return (canPost: true, reason: null);
+      } catch (e) {
+        return (canPost: false, reason: 'Error checking quiz permissions: $e');
+      }
+    }
+
+    // 3. Check Flashcard Deck
+    if (deckId != null) {
+      try {
+        final res = await _supabase
+            .from('flashcard_decks')
+            .select('is_public, creator_id')
+            .eq('id', deckId)
+            .maybeSingle();
+        if (res == null) {
+          return (canPost: false, reason: 'Flashcard deck not found.');
+        }
+        final creatorId = res['creator_id'] as String?;
+        final isPublic = res['is_public'] as bool? ?? false;
+
+        // Any private content strictly disallows discussions, regardless of creator or admin role
+        if (!isPublic) {
+          return (
+            canPost: false,
+            reason: 'Discussions are turned off for private decks.',
+          );
+        }
+
+        // Admins can post on public decks
+        if (isUserAdmin) {
+          return (canPost: true, reason: null);
+        }
+
+        // Learners cannot post on self-created decks
+        if (creatorId != null && creatorId == userId) {
+          return (
+            canPost: false,
+            reason:
+                'Discussions cannot be posted on self-created flashcard decks.',
+          );
+        }
+
+        // Learners can only post on public decks created by admins
+        bool isCreatorAdmin = false;
+        if (creatorId != null && creatorId.isNotEmpty) {
+          final profileRes = await _supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', creatorId)
+              .maybeSingle();
+          isCreatorAdmin =
+              (profileRes?['role'] as String?)?.toLowerCase() == 'admin';
+        }
+
+        if (!isCreatorAdmin) {
+          return (
+            canPost: false,
+            reason:
+                'Discussions are only allowed on public flashcard decks created by administrators.',
+          );
+        }
+        return (canPost: true, reason: null);
+      } catch (e) {
+        return (
+          canPost: false,
+          reason: 'Error checking flashcard deck permissions: $e',
+        );
+      }
+    }
+
+    return (canPost: true, reason: null);
+  }
+
   Future<String> createTopic({
     required String title,
     required String content,
@@ -141,6 +347,31 @@ class DiscussionRepository {
     String? deckId,
     String? cardId,
   }) async {
+    // Validate learner posting permission on learning content
+    if (courseId != null || quizId != null || deckId != null) {
+      final userProfile = await _supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', _currentUserId)
+          .maybeSingle();
+      final isUserAdmin =
+          (userProfile?['role'] as String?)?.toLowerCase() == 'admin';
+
+      final perm = await checkLearnerCanPostDiscussion(
+        userId: _currentUserId,
+        isUserAdmin: isUserAdmin,
+        courseId: courseId,
+        quizId: quizId,
+        deckId: deckId,
+      );
+
+      if (!perm.canPost) {
+        throw Exception(
+          perm.reason ?? 'Posting discussion is not allowed on this content.',
+        );
+      }
+    }
+
     final response = await _supabase
         .from('discussion_topics')
         .insert({

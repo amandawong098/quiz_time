@@ -22,6 +22,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
   bool _shuffleCards = false;
   int _totalDiscussionsCount = 0;
   bool _hasPlayedBefore = false;
+  bool _canPostDiscussion = false;
 
   @override
   void initState() {
@@ -69,6 +70,17 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
 
       final count = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
 
+      bool canPost = false;
+      try {
+        final authRepo = context.read<AuthRepository>();
+        final perm = await discRepo.checkLearnerCanPostDiscussion(
+          userId: user?.id,
+          isUserAdmin: authRepo.isAdmin,
+          deckId: widget.deckId,
+        );
+        canPost = perm.canPost;
+      } catch (_) {}
+
       final isCreator = deck.creatorId == user?.id;
       bool hasPlayed = isCreator;
       if (!isCreator && user != null) {
@@ -86,6 +98,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
           _deck = deck;
           _totalDiscussionsCount = count;
           _hasPlayedBefore = hasPlayed;
+          _canPostDiscussion = canPost;
           _isLoading = false;
         });
       }
@@ -142,22 +155,23 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
         actions: [
-          TextButton.icon(
-            onPressed: () => _showDeckDiscussions(context),
-            icon: const Icon(
-              Icons.chat_bubble_outline_rounded,
-              size: 22,
-              color: Colors.white,
-            ),
-            label: Text(
-              '$_totalDiscussionsCount',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+          if (_canPostDiscussion)
+            TextButton.icon(
+              onPressed: () => _showDeckDiscussions(context),
+              icon: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 22,
                 color: Colors.white,
-                fontSize: 14,
+              ),
+              label: Text(
+                '$_totalDiscussionsCount',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
               ),
             ),
-          ),
         ],
       ),
       body: RefreshIndicator(

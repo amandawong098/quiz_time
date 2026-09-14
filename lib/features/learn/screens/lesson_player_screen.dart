@@ -50,6 +50,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   final Map<String, String> _pageSubChapterMap = {};
   final Map<String, SlideQuestionState> _questionStates = {};
   Map<String, int> _pageDiscussionCounts = {};
+  bool _canPostDiscussion = false;
 
   @override
   void initState() {
@@ -209,10 +210,51 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         }
       } catch (_) {}
 
+      bool canPost = false;
+      try {
+        final client = Supabase.instance.client;
+        String? targetCourseId = widget.courseId;
+        if (targetCourseId == null && widget.subChapterId != null) {
+          final subRes = await client
+              .from('lesson_sub_chapters')
+              .select('chapter_id')
+              .eq('id', widget.subChapterId!)
+              .maybeSingle();
+          final chapId = subRes?['chapter_id'] as String?;
+          if (chapId != null) {
+            final chapRes = await client
+                .from('lesson_chapters')
+                .select('course_id')
+                .eq('id', chapId)
+                .maybeSingle();
+            targetCourseId = chapRes?['course_id'] as String?;
+          }
+        }
+        if (targetCourseId == null && pages.isNotEmpty) {
+          final meta = await repo.getPageMetadata(pages.first.id);
+          final subData = meta?['lesson_sub_chapters'] as Map<String, dynamic>?;
+          final chapData = subData?['lesson_chapters'] as Map<String, dynamic>?;
+          targetCourseId = chapData?['course_id'] as String?;
+        }
+        if (targetCourseId != null) {
+          final authRepo = context.read<AuthRepository>();
+          final discRepo = context.read<DiscussionRepository>();
+          final perm = await discRepo.checkLearnerCanPostDiscussion(
+            userId: client.auth.currentUser?.id,
+            isUserAdmin: authRepo.isAdmin,
+            courseId: targetCourseId,
+          );
+          canPost = perm.canPost;
+        }
+      } catch (e) {
+        debugPrint('Error checking discussion permission in player: $e');
+      }
+
       setState(() {
         _dynamicPages = pages;
         _dynamicPageBlocks = pageBlocks;
         _pageDiscussionCounts = counts;
+        _canPostDiscussion = canPost;
         _currentSlide = initialPage;
         _isLoading = false;
       });
@@ -1123,7 +1165,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             onPressed: _handleBackPress,
           ),
           actions: [
-            if (_dynamicPages.isNotEmpty && _currentSlide < _dynamicPages.length) ...[
+            if (_canPostDiscussion && _dynamicPages.isNotEmpty && _currentSlide < _dynamicPages.length) ...[
               Builder(
                 builder: (context) {
                   final page = _dynamicPages[_currentSlide];
@@ -1438,7 +1480,9 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
   bool _isLoading = true;
   List<DiscussionTopic> _topics = [];
   List<DiscussionTopic> _filteredTopics = [];
-  bool? _isPublic;
+  bool _canPost = true;
+  String? _postDisabledReason;
+  bool _checkedPermission = false;
   String _sortBy = 'Top Upvotes';
   final TextEditingController _searchController = TextEditingController();
 
@@ -1463,26 +1507,61 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
       if (targetCourseId == null && widget.subChapterId != null) {
         final subRes = await client
             .from('lesson_sub_chapters')
-            .select('*, lesson_chapters(course_id)')
+            .select('chapter_id')
             .eq('id', widget.subChapterId!)
-            .single();
-        targetCourseId = subRes['lesson_chapters']['course_id'] as String?;
+            .maybeSingle();
+        final chapId = subRes?['chapter_id'] as String?;
+        if (chapId != null) {
+          final chapRes = await client
+              .from('lesson_chapters')
+              .select('course_id')
+              .eq('id', chapId)
+              .maybeSingle();
+          targetCourseId = chapRes?['course_id'] as String?;
+        }
+      }
+
+      if (targetCourseId == null) {
+        final meta = await LessonRepository().getPageMetadata(widget.pageId);
+        final subData = meta?['lesson_sub_chapters'] as Map<String, dynamic>?;
+        final chapData = subData?['lesson_chapters'] as Map<String, dynamic>?;
+        targetCourseId = chapData?['course_id'] as String?;
       }
 
       if (targetCourseId != null) {
-        final courseRes = await client
-            .from('lesson_courses')
-            .select('is_public')
-            .eq('id', targetCourseId)
-            .single();
+        if (!mounted) return;
+        final authRepo = context.read<AuthRepository>();
+        final discRepo = context.read<DiscussionRepository>();
+        final perm = await discRepo.checkLearnerCanPostDiscussion(
+          userId: client.auth.currentUser?.id,
+          isUserAdmin: authRepo.isAdmin,
+          courseId: targetCourseId,
+        );
+
         if (mounted) {
           setState(() {
-            _isPublic = courseRes['is_public'] as bool? ?? false;
+            _canPost = perm.canPost;
+            _postDisabledReason = perm.reason;
+            _checkedPermission = true;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _canPost = false;
+            _postDisabledReason = 'Discussions are disabled for this content.';
+            _checkedPermission = true;
           });
         }
       }
     } catch (e) {
       debugPrint('Error checking course visibility: $e');
+      if (mounted) {
+        setState(() {
+          _canPost = false;
+          _checkedPermission = true;
+        });
+      }
     }
   }
 
@@ -1574,17 +1653,8 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                         ),
                       ),
                     ),
-                    if (_isPublic == null)
+                    if (!_checkedPermission || !_canPost)
                       const SizedBox.shrink()
-                    else if (!_isPublic!)
-                      TextButton.icon(
-                        onPressed: null, // Disabled
-                        icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
-                        label: Text(
-                          'Post Topic (Disabled)',
-                          style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                      )
                     else
                       TextButton.icon(
                         onPressed: () async {
@@ -1597,11 +1667,11 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                               if (widget.courseId != null) {
                                 final chapters = await lessonRepo.getChapters(widget.courseId!);
                                 for (var ch in chapters) {
-                                  final subs = await lessonRepo.getSubChapters(ch.id);
-                                  if (subs.any((s) => s.id == widget.subChapterId)) {
-                                    chapterId = ch.id;
-                                    break;
-                                  }
+                                   final subs = await lessonRepo.getSubChapters(ch.id);
+                                   if (subs.any((s) => s.id == widget.subChapterId)) {
+                                     chapterId = ch.id;
+                                     break;
+                                   }
                                 }
                               }
                             }
@@ -1629,12 +1699,12 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                       ),
                   ],
                 ),
-                if (_isPublic == false) ...[
+                if (_checkedPermission && !_canPost && _postDisabledReason != null) ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      'Discussions are turned off for private lessons.',
+                      _postDisabledReason!,
                       style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
                     ),
                   ),

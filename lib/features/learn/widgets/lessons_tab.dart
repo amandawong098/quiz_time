@@ -40,8 +40,9 @@ class LessonsTabState extends State<LessonsTab> {
   String _searchQuery = '';
   String _activeTab = 'All';
 
-  // Cache for course discussion count futures to prevent constant recreation on rebuilds
+  // Cache for course discussion count and permission futures to prevent constant recreation on rebuilds
   final Map<String, Future<int>> _courseDiscussionCountFutures = {};
+  final Map<String, Future<bool>> _courseCanPostFutures = {};
 
   Future<int> _getDiscussionCountFuture(String courseId) {
     return _courseDiscussionCountFutures.putIfAbsent(
@@ -49,6 +50,22 @@ class LessonsTabState extends State<LessonsTab> {
       () => context.read<DiscussionRepository>().getCourseTotalDiscussionsCount(
         courseId,
       ),
+    );
+  }
+
+  Future<bool> _getCourseCanPostFuture(String courseId) {
+    return _courseCanPostFutures.putIfAbsent(
+      courseId,
+      () async {
+        final authRepo = context.read<AuthRepository>();
+        final discRepo = context.read<DiscussionRepository>();
+        final perm = await discRepo.checkLearnerCanPostDiscussion(
+          userId: Supabase.instance.client.auth.currentUser?.id,
+          isUserAdmin: authRepo.isAdmin,
+          courseId: courseId,
+        );
+        return perm.canPost;
+      },
     );
   }
 
@@ -197,6 +214,7 @@ class LessonsTabState extends State<LessonsTab> {
     setState(() => _isLoadingDb = true);
     try {
       _courseDiscussionCountFutures.clear(); // Clear cache on reload
+      _courseCanPostFutures.clear();
       await _progressTracker.loadFromSupabase();
       if (!mounted) return;
       final repo = context.read<LessonRepository>();
@@ -1244,51 +1262,64 @@ class LessonsTabState extends State<LessonsTab> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        FutureBuilder<int>(
-                          future: discussionCountFuture,
-                          builder: (context, snapshot) {
-                            final count = snapshot.data ?? 0;
-                            return SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  side: const BorderSide(
-                                    color: Colors.deepPurple,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (context) =>
-                                        LessonDiscussionsSheet(
-                                          courseId: course.id,
-                                          courseTitle: course.title,
+                        FutureBuilder<bool>(
+                          future: _getCourseCanPostFuture(course.id),
+                          builder: (context, postSnap) {
+                            if (postSnap.data != true) {
+                              return const SizedBox.shrink();
+                            }
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(height: 12),
+                                FutureBuilder<int>(
+                                  future: discussionCountFuture,
+                                  builder: (context, snapshot) {
+                                    final count = snapshot.data ?? 0;
+                                    return SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
+                                          ),
+                                          side: const BorderSide(
+                                            color: Colors.deepPurple,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
                                         ),
-                                  );
-                                },
-                                icon: const Icon(
-                                  Icons.chat_bubble_outline_rounded,
-                                  color: Colors.deepPurple,
-                                  size: 20,
+                                        onPressed: () {
+                                          showModalBottomSheet(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            backgroundColor: Colors.transparent,
+                                            builder: (context) =>
+                                                LessonDiscussionsSheet(
+                                                  courseId: course.id,
+                                                  courseTitle: course.title,
+                                                ),
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline_rounded,
+                                          color: Colors.deepPurple,
+                                          size: 20,
+                                        ),
+                                        label: Text(
+                                          'View Discussions ($count)',
+                                          style: const TextStyle(
+                                            color: Colors.deepPurple,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
-                                label: Text(
-                                  'View Discussions ($count)',
-                                  style: const TextStyle(
-                                    color: Colors.deepPurple,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ),
+                              ],
                             );
                           },
                         ),
@@ -1622,29 +1653,31 @@ class LessonsTabState extends State<LessonsTab> {
                                                   : Colors.grey.shade500,
                                             ),
                                           ),
-                                          const SizedBox(height: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: badgeBgColor,
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                              border: Border.all(
-                                                color: badgeBorderColor,
+                                          if (!context.watch<AuthRepository>().isAdmin) ...[
+                                            const SizedBox(height: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: badgeBgColor,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                border: Border.all(
+                                                  color: badgeBorderColor,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                'XP +${sub.xpReward}',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: badgeTextColor,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ),
-                                            child: Text(
-                                              'XP +${sub.xpReward}',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: badgeTextColor,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
+                                          ],
                                         ],
                                       ),
                                     ),
@@ -1782,50 +1815,58 @@ class LessonsTabState extends State<LessonsTab> {
               const SizedBox(height: 16),
               _buildDbChapters(),
               const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: FutureBuilder<int>(
-                  future: _getDiscussionCountFuture(activeCourse.id),
-                  builder: (context, snapshot) {
-                    final count = snapshot.data ?? 0;
-                    return SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        onPressed: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) => LessonDiscussionsSheet(
-                              courseId: activeCourse.id,
-                              courseTitle: activeCourse.title,
+              FutureBuilder<bool>(
+                future: _getCourseCanPostFuture(activeCourse.id),
+                builder: (context, postSnap) {
+                  if (postSnap.data != true) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: FutureBuilder<int>(
+                      future: _getDiscussionCountFuture(activeCourse.id),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data ?? 0;
+                        return SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 0,
                             ),
-                          );
-                        },
-                        icon: const Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 20,
-                        ),
-                        label: Text(
-                          'View Discussions ($count)',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                            onPressed: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => LessonDiscussionsSheet(
+                                  courseId: activeCourse.id,
+                                  courseTitle: activeCourse.title,
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 20,
+                            ),
+                            label: Text(
+                              'View Discussions ($count)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               Padding(

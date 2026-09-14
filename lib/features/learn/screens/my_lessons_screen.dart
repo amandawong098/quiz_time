@@ -1,14 +1,10 @@
-import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../core/services/ai_generation_manager.dart';
-import '../../../core/services/ai_quiz_service.dart';
 import '../models/lesson_models.dart';
 
 class MyLessonsScreen extends StatefulWidget {
@@ -230,434 +226,20 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
     }
   }
 
-  Future<void> _showAddChapterWithAISheet(LessonCourse course) async {
+  Future<void> _openAILessonGeneratorForChapter(LessonCourse course) async {
     final existingChapters = _chaptersMap[course.id] ?? [];
     final existingTitles = existingChapters.map((c) => c.title).toList();
-
-    final promptController = TextEditingController();
-    String selectedAudience = 'All Audiences';
-    PlatformFile? selectedFile;
-    bool isPickingFile = false;
-
-    final key = await AIQuizService.getApiKey();
-    if (!mounted) return;
-    if (key == null || key.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Please configure your Gemini API Key first in AI Lesson Generator settings.',
-          ),
-          action: SnackBarAction(
-            label: 'Open Settings',
-            onPressed: () => context.push('/ai-lesson-generator'),
-          ),
-        ),
-      );
-      return;
-    }
-
-    final selectedModel = await AIQuizService.getSelectedModel();
-
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final isDark = Theme.of(ctx).brightness == Brightness.dark;
-            return Container(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-                left: 20,
-                right: 20,
-                top: 20,
-              ),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1F24) : Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Handle bar
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade400,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Header
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.shade50,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.auto_awesome,
-                            color: Colors.deepPurple,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Add Chapter with AI',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                'To: ${course.title}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(sheetContext),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Recommendation guidance banner
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.blue.shade100),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.lightbulb_outline,
-                            size: 18,
-                            color: Colors.blue.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Recommendation: Generating 1 chapter at a time provides the deepest explanations, figures, and interactive checkpoints.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blue.shade900,
-                                height: 1.3,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Existing Chapters Context Chips
-                    if (existingTitles.isNotEmpty) ...[
-                      Text(
-                        'Existing Chapters (${existingTitles.length}):',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: existingTitles.map((t) {
-                          return Chip(
-                            label: Text(
-                              t,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            padding: EdgeInsets.zero,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            backgroundColor: isDark
-                                ? Colors.grey.shade800
-                                : Colors.grey.shade100,
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-
-                    // Topic / Prompt Input
-                    TextField(
-                      controller: promptController,
-                      maxLines: 3,
-                      minLines: 2,
-                      decoration: InputDecoration(
-                        labelText: 'Chapter Topic or Instructions',
-                        hintText: 'e.g. Applying Mathematics in Daily Life',
-                        hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade500,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: isDark
-                            ? Colors.grey.shade900
-                            : Colors.grey.shade50,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Optional Study Material Attachment
-                    Row(
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: isPickingFile
-                              ? null
-                              : () async {
-                                  setSheetState(() => isPickingFile = true);
-                                  try {
-                                    final result = await FilePicker.platform
-                                        .pickFiles(
-                                          type: FileType.any,
-                                          withData: true,
-                                        );
-                                    if (result != null &&
-                                        result.files.isNotEmpty) {
-                                      final f = result.files.first;
-                                      Uint8List? bytes = f.bytes;
-                                      if (bytes == null && f.path != null) {
-                                        bytes = await File(
-                                          f.path!,
-                                        ).readAsBytes();
-                                      }
-                                      setSheetState(() {
-                                        selectedFile = PlatformFile(
-                                          name: f.name,
-                                          size: f.size,
-                                          bytes: bytes,
-                                          path: f.path,
-                                        );
-                                      });
-                                    }
-                                  } catch (e) {
-                                    debugPrint('Error picking file: $e');
-                                  } finally {
-                                    setSheetState(() => isPickingFile = false);
-                                  }
-                                },
-                          icon: isPickingFile
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.attach_file, size: 18),
-                          label: Text(
-                            selectedFile != null
-                                ? 'Change File'
-                                : 'Attach Notes/Slides (Optional)',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                        if (selectedFile != null) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Chip(
-                              label: Text(
-                                selectedFile!.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              onDeleted: () {
-                                setSheetState(() => selectedFile = null);
-                              },
-                              deleteIconColor: Colors.redAccent,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Audience Selector
-                    Row(
-                      children: [
-                        const Text(
-                          'Audience: ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: selectedAudience,
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'All Audiences',
-                                child: Text('All Audiences'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Beginner',
-                                child: Text('Beginner'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Intermediate',
-                                child: Text('Intermediate'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Advanced',
-                                child: Text('Advanced'),
-                              ),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setSheetState(() => selectedAudience = val);
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Generate Button
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        final prompt = promptController.text.trim();
-                        if (prompt.isEmpty && selectedFile == null) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Please enter a chapter topic or attach notes/slides.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        Navigator.pop(sheetContext);
-
-                        AIGenerationManager().startAddChapterGeneration(
-                          context: context,
-                          courseId: course.id,
-                          courseTitle: course.title,
-                          existingChapterTitles: existingTitles,
-                          prompt: prompt,
-                          fileBytes: selectedFile?.bytes,
-                          fileName: selectedFile?.name,
-                          audience: selectedAudience,
-                          modelName: selectedModel,
-                        );
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'AI is generating a new chapter for "${course.title}" in the background! It will appear here once complete.',
-                            ),
-                            duration: const Duration(seconds: 4),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.auto_awesome, color: Colors.white),
-                      label: const Text(
-                        'Generate Chapter with AI',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-
-                    // AI mistake disclaimer
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 13,
-                          color: Colors.grey.shade500,
-                        ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            'AI can make mistakes. Please verify important educational information.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade500,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
+    await context.push(
+      '/ai-lesson-generator',
+      extra: {
+        'courseId': course.id,
+        'courseTitle': course.title,
+        'existingChapterTitles': existingTitles,
       },
     );
+    if (mounted) {
+      _loadLessons();
+    }
   }
 
   Future<void> _editChapter(String courseId, LessonChapter ch) async {
@@ -1100,7 +682,7 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                       trailing: PopupMenuButton<String>(
                         onSelected: (val) {
                           if (val == 'add_chapter_ai') {
-                            _showAddChapterWithAISheet(course);
+                            _openAILessonGeneratorForChapter(course);
                           } else if (val == 'add_chapter') {
                             _addChapter(course);
                           } else if (val == 'edit') {
@@ -1604,10 +1186,11 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
                                     const SizedBox(width: 10),
                                   ],
                                   Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () =>
-                                          _showAddChapterWithAISheet(course),
-                                      icon: const Icon(
+                                     child: ElevatedButton.icon(
+                                       onPressed: () =>
+                                           _openAILessonGeneratorForChapter(
+                                               course),
+                                       icon: const Icon(
                                         Icons.auto_awesome,
                                         size: 16,
                                       ),

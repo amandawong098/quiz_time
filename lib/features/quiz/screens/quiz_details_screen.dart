@@ -26,6 +26,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   bool _useTimer = true;
   int _totalDiscussionsCount = 0;
   bool _hasPlayedBefore = false;
+  bool _canPostDiscussion = false;
 
   @override
   void initState() {
@@ -67,12 +68,24 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
         } catch (_) {}
       }
 
+      bool canPost = false;
+      try {
+        final authRepo = context.read<AuthRepository>();
+        final perm = await discRepo.checkLearnerCanPostDiscussion(
+          userId: Supabase.instance.client.auth.currentUser?.id,
+          isUserAdmin: authRepo.isAdmin,
+          quizId: widget.quizId,
+        );
+        canPost = perm.canPost;
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _quiz = quiz;
           _questions = data['questions'] as List<Question>;
           _totalDiscussionsCount = count;
           _hasPlayedBefore = attempts.isNotEmpty;
+          _canPostDiscussion = canPost;
           _isLoading = false;
         });
       }
@@ -115,34 +128,36 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                 },
               ),
         actions: [
-          TextButton.icon(
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (context) => QuizDiscussionsSheet(
-                  quizId: widget.quizId,
-                  quizTitle: _quiz!.title,
-                  isLocked: !context.read<AuthRepository>().isAdmin &&
-                      (!_hasPlayedBefore && _quiz!.creatorId != Supabase.instance.client.auth.currentUser?.id),
-                  onTopicCreated: () {
-                    _loadData();
-                  },
+          if (_canPostDiscussion) ...[
+            TextButton.icon(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => QuizDiscussionsSheet(
+                    quizId: widget.quizId,
+                    quizTitle: _quiz!.title,
+                    isLocked: !context.read<AuthRepository>().isAdmin &&
+                        (!_hasPlayedBefore && _quiz!.creatorId != Supabase.instance.client.auth.currentUser?.id),
+                    onTopicCreated: () {
+                      _loadData();
+                    },
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
+              label: Text(
+                '$_totalDiscussionsCount',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
                 ),
-              );
-            },
-            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
-            label: Text(
-              '$_totalDiscussionsCount',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontSize: 14,
               ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
         ],
       ),
       body: RefreshIndicator(

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../models/lesson_models.dart';
 
 class LessonDiscussionsSheet extends StatefulWidget {
@@ -38,6 +39,8 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
   Map<String, List<LessonSubChapter>> _subChaptersMap = {};
   Map<String, List<LessonPage>> _pagesMap = {};
   LessonCourse? _course;
+  bool _canPost = true;
+  String? _postDisabledReason;
 
   @override
   void initState() {
@@ -61,9 +64,22 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
           .select()
           .eq('id', widget.courseId)
           .single();
+      final course = LessonCourse.fromJson(response);
+
+      if (!mounted) return;
+      final authRepo = context.read<AuthRepository>();
+      final discRepo = context.read<DiscussionRepository>();
+      final perm = await discRepo.checkLearnerCanPostDiscussion(
+        userId: client.auth.currentUser?.id,
+        isUserAdmin: authRepo.isAdmin,
+        courseId: widget.courseId,
+      );
+
       if (mounted) {
         setState(() {
-          _course = LessonCourse.fromJson(response);
+          _course = course;
+          _canPost = perm.canPost;
+          _postDisabledReason = perm.reason;
         });
       }
     } catch (e) {
@@ -297,17 +313,8 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                     ],
                   ),
                 ),
-                if (_course == null)
+                if (_course == null || !_canPost)
                   const SizedBox.shrink()
-                else if (_course!.isPublic == false)
-                  TextButton.icon(
-                    onPressed: null, // Disabled
-                    icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
-                    label: Text(
-                      'Post Topic (Disabled)',
-                      style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-                  )
                 else
                   TextButton.icon(
                     onPressed: () async {
@@ -330,14 +337,14 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
               ],
             ),
           ),
-          if (_course != null && _course!.isPublic == false) ...[
+          if (_course != null && !_canPost && _postDisabledReason != null) ...[
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  'Discussions are turned off for private lessons.',
+                  _postDisabledReason!,
                   style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
                 ),
               ),

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/discussion_models.dart';
 import '../models/flashcard_models.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 
 class FlashcardDiscussionsSheet extends StatefulWidget {
   final String deckId;
@@ -34,6 +36,8 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
   bool _isLoading = true;
   List<FlashcardItem> _cards = [];
   FlashcardDeck? _deck;
+  bool _canPost = true;
+  String? _postDisabledReason;
   List<DiscussionTopic> _allTopics = [];
   List<DiscussionTopic> _filteredTopics = [];
   String _selectedFilter = 'All';
@@ -65,10 +69,22 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
       final repo = context.read<FlashcardRepository>();
       final deck = await repo.getDeckById(widget.deckId);
       final cards = await repo.getFlashcards(widget.deckId);
+
+      if (!mounted) return;
+      final authRepo = context.read<AuthRepository>();
+      final discRepo = context.read<DiscussionRepository>();
+      final perm = await discRepo.checkLearnerCanPostDiscussion(
+        userId: Supabase.instance.client.auth.currentUser?.id,
+        isUserAdmin: authRepo.isAdmin,
+        deckId: widget.deckId,
+      );
+
       if (mounted) {
         setState(() {
           _cards = cards;
           _deck = deck;
+          _canPost = perm.canPost;
+          _postDisabledReason = perm.reason;
         });
       }
     } catch (e) {
@@ -250,17 +266,8 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
                       ),
                     ),
                     if (!widget.isLocked) ...[
-                      if (_deck == null)
+                      if (_deck == null || !_canPost)
                         const SizedBox.shrink()
-                      else if (_deck!.isPublic == false)
-                        TextButton.icon(
-                          onPressed: null,
-                          icon: Icon(Icons.add_comment_outlined, size: 18, color: Colors.grey.shade400),
-                          label: Text(
-                            'Post Topic (Disabled)',
-                            style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                        )
                       else
                         TextButton.icon(
                           onPressed: () async {
@@ -284,12 +291,12 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
                     ],
                   ],
                 ),
-                if (!widget.isLocked && _deck != null && _deck!.isPublic == false) ...[
+                if (!widget.isLocked && _deck != null && !_canPost && _postDisabledReason != null) ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      'Discussions are turned off for private decks.',
+                      _postDisabledReason!,
                       style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
                     ),
                   ),

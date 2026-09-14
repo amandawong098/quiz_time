@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../models/flashcard_models.dart';
 import '../widgets/flashcard_discussions_sheet.dart';
 
@@ -35,6 +36,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
   Map<String, int> _cardDiscussionCounts = {};
   int _totalDiscussionsCount = 0;
   double _swipeOffset = 0.0;
+  bool _canPostDiscussion = false;
 
   @override
   void initState() {
@@ -56,11 +58,23 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
       final counts = await discRepo.getDeckCardsDiscussionsCount(widget.deckId);
       final totalCount = await discRepo.getDeckTotalDiscussionsCount(widget.deckId);
 
+      bool canPost = false;
+      try {
+        final authRepo = context.read<AuthRepository>();
+        final perm = await discRepo.checkLearnerCanPostDiscussion(
+          userId: Supabase.instance.client.auth.currentUser?.id,
+          isUserAdmin: authRepo.isAdmin,
+          deckId: widget.deckId,
+        );
+        canPost = perm.canPost;
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _cards = cards;
           _cardDiscussionCounts = counts;
           _totalDiscussionsCount = totalCount;
+          _canPostDiscussion = canPost;
           _isLoading = false;
         });
       }
@@ -314,35 +328,36 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
             onPressed: () => context.pop(),
           ),
           actions: [
-            TextButton.icon(
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => FlashcardDiscussionsSheet(
-                    deckId: widget.deckId,
-                    deckTitle: widget.deckTitle,
-                    onTopicCreated: () {
-                      _loadCards();
-                    },
-                  ),
-                );
-              },
-              icon: const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 22,
-                color: Colors.white,
-              ),
-              label: Text(
-                '$_totalDiscussionsCount',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+            if (_canPostDiscussion)
+              TextButton.icon(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => FlashcardDiscussionsSheet(
+                      deckId: widget.deckId,
+                      deckTitle: widget.deckTitle,
+                      onTopicCreated: () {
+                        _loadCards();
+                      },
+                    ),
+                  );
+                },
+                icon: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 22,
                   color: Colors.white,
-                  fontSize: 14,
+                ),
+                label: Text(
+                  '$_totalDiscussionsCount',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         body: _buildReviewScreen(),
@@ -390,7 +405,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
           iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
           actions: [
-            if (_isCardFlipped && !_isLoading && _cards.isNotEmpty)
+            if (_canPostDiscussion && _isCardFlipped && !_isLoading && _cards.isNotEmpty)
               TextButton.icon(
                 style: TextButton.styleFrom(
                   minimumSize: Size.zero,

@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../learn/models/lesson_models.dart';
@@ -63,6 +65,8 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
   bool _isLoading = false;
   bool _isLoadingCourses = true;
   bool _isLoadingMetadata = false;
+  bool _canPost = true;
+  String? _postDisabledReason;
   List<LessonCourse> _courses = [];
   String? _selectedCourseId;
   String? _selectedChapterId;
@@ -202,6 +206,28 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
         }
       } catch (_) {}
       setState(() => _isLoadingMetadata = false);
+    }
+
+    final effectiveCourseId = _resolvedCourseId ?? _selectedCourseId ?? courseId;
+    if (widget.topic == null && (effectiveCourseId != null || quizId != null || deckId != null)) {
+      if (mounted) {
+        final authRepo = context.read<AuthRepository>();
+        final discRepo = context.read<DiscussionRepository>();
+        final client = Supabase.instance.client;
+        final perm = await discRepo.checkLearnerCanPostDiscussion(
+          userId: client.auth.currentUser?.id,
+          isUserAdmin: authRepo.isAdmin,
+          courseId: effectiveCourseId,
+          quizId: quizId,
+          deckId: deckId,
+        );
+        if (mounted) {
+          setState(() {
+            _canPost = perm.canPost;
+            _postDisabledReason = perm.reason;
+          });
+        }
+      }
     }
   }
 
@@ -381,6 +407,11 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (!_canPost) {
+      _showSnackBar(_postDisabledReason ?? 'You cannot post discussions on this content.');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -751,6 +782,34 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                             ),
                     ],
 
+                    if (!_canPost && _postDisabledReason != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_outline_rounded, color: Colors.red.shade700, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _postDisabledReason!,
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _contentController,
@@ -793,7 +852,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                             label: const Text('Save Changes'),
                           )
                         : ElevatedButton(
-                            onPressed: _submit,
+                            onPressed: _canPost ? _submit : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.deepPurple,
                               foregroundColor: Colors.white,
@@ -802,7 +861,7 @@ class _CreateTopicScreenState extends State<CreateTopicScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text('Post Topic'),
+                            child: Text(_canPost ? 'Post Topic' : 'Post Topic (Disabled)'),
                           ),
                     const SizedBox(height: 40),
                   ],

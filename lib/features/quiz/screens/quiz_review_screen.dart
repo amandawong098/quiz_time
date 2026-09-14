@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../widgets/quiz_discussions_sheet.dart';
 
 class QuizReviewScreen extends StatefulWidget {
@@ -31,6 +32,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
   String? _quizTitle;
   Map<String, int> _questionDiscussionCounts = {};
   int _totalDiscussionsCount = 0;
+  bool _canPostDiscussion = false;
 
   @override
   void initState() {
@@ -57,11 +59,23 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
       final counts = await discRepo.getQuizQuestionsDiscussionsCount(widget.quizId);
       final totalCount = await discRepo.getQuizTotalDiscussionsCount(widget.quizId);
 
+      bool canPost = false;
+      try {
+        final authRepo = context.read<AuthRepository>();
+        final perm = await discRepo.checkLearnerCanPostDiscussion(
+          userId: Supabase.instance.client.auth.currentUser?.id,
+          isUserAdmin: authRepo.isAdmin,
+          quizId: widget.quizId,
+        );
+        canPost = perm.canPost;
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _quizTitle = (quizData['quiz'] as Quiz).title;
           _questionDiscussionCounts = counts;
           _totalDiscussionsCount = totalCount;
+          _canPostDiscussion = canPost;
           try {
             _attempt = attempts.firstWhere((a) => a.id == widget.attemptId);
           } catch (e) {
@@ -200,7 +214,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                             'Question ${index + 1}',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          if (questionId != null) ...[
+                          if (_canPostDiscussion && questionId != null) ...[
                             const SizedBox(width: 8),
                             TextButton.icon(
                               style: TextButton.styleFrom(
@@ -553,33 +567,35 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
           },
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (context) => QuizDiscussionsSheet(
-                  quizId: widget.quizId,
-                  quizTitle: _quizTitle ?? 'Quiz',
-                  isLocked: false,
-                  onTopicCreated: () {
-                    _loadData();
-                  },
+          if (_canPostDiscussion) ...[
+            TextButton.icon(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => QuizDiscussionsSheet(
+                    quizId: widget.quizId,
+                    quizTitle: _quizTitle ?? 'Quiz',
+                    isLocked: false,
+                    onTopicCreated: () {
+                      _loadData();
+                    },
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
+              label: Text(
+                '$_totalDiscussionsCount',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
                 ),
-              );
-            },
-            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
-            label: Text(
-              '$_totalDiscussionsCount',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontSize: 14,
               ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
         ],
       ),
       body: SingleChildScrollView(

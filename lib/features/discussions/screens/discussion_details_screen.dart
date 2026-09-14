@@ -28,6 +28,8 @@ class DiscussionDetailsScreen extends StatefulWidget {
 class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
   bool _isLoading = true;
   bool _isLockedForSpoiler = false;
+  bool _canPostReply = true;
+  String? _replyDisabledReason;
   DiscussionTopic? _topic;
   List<DiscussionReply> _replies = [];
   String _sortBy = 'upvotes';
@@ -56,11 +58,12 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
   Future<void> _loadDetails() async {
     try {
       final repo = context.read<DiscussionRepository>();
+      final authRepo = context.read<AuthRepository>();
       final topic = await repo.getTopicDetails(widget.topicId);
       final replies = await repo.getReplies(widget.topicId);
 
       bool isLocked = false;
-      final isAdmin = context.read<AuthRepository>().isAdmin;
+      final isAdmin = authRepo.isAdmin;
       final userId = Supabase.instance.client.auth.currentUser?.id;
 
       if (!isAdmin && userId != null) {
@@ -83,11 +86,26 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
         }
       }
 
+      bool canPostReply = true;
+      String? replyDisabledReason;
+
+      final perm = await repo.checkLearnerCanPostDiscussion(
+        userId: userId,
+        isUserAdmin: isAdmin,
+        courseId: topic.courseId,
+        quizId: topic.quizId,
+        deckId: topic.deckId,
+      );
+      canPostReply = perm.canPost;
+      replyDisabledReason = perm.reason;
+
       if (mounted) {
         setState(() {
           _topic = topic;
           _replies = replies;
           _isLockedForSpoiler = isLocked;
+          _canPostReply = canPostReply;
+          _replyDisabledReason = replyDisabledReason;
           _isLoading = false;
         });
       }
@@ -387,6 +405,11 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
   Future<void> _submitReply() async {
     final text = _replyController.text.trim();
     if (text.isEmpty && _commentAttachments.isEmpty) return;
+
+    if (!_canPostReply) {
+      _showSnackBar(_replyDisabledReason ?? 'Replies cannot be posted on this discussion.');
+      return;
+    }
 
     setState(() => _isPostingReply = true);
 
@@ -1267,46 +1290,71 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                       ),
                     ),
                   _buildCommentPreviewBadgeList(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.add_circle, color: Colors.deepPurple, size: 28),
-                          onPressed: _showAttachmentMenu,
-                        ),
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: TextField(
-                              controller: _replyController,
-                              decoration: const InputDecoration(
-                                hintText: 'Write a reply...',
-                                border: InputBorder.none,
-                                isDense: true,
+                  if (!_canPostReply && _replyDisabledReason != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      color: Colors.grey.shade100,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.lock_outline_rounded, size: 16, color: Colors.grey.shade600),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              _replyDisabledReason!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                                fontStyle: FontStyle.italic,
                               ),
-                              maxLines: null,
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        _isPostingReply
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : IconButton(
-                                icon: const Icon(Icons.send, color: Colors.deepPurple),
-                                onPressed: _submitReply,
+                        ],
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.add_circle, color: Colors.deepPurple, size: 28),
+                            onPressed: _showAttachmentMenu,
+                          ),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                      ],
+                              child: TextField(
+                                controller: _replyController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Write a reply...',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                ),
+                                maxLines: null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _isPostingReply
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : IconButton(
+                                  icon: const Icon(Icons.send, color: Colors.deepPurple),
+                                  onPressed: _submitReply,
+                                ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -1799,23 +1847,29 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
         ),
-        const SizedBox(width: 24),
-        GestureDetector(
-          onTap: () => _startReplyMode(reply),
-          child: Text(
-            'Reply',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
+        if (_canPostReply) ...[
+          const SizedBox(width: 24),
+          GestureDetector(
+            onTap: () => _startReplyMode(reply),
+            child: Text(
+              'Reply',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
 
   void _startReplyMode(DiscussionReply reply) {
+    if (!_canPostReply) {
+      _showSnackBar(_replyDisabledReason ?? 'Replies are not allowed on this discussion.');
+      return;
+    }
     setState(() {
       _editingReply = null;
       _replyingTo = reply;

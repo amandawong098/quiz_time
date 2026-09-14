@@ -444,16 +444,56 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.menu_book_rounded, color: Colors.amber, size: 22),
-            SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _isChapterMode
+                    ? Colors.deepPurple.shade100.withValues(alpha: 0.4)
+                    : Colors.amber.shade100.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                _isChapterMode
+                    ? Icons.bookmark_add_rounded
+                    : Icons.menu_book_rounded,
+                color:
+                    _isChapterMode ? Colors.deepPurple : Colors.amber.shade800,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                'AI Lesson Generator',
-                style: TextStyle(fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _isChapterMode
+                        ? 'Add Lesson Chapter'
+                        : 'AI Lesson Generator',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  Text(
+                    _isChapterMode
+                        ? 'To: ${widget.targetCourseTitle ?? "Existing Lesson"}'
+                        : 'Create New Lesson',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.normal,
+                      color:
+                          isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
               ),
             ),
           ],
@@ -500,33 +540,9 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                   if (isCurrentLessonTask &&
                       currentTask.status == AITaskStatus.failed)
                     _buildFailedTaskBanner(currentTask),
-                  
-                  // Recommendation guidance banner
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade100),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.lightbulb_outline, size: 20, color: Colors.blue.shade700),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Recommendation: Generating 1 chapter at a time provides the deepest explanations, figures, and interactive checkpoints.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.blue.shade900,
-                              height: 1.35,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+
+                  // Top Mode Header Specification (New Lesson vs Add Chapter)
+                  _buildModeHeaderCard(isDark, theme),
 
                   // Unified Prompt + Attachment Box (Antigravity Style)
                   _buildUnifiedPromptContainer(isDark, theme),
@@ -542,10 +558,14 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                   ElevatedButton.icon(
                     onPressed: _startLessonGeneration,
                     icon: const Icon(Icons.auto_awesome, color: Colors.white),
-                    label: const Text(
-                      'Generate Lesson with AI',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    label: Text(
+                      _isChapterMode
+                          ? 'Generate Chapter with AI'
+                          : 'Generate Lesson with AI',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -563,7 +583,8 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+                      Icon(Icons.info_outline,
+                          size: 14, color: Colors.grey.shade500),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
@@ -614,8 +635,9 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
             minLines: 2,
             style: const TextStyle(fontSize: 15),
             decoration: InputDecoration(
-              hintText:
-                  'Type course topic, syllabus, or attach any study file (PPTX, PDF, Audio, Images, Docs)...',
+              hintText: _isChapterMode
+                  ? 'Type chapter topic (e.g. "Chapter: Advanced Calculus"), instructions, or attach study slides/notes...'
+                  : 'Type course topic, syllabus, or attach any study file (PPTX, PDF, Audio, Images, Docs)...',
               hintStyle: TextStyle(
                 color:
                     isDark ? Colors.grey.shade500 : Colors.grey.shade600,
@@ -797,15 +819,17 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.tune_rounded,
+                const Icon(Icons.tune_rounded,
                     size: 20, color: Colors.deepPurple),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  'Lesson Scope & Structure',
-                  style:
-                      TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  _isChapterMode
+                      ? 'Chapter Scope & Structure'
+                      : 'Lesson Scope & Structure',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ],
             ),
@@ -831,8 +855,10 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                       color: Colors.deepPurple.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.auto_awesome,
+                    child: Icon(
+                      _isChapterMode
+                          ? Icons.view_carousel_rounded
+                          : Icons.auto_awesome,
                       color: Colors.deepPurple,
                       size: 20,
                     ),
@@ -842,20 +868,25 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Adaptive Modules & Slide Sizing',
-                          style: TextStyle(
+                        Text(
+                          _isChapterMode
+                              ? 'Single Chapter Focus'
+                              : 'Adaptive Modules & Slide Sizing',
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Modules and slides are automatically determined by AI based on the complexity, syllabus breadth, and length of your topic.',
+                          _isChapterMode
+                              ? 'AI will generate this chapter with sub-chapters and rich interactive slides tailored to "${widget.targetCourseTitle ?? "your lesson"}".'
+                              : 'Modules and slides are automatically determined by AI based on the complexity, syllabus breadth, and length of your topic.',
                           style: TextStyle(
                             fontSize: 11.5,
                             height: 1.35,
-                            color: Theme.of(context).brightness == Brightness.dark
+                            color: Theme.of(context).brightness ==
+                                    Brightness.dark
                                 ? Colors.grey.shade400
                                 : Colors.grey.shade700,
                           ),
@@ -990,7 +1021,9 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
             ),
             const SizedBox(height: 28),
             Text(
-              'Generating Lesson & Slides...',
+              _isChapterMode
+                  ? 'Generating Chapter & Slides...'
+                  : 'Generating Lesson & Slides...',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Colors.deepPurple,
@@ -998,9 +1031,11 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              task.prompt.isNotEmpty
-                  ? task.prompt
-                  : (task.fileName ?? 'Course syllabus'),
+              _isChapterMode
+                  ? 'Adding to "${widget.targetCourseTitle ?? "Lesson"}": ${task.prompt.isNotEmpty ? task.prompt : (task.fileName ?? "Chapter content")}'
+                  : (task.prompt.isNotEmpty
+                      ? task.prompt
+                      : (task.fileName ?? 'Course syllabus')),
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
@@ -1032,11 +1067,13 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
             OutlinedButton.icon(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text(
-                      'AI Lesson generation running in background. You will find it in My Lessons when complete!',
+                      _isChapterMode
+                          ? 'AI Chapter generation running in background. It will be added to your lesson when complete!'
+                          : 'AI Lesson generation running in background. You will find it in My Lessons when complete!',
                     ),
-                    duration: Duration(seconds: 4),
+                    duration: const Duration(seconds: 4),
                   ),
                 );
                 context.pop();
@@ -1059,6 +1096,7 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
   }
 
   Widget _buildCompletedTaskBanner(AIGenerationTask task) {
+    final bool isChapter = task.targetCourseId != null || _isChapterMode;
     return Card(
       color: Colors.green.shade50,
       margin: const EdgeInsets.only(bottom: 16),
@@ -1087,11 +1125,17 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
                 child: Icon(Icons.check, color: Colors.white, size: 20),
               ),
         title: Text(
-          'Course Ready: ${task.generatedTitle ?? "New Course"}',
+          isChapter
+              ? 'Chapter Ready: ${task.generatedTitle ?? "New Chapter"}'
+              : 'Course Ready: ${task.generatedTitle ?? "New Course"}',
           style:
               const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
         ),
-        subtitle: const Text('Saved to your library in My Lessons.'),
+        subtitle: Text(
+          isChapter
+              ? 'Added to "${widget.targetCourseTitle ?? "your lesson"}" in My Lessons.'
+              : 'Saved to your library in My Lessons.',
+        ),
         trailing: ElevatedButton(
           onPressed: () {
             context.go('/my-lessons');
@@ -1135,5 +1179,380 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildModeHeaderCard(bool isDark, ThemeData theme) {
+    if (_isChapterMode) {
+      final existingTitles = widget.existingChapterTitles ?? [];
+      return Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [
+                    const Color(0xFF261C3D),
+                    const Color(0xFF1E1F29),
+                  ]
+                : [
+                    Colors.deepPurple.shade50.withValues(alpha: 0.9),
+                    Colors.purple.shade50.withValues(alpha: 0.4),
+                  ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.deepPurple.withValues(alpha: isDark ? 0.45 : 0.25),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.deepPurple.withValues(alpha: isDark ? 0.25 : 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Mode Badge Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.deepPurple.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.bookmark_add_rounded,
+                        size: 14,
+                        color: Colors.deepPurple,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'ADD CHAPTER MODE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.grey.shade800
+                        : Colors.white.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Extending Lesson',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Target Lesson Title
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.menu_book_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Adding Chapter to Existing Lesson:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.targetCourseTitle ?? 'Untitled Lesson',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // Existing chapters list context
+            if (existingTitles.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(
+                    Icons.format_list_bulleted_rounded,
+                    size: 14,
+                    color:
+                        isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Current Chapters (${existingTitles.length}):',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 5,
+                children: existingTitles.map((t) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.grey.shade800.withValues(alpha: 0.7)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.grey.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Text(
+                      t,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark
+                            ? Colors.grey.shade300
+                            : Colors.grey.shade800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  Icons.lightbulb_outline,
+                  size: 16,
+                  color: Colors.deepPurple.shade300,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Generating 1 chapter at a time allows AI to craft deep explanations and interactive checkpoints for this specific topic.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark
+                          ? Colors.deepPurple.shade200
+                          : Colors.deepPurple.shade900,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [
+                    const Color(0xFF1B2338),
+                    const Color(0xFF1E1F29),
+                  ]
+                : [
+                    Colors.indigo.shade50.withValues(alpha: 0.9),
+                    Colors.blue.shade50.withValues(alpha: 0.4),
+                  ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.indigo.withValues(alpha: isDark ? 0.4 : 0.25),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.indigo.withValues(alpha: isDark ? 0.2 : 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Mode Badge Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.indigo.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        size: 14,
+                        color: Colors.indigo,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'CREATE NEW LESSON',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.grey.shade800
+                        : Colors.white.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Full Curriculum',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.school_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Creating New Complete Lesson',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'AI will construct an end-to-end curriculum from scratch, including chapters, modules, and interactive slide checkpoints.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
