@@ -531,7 +531,23 @@ class DiscussionRepository {
 
   // Delete a reply row
   Future<void> deleteReply(String replyId) async {
-    await _supabase.from('discussion_replies').delete().eq('id', replyId);
+    try {
+      await _supabase
+          .from('discussion_reports')
+          .delete()
+          .eq('reply_id', replyId);
+    } catch (_) {}
+
+    final deletedRows = await _supabase
+        .from('discussion_replies')
+        .delete()
+        .eq('id', replyId)
+        .select('id');
+    if (deletedRows.isEmpty) {
+      throw Exception(
+        'Failed to delete comment. Permission denied or comment does not exist.',
+      );
+    }
   }
 
   // Upvote / downvote topic vote logic (with toggling & retract capability)
@@ -741,7 +757,23 @@ class DiscussionRepository {
 
   // Delete a discussion topic row
   Future<void> deleteTopic(String topicId) async {
-    await _supabase.from('discussion_topics').delete().eq('id', topicId);
+    try {
+      await _supabase
+          .from('discussion_reports')
+          .delete()
+          .eq('topic_id', topicId);
+    } catch (_) {}
+
+    final deletedRows = await _supabase
+        .from('discussion_topics')
+        .delete()
+        .eq('id', topicId)
+        .select('id');
+    if (deletedRows.isEmpty) {
+      throw Exception(
+        'Failed to delete topic. Permission denied or topic does not exist.',
+      );
+    }
   }
 
   Future<String> _getCurrentUserName() async {
@@ -1159,10 +1191,70 @@ class DiscussionRepository {
   }
 
   Future<void> adminDeleteTopic(String topicId) async {
-    await _supabase.from('discussion_topics').delete().eq('id', topicId);
+    // 1. Delete associated reports first to maintain consistency
+    try {
+      await _supabase
+          .from('discussion_reports')
+          .delete()
+          .eq('topic_id', topicId);
+    } catch (_) {}
+
+    // 2. Try calling dedicated SECURITY DEFINER RPC
+    try {
+      await _supabase.rpc(
+        'admin_delete_discussion_topic',
+        params: {'p_topic_id': topicId},
+      );
+      return;
+    } catch (rpcErr) {
+      debugPrint('admin_delete_discussion_topic RPC fallback: $rpcErr');
+    }
+
+    // 3. Fallback to direct DELETE (succeeds if admin RLS delete policy is installed)
+    final deletedRows = await _supabase
+        .from('discussion_topics')
+        .delete()
+        .eq('id', topicId)
+        .select('id');
+
+    if (deletedRows.isEmpty) {
+      throw Exception(
+        'Discussion topic could not be deleted from the database. Please ensure the admin deletion SQL migration is executed in your Supabase SQL editor.',
+      );
+    }
   }
 
   Future<void> adminDeleteReply(String replyId) async {
-    await _supabase.from('discussion_replies').delete().eq('id', replyId);
+    // 1. Delete associated reports first
+    try {
+      await _supabase
+          .from('discussion_reports')
+          .delete()
+          .eq('reply_id', replyId);
+    } catch (_) {}
+
+    // 2. Try calling dedicated SECURITY DEFINER RPC
+    try {
+      await _supabase.rpc(
+        'admin_delete_discussion_reply',
+        params: {'p_reply_id': replyId},
+      );
+      return;
+    } catch (rpcErr) {
+      debugPrint('admin_delete_discussion_reply RPC fallback: $rpcErr');
+    }
+
+    // 3. Fallback to direct DELETE
+    final deletedRows = await _supabase
+        .from('discussion_replies')
+        .delete()
+        .eq('id', replyId)
+        .select('id');
+
+    if (deletedRows.isEmpty) {
+      throw Exception(
+        'Discussion reply could not be deleted from the database. Please ensure the admin deletion SQL migration is executed in your Supabase SQL editor.',
+      );
+    }
   }
 }

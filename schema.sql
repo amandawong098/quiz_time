@@ -273,12 +273,26 @@ CREATE POLICY "Public read topics" ON public.discussion_topics FOR SELECT USING 
 CREATE POLICY "Insert own topics" ON public.discussion_topics FOR INSERT WITH CHECK (auth.uid() = author_id);
 CREATE POLICY "Update own topics" ON public.discussion_topics FOR UPDATE USING (auth.uid() = author_id);
 CREATE POLICY "Delete own topics" ON public.discussion_topics FOR DELETE USING (auth.uid() = author_id);
+CREATE POLICY "Admins can delete any topic" ON public.discussion_topics FOR DELETE USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE profiles.id = auth.uid() 
+        AND LOWER(COALESCE(profiles.role, 'learner')) = 'admin'
+    )
+);
 
 -- Policies for Discussion Replies
 CREATE POLICY "Public read replies" ON public.discussion_replies FOR SELECT USING (true);
 CREATE POLICY "Insert own replies" ON public.discussion_replies FOR INSERT WITH CHECK (auth.uid() = author_id);
 CREATE POLICY "Update own replies" ON public.discussion_replies FOR UPDATE USING (auth.uid() = author_id);
 CREATE POLICY "Delete own replies" ON public.discussion_replies FOR DELETE USING (auth.uid() = author_id);
+CREATE POLICY "Admins can delete any reply" ON public.discussion_replies FOR DELETE USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE profiles.id = auth.uid() 
+        AND LOWER(COALESCE(profiles.role, 'learner')) = 'admin'
+    )
+);
 
 -- Policies for Topic Votes
 CREATE POLICY "Public read topic votes" ON public.topic_votes FOR SELECT USING (true);

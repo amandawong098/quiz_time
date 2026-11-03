@@ -431,8 +431,13 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () {
-                    context.push('/discussion/${report.topicId}');
+                  onPressed: () async {
+                    final result = await context.push<bool>(
+                      '/discussion/${report.topicId}',
+                    );
+                    if (result == true && mounted) {
+                      _loadReports();
+                    }
                   },
                   icon: const Icon(Icons.open_in_new_rounded, size: 16),
                   label: const Text('View in Discussion'),

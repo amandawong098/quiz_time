@@ -265,33 +265,29 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
                         ],
                       ),
                     ),
-                    if (!widget.isLocked) ...[
-                      if (_deck == null || !_canPost)
-                        const SizedBox.shrink()
-                      else
-                        TextButton.icon(
-                          onPressed: () async {
-                            if (!mounted) return;
-                            final created = await context.push<bool>(
-                              '/create-topic',
-                              extra: {
-                                'deckId': widget.deckId,
-                                'cardId': widget.cardId,
-                              },
-                            );
-                            if (created == true && mounted) {
-                              _loadTopics();
-                              widget.onTopicCreated?.call();
-                            }
-                          },
-                          icon: const Icon(Icons.add_comment_outlined, size: 18),
-                          label: const Text('Post Topic'),
-                          style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
-                        ),
-                    ],
+                    if (_deck != null && _canPost)
+                      TextButton.icon(
+                        onPressed: () async {
+                          if (!mounted) return;
+                          final created = await context.push<bool>(
+                            '/create-topic',
+                            extra: {
+                              'deckId': widget.deckId,
+                              'cardId': widget.cardId,
+                            },
+                          );
+                          if (created == true && mounted) {
+                            _loadTopics();
+                            widget.onTopicCreated?.call();
+                          }
+                        },
+                        icon: const Icon(Icons.add_comment_outlined, size: 18),
+                        label: const Text('Post Topic'),
+                        style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                      ),
                   ],
                 ),
-                if (!widget.isLocked && _deck != null && !_canPost && _postDisabledReason != null) ...[
+                if (_deck != null && !_canPost && _postDisabledReason != null) ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,
@@ -301,10 +297,9 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
                     ),
                   ),
                 ],
-                if (!widget.isLocked) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
+                const SizedBox(height: 16),
+                Row(
+                  children: [
                       Expanded(
                         child: TextField(
                           controller: _searchController,
@@ -393,59 +388,13 @@ class _FlashcardDiscussionsSheetState extends State<FlashcardDiscussionsSheet> {
                     ],
                   ),
                 ],
-              ],
             ),
           ),
           const Divider(height: 16),
           Expanded(
-            child: widget.isLocked
-                ? Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const SizedBox(height: 32),
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.deepPurple.shade50,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.lock_person_rounded,
-                              size: 64,
-                              color: Colors.deepPurple,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            '🔒 Spoilers Ahead!',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.deepPurple,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            "Whoops! Looks like you haven't played this flashcard deck yet. To keep things fair and avoid spoiling the cards, discussions are locked until you submit your first revision attempt. Go revise these flashcards first! 🚀",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                        ],
-                      ),
-                    ),
-                  )
-                : _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Colors.deepPurple))
-                    : _filteredTopics.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Colors.deepPurple))
+                : _filteredTopics.isEmpty
                     ? SingleChildScrollView(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,

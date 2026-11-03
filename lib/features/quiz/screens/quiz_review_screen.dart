@@ -156,9 +156,14 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
   List<Map<String, dynamic>> get _rankedPlayers {
     final accepted = _challengePlayers.where((p) => p['status'] == 'accepted').toList();
     accepted.sort((a, b) {
+      final int scoreA = (a['score'] as num?)?.toInt() ?? 0;
+      final int scoreB = (b['score'] as num?)?.toInt() ?? 0;
+      if (scoreA != scoreB) {
+        return scoreB.compareTo(scoreA); // Descending by Kahoot points
+      }
       final double accA = (a['accuracy'] as num?)?.toDouble() ?? 0.0;
       final double accB = (b['accuracy'] as num?)?.toDouble() ?? 0.0;
-      return accB.compareTo(accA); // Descending
+      return accB.compareTo(accA); // Descending by accuracy
     });
     return accepted;
   }
@@ -462,6 +467,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                 final player = ranked[index];
                 final name = player['profiles'] != null ? player['profiles']['name'] as String : 'Player';
                 final isQuit = player['is_quit'] as bool? ?? false;
+                final score = (player['score'] as num?)?.toInt() ?? 0;
                 final accuracy = (player['accuracy'] as num?)?.toDouble() ?? 0.0;
                 final accuracyInt = accuracy.round();
                 final int totalQ = _attempt?.totalQuestions ?? 1;
@@ -491,7 +497,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        isQuit ? 'QUIT ($accuracyInt%)' : '$accuracyInt%',
+                        isQuit ? 'QUIT ($score pts)' : '$score pts ($accuracyInt%)',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: isQuit ? Colors.redAccent : Colors.deepPurple,

@@ -24,8 +24,6 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
   Map<String, int> _cardDiscussionCounts = {};
   bool _shuffleCards = false;
   int _totalDiscussionsCount = 0;
-  bool _hasPlayedBefore = false;
-  bool _canPostDiscussion = false;
 
   @override
   void initState() {
@@ -39,7 +37,6 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
     final flashcardRepo = context.read<FlashcardRepository>();
     try {
       final client = Supabase.instance.client;
-      final user = client.auth.currentUser;
       final response = await client
           .from('flashcard_decks')
           .select('*, flashcards(id)')
@@ -76,38 +73,12 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
       final cards = await flashcardRepo.getFlashcards(widget.deckId);
       final cardDiscussionCounts = await discRepo.getDeckCardsDiscussionsCount(widget.deckId);
 
-      bool canPost = false;
-      try {
-        if (!mounted) return;
-        final authRepo = context.read<AuthRepository>();
-        final perm = await discRepo.checkLearnerCanPostDiscussion(
-          userId: user?.id,
-          isUserAdmin: authRepo.isAdmin,
-          deckId: widget.deckId,
-        );
-        canPost = perm.canPost;
-      } catch (_) {}
-
-      final isCreator = deck.creatorId == user?.id;
-      bool hasPlayed = isCreator;
-      if (!isCreator && user != null) {
-        final attemptsResponse = await client
-            .from('flashcard_deck_attempts')
-            .select('id')
-            .eq('deck_id', widget.deckId)
-            .eq('user_id', user.id)
-            .limit(1);
-        hasPlayed = (attemptsResponse as List).isNotEmpty;
-      }
-
       if (mounted) {
         setState(() {
           _deck = deck;
           _cards = cards;
           _cardDiscussionCounts = cardDiscussionCounts;
           _totalDiscussionsCount = count;
-          _hasPlayedBefore = hasPlayed;
-          _canPostDiscussion = canPost;
           _isLoading = false;
         });
       }
@@ -130,7 +101,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
       builder: (context) => FlashcardDiscussionsSheet(
         deckId: _deck!.id,
         deckTitle: _deck!.title,
-        isLocked: !context.read<AuthRepository>().isAdmin && !_hasPlayedBefore,
+        isLocked: false,
         onTopicCreated: () {
           _loadDeckDetails();
         },
@@ -189,23 +160,32 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
               return const SizedBox.shrink();
             },
           ),
-          if (_canPostDiscussion)
-            TextButton.icon(
-              onPressed: () => _showDeckDiscussions(context),
-              icon: const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 22,
-                color: Colors.white,
-              ),
-              label: Text(
-                '$_totalDiscussionsCount',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+          Builder(
+            builder: (context) {
+              final isAdmin = context.watch<AuthRepository>().isAdmin;
+              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+              final isVisible = _deck != null &&
+                  (_deck!.isPublic == true || isAdmin || _deck!.creatorId == currentUserId);
+              if (!isVisible) return const SizedBox.shrink();
+
+              return TextButton.icon(
+                onPressed: () => _showDeckDiscussions(context),
+                icon: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 22,
                   color: Colors.white,
-                  fontSize: 14,
                 ),
-              ),
-            ),
+                label: Text(
+                  '$_totalDiscussionsCount',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -545,54 +525,63 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
                               ],
                             ),
                           ),
-                          if (_canPostDiscussion)
-                            InkWell(
-                              onTap: () {
-                                showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (ctx) => FlashcardDiscussionsSheet(
-                                    deckId: widget.deckId,
-                                    cardId: card.id,
-                                    deckTitle: _deck!.title,
-                                    cardFrontText: card.front,
-                                    cardNumber: index + 1,
-                                    onTopicCreated: () => _loadDeckDetails(),
-                                  ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.deepPurple.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.chat_bubble_outline_rounded,
-                                      size: 14,
-                                      color: Colors.deepPurple,
+                          Builder(
+                            builder: (context) {
+                              final isAdmin = context.watch<AuthRepository>().isAdmin;
+                              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+                              final isVisible = _deck != null &&
+                                  (_deck!.isPublic == true || isAdmin || _deck!.creatorId == currentUserId);
+                              if (!isVisible) return const SizedBox.shrink();
+
+                              return InkWell(
+                                onTap: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (ctx) => FlashcardDiscussionsSheet(
+                                      deckId: widget.deckId,
+                                      cardId: card.id,
+                                      deckTitle: _deck!.title,
+                                      cardFrontText: card.front,
+                                      cardNumber: index + 1,
+                                      onTopicCreated: () => _loadDeckDetails(),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$discussionCount',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepPurple.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.chat_bubble_outline_rounded,
+                                        size: 14,
                                         color: Colors.deepPurple,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$discussionCount',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.deepPurple,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),

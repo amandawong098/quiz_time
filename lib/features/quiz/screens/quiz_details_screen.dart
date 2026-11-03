@@ -25,8 +25,6 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   bool _shuffleQuestions = false;
   bool _useTimer = true;
   int _totalDiscussionsCount = 0;
-  bool _hasPlayedBefore = false;
-  bool _canPostDiscussion = false;
   Map<String, int> _questionDiscussionCounts = {};
 
   @override
@@ -40,7 +38,6 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
       final repo = context.read<QuizRepository>();
       final discRepo = context.read<DiscussionRepository>();
       final data = await repo.getQuizDetails(widget.quizId);
-      final attempts = await repo.getQuizAttempts(widget.quizId);
       final count = await discRepo.getQuizTotalDiscussionsCount(widget.quizId);
       final questionCounts = await discRepo.getQuizQuestionsDiscussionsCount(widget.quizId);
       var quiz = data['quiz'] as Quiz;
@@ -70,26 +67,12 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
         } catch (_) {}
       }
 
-      bool canPost = false;
-      try {
-        if (!mounted) return;
-        final authRepo = context.read<AuthRepository>();
-        final perm = await discRepo.checkLearnerCanPostDiscussion(
-          userId: Supabase.instance.client.auth.currentUser?.id,
-          isUserAdmin: authRepo.isAdmin,
-          quizId: widget.quizId,
-        );
-        canPost = perm.canPost;
-      } catch (_) {}
-
       if (mounted) {
         setState(() {
           _quiz = quiz;
           _questions = data['questions'] as List<Question>;
           _totalDiscussionsCount = count;
           _questionDiscussionCounts = questionCounts;
-          _hasPlayedBefore = attempts.isNotEmpty;
-          _canPostDiscussion = canPost;
           _isLoading = false;
         });
       }
@@ -132,36 +115,43 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                 },
               ),
         actions: [
-          if (_canPostDiscussion) ...[
-            TextButton.icon(
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => QuizDiscussionsSheet(
-                    quizId: widget.quizId,
-                    quizTitle: _quiz!.title,
-                    isLocked: !context.read<AuthRepository>().isAdmin &&
-                        (!_hasPlayedBefore && _quiz!.creatorId != Supabase.instance.client.auth.currentUser?.id),
-                    onTopicCreated: () {
-                      _loadData();
-                    },
+          Builder(
+            builder: (context) {
+              final isAdmin = context.watch<AuthRepository>().isAdmin;
+              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+              final isVisible = _quiz != null &&
+                  (_quiz!.isPublic == true || isAdmin || _quiz!.creatorId == currentUserId);
+              if (!isVisible) return const SizedBox.shrink();
+
+              return TextButton.icon(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => QuizDiscussionsSheet(
+                      quizId: widget.quizId,
+                      quizTitle: _quiz!.title,
+                      isLocked: false,
+                      onTopicCreated: () {
+                        _loadData();
+                      },
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
+                label: Text(
+                  '$_totalDiscussionsCount',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 14,
                   ),
-                );
-              },
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Colors.white),
-              label: Text(
-                '$_totalDiscussionsCount',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontSize: 14,
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
+              );
+            },
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: RefreshIndicator(
@@ -459,57 +449,70 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                               ),
                             ),
                           ),
-                          if (_canPostDiscussion) ...[
-                            const SizedBox(width: 8),
-                            InkWell(
-                              onTap: () {
-                                showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (ctx) => QuizDiscussionsSheet(
-                                    quizId: widget.quizId,
-                                    questionId: q.id,
-                                    quizTitle: _quiz!.title,
-                                    questionText: q.questionText,
-                                    questionNumber: index + 1,
-                                    isLocked: false,
-                                    onTopicCreated: () => _loadData(),
-                                  ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.deepPurple.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.chat_bubble_outline_rounded,
-                                      size: 14,
-                                      color: Colors.deepPurple,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${_questionDiscussionCounts[q.id] ?? 0}',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.deepPurple,
+                          Builder(
+                            builder: (context) {
+                              final isAdmin = context.watch<AuthRepository>().isAdmin;
+                              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+                              final isVisible = _quiz != null &&
+                                  (_quiz!.isPublic == true || isAdmin || _quiz!.creatorId == currentUserId);
+                              if (!isVisible) return const SizedBox.shrink();
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(width: 8),
+                                  InkWell(
+                                    onTap: () {
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (ctx) => QuizDiscussionsSheet(
+                                          quizId: widget.quizId,
+                                          questionId: q.id,
+                                          quizTitle: _quiz!.title,
+                                          questionText: q.questionText,
+                                          questionNumber: index + 1,
+                                          isLocked: false,
+                                          onTopicCreated: () => _loadData(),
+                                        ),
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.deepPurple.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.chat_bubble_outline_rounded,
+                                            size: 14,
+                                            color: Colors.deepPurple,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${_questionDiscussionCounts[q.id] ?? 0}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.deepPurple,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),

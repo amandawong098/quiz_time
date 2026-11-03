@@ -269,37 +269,33 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                         ],
                       ),
                     ),
-                    if (!widget.isLocked) ...[
-                      if (_quiz == null || !_canPost)
-                        const SizedBox.shrink()
-                      else
-                        TextButton.icon(
-                          onPressed: () async {
-                            if (!mounted) return;
-                            final targetQuestionId = widget.questionId ??
-                                (_selectedFilter != 'All' && _selectedFilter != 'General'
-                                    ? _selectedFilter
-                                    : null);
-                            final created = await context.push<bool>(
-                              '/create-topic',
-                              extra: {
-                                'quizId': widget.quizId,
-                                'questionId': targetQuestionId,
-                              },
-                            );
-                            if (created == true && mounted) {
-                              _loadTopics();
-                              widget.onTopicCreated?.call();
-                            }
-                          },
-                          icon: const Icon(Icons.add_comment_outlined, size: 18),
-                          label: const Text('Post Topic'),
-                          style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
-                        ),
-                    ],
+                    if (_quiz != null && _canPost)
+                      TextButton.icon(
+                        onPressed: () async {
+                          if (!mounted) return;
+                          final targetQuestionId = widget.questionId ??
+                              (_selectedFilter != 'All' && _selectedFilter != 'General'
+                                  ? _selectedFilter
+                                  : null);
+                          final created = await context.push<bool>(
+                            '/create-topic',
+                            extra: {
+                              'quizId': widget.quizId,
+                              'questionId': targetQuestionId,
+                            },
+                          );
+                          if (created == true && mounted) {
+                            _loadTopics();
+                            widget.onTopicCreated?.call();
+                          }
+                        },
+                        icon: const Icon(Icons.add_comment_outlined, size: 18),
+                        label: const Text('Post Topic'),
+                        style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                      ),
                   ],
                 ),
-                if (!widget.isLocked && _quiz != null && !_canPost && _postDisabledReason != null) ...[
+                if (_quiz != null && !_canPost && _postDisabledReason != null) ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,
@@ -312,11 +308,10 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
               ],
             ),
           ),
-          if (!widget.isLocked) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Row(
-                children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Row(
+              children: [
                   Expanded(
                     child: SizedBox(
                       height: 38,
@@ -431,53 +426,11 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
               ),
             ),
             const SizedBox(height: 6),
-          ],
           const Divider(),
           Expanded(
-            child: widget.isLocked
-                ? Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.shade50,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.lock_person_rounded,
-                            size: 64,
-                            color: Colors.deepPurple,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          '🔒 Spoilers Ahead!',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepPurple,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "Whoops! Looks like you haven't played this quiz yet. To keep things fair and avoid spoiling the answers, discussions are locked until you submit your first attempt. Go show this quiz who's boss first! 🚀",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _filteredTopics.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredTopics.isEmpty
                     ? SingleChildScrollView(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,

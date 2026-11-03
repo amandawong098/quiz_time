@@ -36,13 +36,13 @@ class LessonsTabState extends State<LessonsTab> {
   Map<String, List<LessonSubChapter>> _dbSubChaptersMap = {};
   Map<String, List<LessonChapter>> _allChaptersMap = {};
   Map<String, List<LessonSubChapter>> _allSubChaptersMap = {};
+  Map<String, int> _subChapterPageCounts = {};
 
   String _searchQuery = '';
   String _activeTab = 'All';
 
-  // Cache for course discussion count and permission futures to prevent constant recreation on rebuilds
+  // Cache for course discussion count futures to prevent constant recreation on rebuilds
   final Map<String, Future<int>> _courseDiscussionCountFutures = {};
-  final Map<String, Future<bool>> _courseCanPostFutures = {};
 
   Future<int> _getDiscussionCountFuture(String courseId) {
     return _courseDiscussionCountFutures.putIfAbsent(
@@ -50,22 +50,6 @@ class LessonsTabState extends State<LessonsTab> {
       () => context.read<DiscussionRepository>().getCourseTotalDiscussionsCount(
         courseId,
       ),
-    );
-  }
-
-  Future<bool> _getCourseCanPostFuture(String courseId) {
-    return _courseCanPostFutures.putIfAbsent(
-      courseId,
-      () async {
-        final authRepo = context.read<AuthRepository>();
-        final discRepo = context.read<DiscussionRepository>();
-        final perm = await discRepo.checkLearnerCanPostDiscussion(
-          userId: Supabase.instance.client.auth.currentUser?.id,
-          isUserAdmin: authRepo.isAdmin,
-          courseId: courseId,
-        );
-        return perm.canPost;
-      },
     );
   }
 
@@ -214,7 +198,6 @@ class LessonsTabState extends State<LessonsTab> {
     setState(() => _isLoadingDb = true);
     try {
       _courseDiscussionCountFutures.clear(); // Clear cache on reload
-      _courseCanPostFutures.clear();
       await _progressTracker.loadFromSupabase();
       if (!mounted) return;
       final repo = context.read<LessonRepository>();
@@ -270,11 +253,25 @@ class LessonsTabState extends State<LessonsTab> {
         }
       }
 
+      Map<String, int> pageCounts = {};
+      try {
+        final pagesRes = await Supabase.instance.client
+            .from('lesson_pages')
+            .select('sub_chapter_id');
+        for (var row in pagesRes) {
+          final subId = row['sub_chapter_id'] as String?;
+          if (subId != null) {
+            pageCounts[subId] = (pageCounts[subId] ?? 0) + 1;
+          }
+        }
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
         _dbCourses = courses;
         _dbChapters = activeChapters;
         _dbSubChaptersMap = activeSubChaptersMap;
+        _subChapterPageCounts = pageCounts;
         _isLoadingDb = false;
       });
     } catch (e) {
@@ -1262,10 +1259,12 @@ class LessonsTabState extends State<LessonsTab> {
                             ),
                           ),
                         ),
-                        FutureBuilder<bool>(
-                          future: _getCourseCanPostFuture(course.id),
-                          builder: (context, postSnap) {
-                            if (postSnap.data != true) {
+                        Builder(
+                          builder: (context) {
+                            final isAdmin = context.watch<AuthRepository>().isAdmin;
+                            final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+                            final isVisible = course.isPublic || isAdmin || course.creatorId == currentUserId;
+                            if (!isVisible) {
                               return const SizedBox.shrink();
                             }
                             return Column(
@@ -1335,19 +1334,6 @@ class LessonsTabState extends State<LessonsTab> {
     );
   }
 
-  bool _isSubChapterUnlocked(
-    LessonSubChapter sub,
-    List<LessonSubChapter> allSubs,
-  ) {
-    if (context.read<AuthRepository>().isAdmin) {
-      return true;
-    }
-    final globalIdx = allSubs.indexWhere((s) => s.id == sub.id);
-    return globalIdx == 0 ||
-        (globalIdx > 0 &&
-            _progressTracker.isCompleted(allSubs[globalIdx - 1].id));
-  }
-
   Widget _buildDbChapters() {
     if (_dbChapters.isEmpty) {
       return Center(
@@ -1410,8 +1396,6 @@ class LessonsTabState extends State<LessonsTab> {
         final isChCompleted =
             subs.isNotEmpty &&
             subs.every((sub) => _progressTracker.isCompleted(sub.id));
-        final isChLocked =
-            subs.isNotEmpty && !_isSubChapterUnlocked(subs.first, allSubs);
 
         // Visual properties based on state
         Color cardBgColor;
@@ -1442,17 +1426,6 @@ class LessonsTabState extends State<LessonsTab> {
               ),
             ),
           );
-        } else if (isChLocked) {
-          cardBgColor = Colors.grey.shade50;
-          borderColor = Colors.grey.shade200;
-          iconColor = Colors.grey.shade400;
-          textColor = Colors.grey.shade500;
-          headerIcon = Icons.lock_outline;
-          trailingWidget = const Icon(
-            Icons.lock_outline,
-            color: Colors.grey,
-            size: 20,
-          );
         } else {
           cardBgColor = Colors.deepPurple.shade50.withValues(alpha: 0.5);
           borderColor = Colors.deepPurple.shade200;
@@ -1478,7 +1451,6 @@ class LessonsTabState extends State<LessonsTab> {
             child: ExpansionTile(
               key: Key('${ch.id}_${activeChapterId == ch.id}'),
               initiallyExpanded: isExpanded,
-              onExpansionChanged: isChLocked ? (expanded) => false : null,
               leading: Icon(headerIcon, color: iconColor, size: 28),
               title: Text(
                 ch.title,
@@ -1488,20 +1460,18 @@ class LessonsTabState extends State<LessonsTab> {
                   color: textColor,
                 ),
               ),
-              trailing: isChLocked
-                  ? trailingWidget
-                  : (isChCompleted
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (trailingWidget != null) ...[
-                                trailingWidget,
-                                const SizedBox(width: 8),
-                              ],
-                              const Icon(Icons.expand_more),
-                            ],
-                          )
-                        : null),
+              trailing: isChCompleted
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (trailingWidget != null) ...[
+                          trailingWidget,
+                          const SizedBox(width: 8),
+                        ],
+                        const Icon(Icons.expand_more),
+                      ],
+                    )
+                  : null,
               children: [
                 const Divider(height: 1),
                 Padding(
@@ -1511,17 +1481,28 @@ class LessonsTabState extends State<LessonsTab> {
                   ),
                   child: Column(
                     children: subs.map((sub) {
-                      final globalIdx = allSubs.indexWhere(
-                        (s) => s.id == sub.id,
-                      );
                       final bool isCompleted = _progressTracker.isCompleted(
                         sub.id,
                       );
-                      final bool isUnlocked = _isSubChapterUnlocked(
-                        sub,
-                        allSubs,
-                      );
-                      final bool isActive = isUnlocked && !isCompleted;
+                      final int totalPages =
+                          _subChapterPageCounts[sub.id] ?? 0;
+                      final int savedSlideIndex =
+                          _progressTracker.getSavedSlideIndex(sub.id);
+                      final bool hasStarted = _progressTracker
+                          .subChapterSlideProgress
+                          .containsKey(sub.id);
+
+                      double subProgress = 0.0;
+                      int subProgressPct = 0;
+
+                      if (isCompleted) {
+                        subProgress = 1.0;
+                        subProgressPct = 100;
+                      } else if (hasStarted && totalPages > 0) {
+                        subProgress = ((savedSlideIndex + 1) / totalPages)
+                            .clamp(0.0, 0.99);
+                        subProgressPct = (subProgress * 100).toInt();
+                      }
 
                       // Visual styling for sub-chapter badge
                       Color badgeBgColor;
@@ -1532,59 +1513,33 @@ class LessonsTabState extends State<LessonsTab> {
                         badgeBgColor = Colors.green.shade50;
                         badgeBorderColor = Colors.green.shade200;
                         badgeTextColor = Colors.green.shade800;
-                      } else if (isUnlocked) {
+                      } else {
                         badgeBgColor = Colors.deepPurple.shade50;
                         badgeBorderColor = Colors.deepPurple.shade200;
                         badgeTextColor = Colors.deepPurple.shade800;
-                      } else {
-                        badgeBgColor = Colors.grey.shade100;
-                        badgeBorderColor = Colors.grey.shade300;
-                        badgeTextColor = Colors.grey.shade600;
                       }
 
                       return GestureDetector(
                         onTap: () async {
-                          if (!isUnlocked) {
-                            String prevTitle = 'the previous lesson';
-                            if (globalIdx > 0) {
-                              prevTitle = allSubs[globalIdx - 1].title;
-                            }
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Lesson Locked'),
-                                content: Text(
-                                  'Please complete "$prevTitle" first to unlock this lesson.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('OK'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          } else {
-                            final result = await context.push<bool>(
-                              '/lesson-player?subChapterId=${sub.id}',
-                            );
-                            if (result == true) {
-                              await loadDbLessons();
-                              // Check if lesson is now fully completed
-                              if (mounted && _selectedLessonCourseId != null) {
-                                final courseIdx = _dbCourses.indexWhere(
-                                  (c) => c.id == _selectedLessonCourseId,
+                          final result = await context.push<bool>(
+                            '/lesson-player?subChapterId=${sub.id}',
+                          );
+                          await loadDbLessons();
+                          if (result == true) {
+                            // Check if lesson is now fully completed
+                            if (mounted && _selectedLessonCourseId != null) {
+                              final courseIdx = _dbCourses.indexWhere(
+                                (c) => c.id == _selectedLessonCourseId,
+                              );
+                              if (courseIdx != -1) {
+                                final completedCourse = _dbCourses[courseIdx];
+                                final courseProgress = _getCourseProgress(
+                                  completedCourse,
+                                  _allChaptersMap,
+                                  _allSubChaptersMap,
                                 );
-                                if (courseIdx != -1) {
-                                  final completedCourse = _dbCourses[courseIdx];
-                                  final courseProgress = _getCourseProgress(
-                                    completedCourse,
-                                    _allChaptersMap,
-                                    _allSubChaptersMap,
-                                  );
-                                  if (courseProgress >= 1.0) {
-                                    _showCongratulationsDialog(completedCourse);
-                                  }
+                                if (courseProgress >= 1.0) {
+                                  _showCongratulationsDialog(completedCourse);
                                 }
                               }
                             }
@@ -1592,17 +1547,15 @@ class LessonsTabState extends State<LessonsTab> {
                         },
                         child: Card(
                           margin: const EdgeInsets.symmetric(vertical: 8.0),
-                          elevation: isActive ? 2 : 0,
-                          color: isUnlocked
-                              ? Colors.white
-                              : Colors.grey.shade50.withValues(alpha: 0.8),
+                          elevation: 0,
+                          color: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                             side: BorderSide(
-                              color: isActive
-                                  ? Colors.deepPurple.shade200
+                              color: isCompleted
+                                  ? Colors.green.shade200
                                   : Colors.grey.shade200,
-                              width: isActive ? 2 : 1,
+                              width: 1,
                             ),
                           ),
                           child: Padding(
@@ -1616,16 +1569,16 @@ class LessonsTabState extends State<LessonsTab> {
                                       width: 48,
                                       height: 48,
                                       decoration: BoxDecoration(
-                                        color: isUnlocked
-                                            ? Colors.deepPurple.shade50
-                                            : Colors.grey.shade100,
+                                        color: isCompleted
+                                            ? Colors.green.shade50
+                                            : Colors.deepPurple.shade50,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Icon(
                                         Icons.description_outlined,
-                                        color: isUnlocked
-                                            ? Colors.deepPurple.shade700
-                                            : Colors.grey.shade400,
+                                        color: isCompleted
+                                            ? Colors.green.shade700
+                                            : Colors.deepPurple.shade700,
                                       ),
                                     ),
                                     const SizedBox(width: 16),
@@ -1645,12 +1598,10 @@ class LessonsTabState extends State<LessonsTab> {
                                           const SizedBox(height: 4),
                                           Text(
                                             sub.title,
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.bold,
-                                              color: isUnlocked
-                                                  ? Colors.black87
-                                                  : Colors.grey.shade500,
+                                              color: Colors.black87,
                                             ),
                                           ),
                                           if (!context.watch<AuthRepository>().isAdmin) ...[
@@ -1677,6 +1628,49 @@ class LessonsTabState extends State<LessonsTab> {
                                                 ),
                                               ),
                                             ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(4),
+                                                    child: LinearProgressIndicator(
+                                                      value: subProgress,
+                                                      minHeight: 5,
+                                                      backgroundColor: isCompleted
+                                                          ? Colors.green.shade100
+                                                          : (subProgress > 0
+                                                              ? Colors.deepPurple.shade50
+                                                              : Colors.grey.shade200),
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(
+                                                        isCompleted
+                                                            ? Colors.green
+                                                            : (subProgress > 0
+                                                                ? Colors.deepPurple
+                                                                : Colors.grey.shade400),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  '$subProgressPct%',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isCompleted
+                                                        ? Colors.green.shade700
+                                                        : (subProgress > 0
+                                                            ? Colors.deepPurple.shade700
+                                                            : Colors.grey.shade600),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ],
                                         ],
                                       ),
@@ -1686,12 +1680,6 @@ class LessonsTabState extends State<LessonsTab> {
                                         Icons.check_circle_rounded,
                                         color: Colors.green,
                                         size: 28,
-                                      )
-                                    else if (!isUnlocked)
-                                      Icon(
-                                        Icons.lock_outline,
-                                        color: Colors.grey.shade400,
-                                        size: 24,
                                       ),
                                   ],
                                 ),
@@ -1815,10 +1803,12 @@ class LessonsTabState extends State<LessonsTab> {
               const SizedBox(height: 16),
               _buildDbChapters(),
               const SizedBox(height: 24),
-              FutureBuilder<bool>(
-                future: _getCourseCanPostFuture(activeCourse.id),
-                builder: (context, postSnap) {
-                  if (postSnap.data != true) {
+              Builder(
+                builder: (context) {
+                  final isAdmin = context.watch<AuthRepository>().isAdmin;
+                  final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+                  final isVisible = activeCourse.isPublic || isAdmin || activeCourse.creatorId == currentUserId;
+                  if (!isVisible) {
                     return const SizedBox.shrink();
                   }
                   return Padding(

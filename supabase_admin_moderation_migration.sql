@@ -246,4 +246,72 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Optional pg_cron automated server-side weekly execution (runs every Sunday at 00:00:00 UTC):
 -- SELECT cron.schedule('weekly-league-reset', '0 0 * * 0', 'SELECT public.check_and_reset_weekly_leagues(true);');
 
+-- =======================================================
+-- 7. ADMIN DELETION FOR DISCUSSION TOPICS & REPLIES
+-- =======================================================
+
+-- Allow Admins to delete any discussion topic
+DROP POLICY IF EXISTS "Admins can delete any topic" ON public.discussion_topics;
+CREATE POLICY "Admins can delete any topic" 
+ON public.discussion_topics 
+FOR DELETE 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE profiles.id = auth.uid() 
+        AND LOWER(COALESCE(profiles.role, 'learner')) = 'admin'
+    )
+);
+
+-- Allow Admins to delete any discussion reply
+DROP POLICY IF EXISTS "Admins can delete any reply" ON public.discussion_replies;
+CREATE POLICY "Admins can delete any reply" 
+ON public.discussion_replies 
+FOR DELETE 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE profiles.id = auth.uid() 
+        AND LOWER(COALESCE(profiles.role, 'learner')) = 'admin'
+    )
+);
+
+-- Secure RPC to delete a discussion topic as admin (bypasses RLS safely after checking admin role)
+CREATE OR REPLACE FUNCTION public.admin_delete_discussion_topic(p_topic_id UUID)
+RETURNS void AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE id = auth.uid() 
+        AND LOWER(COALESCE(role, 'learner')) = 'admin'
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Only administrators can delete topics';
+    END IF;
+
+    DELETE FROM public.discussion_reports WHERE topic_id = p_topic_id;
+    DELETE FROM public.discussion_topics WHERE id = p_topic_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Secure RPC to delete a discussion reply as admin
+CREATE OR REPLACE FUNCTION public.admin_delete_discussion_reply(p_reply_id UUID)
+RETURNS void AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE id = auth.uid() 
+        AND LOWER(COALESCE(role, 'learner')) = 'admin'
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Only administrators can delete replies';
+    END IF;
+
+    DELETE FROM public.discussion_reports WHERE reply_id = p_reply_id;
+    DELETE FROM public.discussion_replies WHERE id = p_reply_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.admin_delete_discussion_topic(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_delete_discussion_reply(UUID) TO authenticated;
+
+
 

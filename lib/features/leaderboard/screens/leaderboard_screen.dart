@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/friendship_repository.dart';
 import '../../../data/repositories/leaderboard_repository.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
@@ -30,6 +31,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   String _userLeague = 'Stargazer';
   int _userXp = 0;
   int _userWeeklyXp = 0;
+
+  bool _isFriendsOnly = true;
+  List<LeaderboardUser> _allLeagueUsers = [];
+  Set<String> _friendIds = {};
 
   List<LeaderboardUser> _users = [];
   List<LeagueConfig> _configs = [];
@@ -100,11 +105,46 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Future<void> _loadLeaderboard() async {
+    final friendshipRepo = context.read<FriendshipRepository>();
     final data = await _repository.getLeaderboard(_selectedLeague);
-    setState(() {
-      _users = data;
-      _isLoading = false;
-    });
+    _allLeagueUsers = data;
+
+    if (_currentUserId != null) {
+      try {
+        final friends = await friendshipRepo.getFriends();
+        _friendIds = friends.map((f) => f.id).toSet();
+      } catch (_) {}
+    }
+
+    _applyFilter();
+  }
+
+  void _applyFilter() {
+    if (!mounted) return;
+    final currentId = _currentUserId;
+    if (_isFriendsOnly) {
+      final allowedIds = {
+        ..._friendIds,
+        ?currentId,
+      };
+      setState(() {
+        _users = _allLeagueUsers
+            .where((u) => allowedIds.contains(u.id))
+            .toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _users = List.from(_allLeagueUsers);
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onToggleFilter(bool friendsOnly) {
+    if (_isFriendsOnly == friendsOnly) return;
+    _isFriendsOnly = friendsOnly;
+    _applyFilter();
   }
 
   LeagueConfig _getLeagueConfig(String leagueName) {
@@ -246,61 +286,68 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     color: Colors.white,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         // XP Pills Row
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$_userXp XP',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: Colors.black87,
-                                    ),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$_userWeeklyXp Weekly XP',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: Colors.black87,
-                                    ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.emoji_events, color: Colors.amber, size: 15),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$_userXp XP',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 13),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$_userWeeklyXp Weekly XP',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
+                        _buildFilterToggle(),
                       ],
                     ),
                   ),
@@ -379,19 +426,33 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                Icons.group_outlined,
+                                _isFriendsOnly
+                                    ? Icons.people_outline_rounded
+                                    : Icons.group_outlined,
                                 size: 64,
                                 color: Colors.grey.shade300,
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'No users in this league yet.',
+                                _isFriendsOnly
+                                    ? 'No friends in this league yet'
+                                    : 'No users in this league yet.',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: Colors.grey.shade500,
+                                  color: Colors.grey.shade600,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              if (_isFriendsOnly) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Switch to Global to view all learners',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         )
@@ -648,6 +709,66 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterToggle() {
+    const selectedBg = Colors.deepPurple;
+    const selectedText = Colors.white;
+    final unselectedText = Colors.grey.shade700;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+      ),
+      padding: const EdgeInsets.all(2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Friends Only Tab
+          GestureDetector(
+            onTap: () => _onToggleFilter(true),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _isFriendsOnly ? selectedBg : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'Friends only',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: _isFriendsOnly ? FontWeight.bold : FontWeight.w600,
+                  color: _isFriendsOnly ? selectedText : unselectedText,
+                ),
+              ),
+            ),
+          ),
+          // Global Tab
+          GestureDetector(
+            onTap: () => _onToggleFilter(false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: !_isFriendsOnly ? selectedBg : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'Global',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: !_isFriendsOnly ? FontWeight.bold : FontWeight.w600,
+                  color: !_isFriendsOnly ? selectedText : unselectedText,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

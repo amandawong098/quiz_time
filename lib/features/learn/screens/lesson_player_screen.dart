@@ -50,7 +50,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   final Map<String, String> _pageSubChapterMap = {};
   final Map<String, SlideQuestionState> _questionStates = {};
   Map<String, int> _pageDiscussionCounts = {};
-  bool _canPostDiscussion = false;
+  bool _canViewDiscussion = false;
 
   @override
   void initState() {
@@ -210,7 +210,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         }
       } catch (_) {}
 
-      bool canPost = false;
+      bool canView = false;
       try {
         final client = Supabase.instance.client;
         String? targetCourseId = widget.courseId;
@@ -237,14 +237,16 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           targetCourseId = chapData?['course_id'] as String?;
         }
         if (targetCourseId != null) {
+          final courseRes = await client
+              .from('lesson_courses')
+              .select('is_public, creator_id')
+              .eq('id', targetCourseId)
+              .maybeSingle();
+          final isPublic = courseRes?['is_public'] as bool? ?? false;
+          final creatorId = courseRes?['creator_id'] as String?;
           final authRepo = context.read<AuthRepository>();
-          final discRepo = context.read<DiscussionRepository>();
-          final perm = await discRepo.checkLearnerCanPostDiscussion(
-            userId: client.auth.currentUser?.id,
-            isUserAdmin: authRepo.isAdmin,
-            courseId: targetCourseId,
-          );
-          canPost = perm.canPost;
+          final currentUserId = client.auth.currentUser?.id;
+          canView = isPublic || authRepo.isAdmin || creatorId == currentUserId;
         }
       } catch (e) {
         debugPrint('Error checking discussion permission in player: $e');
@@ -254,7 +256,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         _dynamicPages = pages;
         _dynamicPageBlocks = pageBlocks;
         _pageDiscussionCounts = counts;
-        _canPostDiscussion = canPost;
+        _canViewDiscussion = canView;
         _currentSlide = initialPage;
         _isLoading = false;
       });
@@ -1165,7 +1167,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             onPressed: _handleBackPress,
           ),
           actions: [
-            if (_canPostDiscussion && _dynamicPages.isNotEmpty && _currentSlide < _dynamicPages.length) ...[
+            if (_canViewDiscussion && _dynamicPages.isNotEmpty && _currentSlide < _dynamicPages.length) ...[
               Builder(
                 builder: (context) {
                   final page = _dynamicPages[_currentSlide];
