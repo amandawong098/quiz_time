@@ -7,6 +7,7 @@ class PlayerLiveState {
   final String name;
   final String? avatarUrl;
   bool isAnswered;
+  bool isTimedOut;
   List<String> selectedOptionIds;
   bool isCorrect;
   int currentRoundScore;
@@ -20,6 +21,7 @@ class PlayerLiveState {
     required this.name,
     this.avatarUrl,
     this.isAnswered = false,
+    this.isTimedOut = false,
     this.selectedOptionIds = const [],
     this.isCorrect = false,
     this.currentRoundScore = 0,
@@ -80,38 +82,55 @@ class _FloatingEmojiOverlayState extends State<FloatingEmojiOverlay>
   Widget build(BuildContext context) {
     if (widget.emojis.isEmpty) return const SizedBox.shrink();
 
-    final now = DateTime.now();
-    final size = MediaQuery.of(context).size;
-
     return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Stack(
-            children: widget.emojis.map((item) {
-              final elapsedMs = now.difference(item.createdAt).inMilliseconds;
-              final progress = (elapsedMs / 2000.0).clamp(0.0, 1.0);
-              if (progress >= 1.0) return const SizedBox.shrink();
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final height = constraints.maxHeight;
+          if (width <= 0 || height <= 0) return const SizedBox.shrink();
+          final maxDx = max(16.0, width - 48.0);
 
-              final dy = size.height * (1.0 - progress * 0.7);
-              final dx = size.width * item.xRatio + sin(progress * 6.0) * 20.0;
-              final opacity = (1.0 - progress).clamp(0.0, 1.0);
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final now = DateTime.now();
 
-              return Positioned(
-                left: dx,
-                top: dy,
-                child: Opacity(
-                  opacity: opacity,
-                  child: Transform.scale(
-                    scale: item.scale * (0.8 + progress * 0.4),
-                    child: Text(
-                      item.emoji,
-                      style: const TextStyle(fontSize: 32),
+              return Stack(
+                fit: StackFit.expand,
+                clipBehavior: Clip.none,
+                children: widget.emojis.map((item) {
+                  final elapsedMs =
+                      now.difference(item.createdAt).inMilliseconds;
+                  final progress = (elapsedMs / 2200.0).clamp(0.0, 1.0);
+                  if (progress >= 1.0) return const SizedBox.shrink();
+
+                  // Float from lower area (82% height) to upper screen (12% height)
+                  final dy = height * (0.82 - progress * 0.70);
+                  final dx = (width * item.xRatio +
+                          sin(progress * 6.5) * 24.0)
+                      .clamp(16.0, maxDx);
+                  final opacity = (1.0 - progress * 0.85).clamp(0.0, 1.0);
+
+                  return Positioned(
+                    left: dx,
+                    top: dy,
+                    child: Opacity(
+                      opacity: opacity,
+                      child: Transform.scale(
+                        scale: item.scale * (0.9 + progress * 0.4),
+                        child: Text(
+                          item.emoji,
+                          style: const TextStyle(
+                            fontSize: 34,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }).toList(),
               );
-            }).toList(),
+            },
           );
         },
       ),
@@ -124,12 +143,16 @@ class KahootWaitingBanner extends StatelessWidget {
   final int answeredCount;
   final int totalCount;
   final Function(String emoji) onSendEmoji;
+  final VoidCallback? onTapStatus;
+  final String? recentAnsweredPlayerName;
 
   const KahootWaitingBanner({
     super.key,
     required this.answeredCount,
     required this.totalCount,
     required this.onSendEmoji,
+    this.onTapStatus,
+    this.recentAnsweredPlayerName,
   });
 
   @override
@@ -153,48 +176,88 @@ class KahootWaitingBanner extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Colors.amber,
-                  shape: BoxShape.circle,
+          InkWell(
+            onTap: onTapStatus,
+            borderRadius: BorderRadius.circular(10),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.amber,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.lock_rounded, color: Colors.black, size: 16),
                 ),
-                child: const Icon(Icons.lock_rounded, color: Colors.black, size: 16),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Answer Locked In!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Answer Locked In!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Waiting for others ($answeredCount / $totalCount answered)',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 12,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 280),
+                              transitionBuilder: (child, animation) =>
+                                  FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0.0, 0.25),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
+                              ),
+                              child: Text(
+                                recentAnsweredPlayerName != null
+                                    ? '$recentAnsweredPlayerName answered'
+                                    : 'Waiting for others ($answeredCount / $totalCount answered)',
+                                key: ValueKey<String>(
+                                  recentAnsweredPlayerName != null
+                                      ? 'recent_$recentAnsweredPlayerName'
+                                      : 'count_${answeredCount}_$totalCount',
+                                ),
+                                style: TextStyle(
+                                  color: recentAnsweredPlayerName != null
+                                      ? Colors.greenAccent
+                                      : Colors.white.withValues(alpha: 0.8),
+                                  fontWeight: recentAnsweredPlayerName != null
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (onTapStatus != null) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.info_outline, size: 12, color: Colors.amber),
+                          ],
+                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           ClipRRect(
@@ -207,26 +270,33 @@ class KahootWaitingBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Reaction emojis tray
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: ['🔥', '👏', '😱', '😂', '🎯', '💀'].map((emoji) {
-              return InkWell(
-                onTap: () => onSendEmoji(emoji),
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
+          // Reaction emojis tray (horizontally scrollable to avoid overflow)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: ['🔥', '👏', '😱', '😂', '🎯', '💀', '🎉', '🤯'].map((emoji) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: InkWell(
+                    onTap: () => onSendEmoji(emoji),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        emoji,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    emoji,
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
         ],
       ),
@@ -244,7 +314,7 @@ class KahootRevealView extends StatelessWidget {
   final List<String> userSelectedOptionIds;
   final Map<String, int> optionVoteCounts;
   final int totalAnswered;
-  final VoidCallback onContinue;
+  final VoidCallback? onContinue;
   final Function(String emoji) onSendEmoji;
 
   const KahootRevealView({
@@ -257,7 +327,7 @@ class KahootRevealView extends StatelessWidget {
     required this.userSelectedOptionIds,
     required this.optionVoteCounts,
     required this.totalAnswered,
-    required this.onContinue,
+    this.onContinue,
     required this.onSendEmoji,
   });
 
@@ -476,30 +546,43 @@ class KahootRevealView extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: ['🔥', '👏', '😱', '😂', '🎯', '💀'].map((emoji) {
-                        return InkWell(
-                          onTap: () => onSendEmoji(emoji),
-                          borderRadius: BorderRadius.circular(20),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                          ),
-                        );
-                      }).toList(),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: ['🔥', '👏', '😱', '😂', '🎯', '💀', '🎉', '🤯'].map((emoji) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: InkWell(
+                              onTap: () => onSendEmoji(emoji),
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: onContinue,
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                    label: const Text('Scoreboard'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.deepPurple,
-                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  if (onContinue != null) ...[
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: onContinue,
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                      label: const Text('Scoreboard'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.deepPurple,
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -511,7 +594,7 @@ class KahootRevealView extends StatelessWidget {
 }
 
 /// Kahoot Intermediate Scoreboard View
-class KahootScoreboardView extends StatelessWidget {
+class KahootScoreboardView extends StatefulWidget {
   final List<PlayerLiveState> players;
   final int currentQuestionIndex;
   final int totalQuestions;
@@ -536,11 +619,48 @@ class KahootScoreboardView extends StatelessWidget {
   });
 
   @override
+  State<KahootScoreboardView> createState() => _KahootScoreboardViewState();
+}
+
+class _KahootScoreboardViewState extends State<KahootScoreboardView>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _countdownController;
+
+  @override
+  void initState() {
+    super.initState();
+    _countdownController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    );
+    if (widget.useTimer || widget.secondsRemaining < 5) {
+      _countdownController.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(KahootScoreboardView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((widget.useTimer || widget.secondsRemaining < 5) &&
+        !_countdownController.isAnimating &&
+        _countdownController.value == 0.0) {
+      _countdownController.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _countdownController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isLastQuestion = currentQuestionIndex >= totalQuestions - 1;
+    final isLastQuestion =
+        widget.currentQuestionIndex >= widget.totalQuestions - 1;
 
     // Sort players by totalScore descending
-    final sortedPlayers = List<PlayerLiveState>.from(players)
+    final sortedPlayers = List<PlayerLiveState>.from(widget.players)
       ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
 
     return Scaffold(
@@ -564,7 +684,7 @@ class KahootScoreboardView extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Question ${currentQuestionIndex + 1} of $totalQuestions',
+                    'Question ${widget.currentQuestionIndex + 1} of ${widget.totalQuestions}',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 14,
@@ -582,7 +702,7 @@ class KahootScoreboardView extends StatelessWidget {
                 itemCount: sortedPlayers.length,
                 itemBuilder: (context, index) {
                   final p = sortedPlayers[index];
-                  final isMe = p.userId == currentUserId;
+                  final isMe = p.userId == widget.currentUserId;
 
                   Widget rankBadge;
                   if (index == 0) {
@@ -750,50 +870,71 @@ class KahootScoreboardView extends StatelessWidget {
               child: Column(
                 children: [
                   // Reaction Tray
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: ['🔥', '👏', '😱', '😂', '🎯', '💀'].map((emoji) {
-                      return InkWell(
-                        onTap: () => onSendEmoji(emoji),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: ['🔥', '👏', '😱', '😂', '🎯', '💀', '🎉', '🤯'].map((emoji) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: InkWell(
+                            onTap: () => widget.onSendEmoji(emoji),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                            ),
                           ),
-                          child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ),
                   ),
                   const SizedBox(height: 14),
 
-                  if (useTimer) ...[
-                    // Timed mode: countdown indicator
-                    Text(
-                      isLastQuestion
-                          ? 'Finishing quiz in $secondsRemaining seconds...'
-                          : 'Next question in $secondsRemaining seconds...',
-                      style: const TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: (secondsRemaining / 5.0).clamp(0.0, 1.0),
-                        backgroundColor: Colors.white24,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
-                        minHeight: 6,
-                      ),
+                  if (widget.useTimer || widget.secondsRemaining < 5) ...[
+                    // Timed mode: continuous smooth countdown indicator
+                    AnimatedBuilder(
+                      animation: _countdownController,
+                      builder: (context, child) {
+                        final progress = (1.0 - _countdownController.value)
+                            .clamp(0.0, 1.0);
+                        final sec = (progress * 5).ceil().clamp(1, 5);
+                        return Column(
+                          children: [
+                            Text(
+                              isLastQuestion
+                                  ? 'Finishing quiz in $sec seconds...'
+                                  : 'Next question in $sec seconds...',
+                              style: const TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                backgroundColor: Colors.white24,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                    Colors.amber),
+                                minHeight: 6,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ] else ...[
                     // Untimed mode: Host controls next question
-                    if (isHost)
+                    if (widget.isHost)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -805,7 +946,7 @@ class KahootScoreboardView extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          onPressed: onNextQuestion,
+                          onPressed: widget.onNextQuestion,
                           child: Text(
                             isLastQuestion ? 'View Final Results 🏆' : 'Next Question ➔',
                             style: const TextStyle(

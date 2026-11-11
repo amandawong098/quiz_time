@@ -298,7 +298,9 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
 
         if (mounted) {
           Navigator.of(context).pop(); // Close dialog
-          context.pushReplacement('/quiz/${widget.quizId}/take?challengeId=$_challengeId');
+          context.pushReplacement(
+            '/quiz/${widget.quizId}/take?challengeId=$_challengeId&shuffle=${widget.shuffle}&useTimer=${widget.useTimer}',
+          );
         }
       }
     });

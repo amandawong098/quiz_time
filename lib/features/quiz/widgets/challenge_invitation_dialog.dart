@@ -169,7 +169,9 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
         _timer?.cancel();
         if (mounted) {
           Navigator.of(context).pop(); // Close dialog
-          appRouter.go('/quiz/${widget.quizId}/take?challengeId=${widget.challengeId}');
+          appRouter.go(
+            '/quiz/${widget.quizId}/take?challengeId=${widget.challengeId}&shuffle=${widget.shuffle}&useTimer=${widget.useTimer}',
+          );
         }
       }
     });
