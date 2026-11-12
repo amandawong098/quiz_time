@@ -36,29 +36,42 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
   int _inviteSecondsRemaining = 10;
   int _startSecondsRemaining = 3;
   Timer? _countdownTimer;
+  Timer? _friendsRefreshTimer;
   RealtimeChannel? _playersChannel;
   List<Map<String, dynamic>> _playerStatuses = [];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<FriendshipRepository>().sendImmediateHeartbeat();
+      }
+    });
     _loadAvailableFriends();
+    _friendsRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted && _inviteState == InviteState.selecting) {
+        _loadAvailableFriends(silent: true);
+      }
+    });
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _friendsRefreshTimer?.cancel();
     _unsubscribePlayers();
     super.dispose();
   }
 
-  Future<void> _loadAvailableFriends() async {
+  Future<void> _loadAvailableFriends({bool silent = false}) async {
     try {
+      final friendshipRepo = context.read<FriendshipRepository>();
       final client = Supabase.instance.client;
       final currentUserId = client.auth.currentUser?.id;
       if (currentUserId == null) return;
 
-      final friends = await context.read<FriendshipRepository>().getFriends();
+      final friends = await friendshipRepo.getFriends();
       final friendIds = friends.map((f) => f.id).toList();
 
       if (friendIds.isEmpty) {
@@ -87,9 +100,9 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
 
         final lastSeen = DateTime.parse(lastSeenStr).toUtc();
         final diffSeconds = now.difference(lastSeen).inSeconds.abs();
-        
-        // Online if seen in the last 120 seconds (2 minutes) to account for client clock drift
-        return diffSeconds <= 120;
+
+        // Online if seen in the last 300 seconds (5 minutes) to tolerate school network NTP clock drift
+        return diffSeconds <= 300;
       }).toList();
 
       if (mounted) {
@@ -100,7 +113,7 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
       }
     } catch (e) {
       debugPrint('Error loading available friends: $e');
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() => _isLoadingFriends = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load friends: $e')),
@@ -223,8 +236,33 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
     }
   }
 
+  Future<void> _pollPlayerStatuses() async {
+    if (_challengeId == null || !mounted) return;
+    try {
+      final rows = await Supabase.instance.client
+          .from('quiz_challenge_players')
+          .select('user_id, status')
+          .eq('challenge_id', _challengeId!);
+      if (!mounted) return;
+      setState(() {
+        for (final row in (rows as List)) {
+          final uId = row['user_id'] as String?;
+          final st = row['status'] as String?;
+          if (uId == null || st == null) continue;
+          for (var p in _playerStatuses) {
+            if (p['id'] == uId) {
+              p['status'] = st;
+            }
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
   void _startInviteTimer() {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      await _pollPlayerStatuses();
+      if (!mounted) return;
       if (_inviteSecondsRemaining > 1) {
         setState(() {
           _inviteSecondsRemaining--;

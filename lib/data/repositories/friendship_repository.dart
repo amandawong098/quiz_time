@@ -13,6 +13,8 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
   RealtimeChannel? _notificationChannel;
   RealtimeChannel? _challengeChannel;
   Timer? _heartbeatTimer;
+  Timer? _challengePollTimer;
+  final Set<String> _shownChallengeIds = {};
   int _unreadCount = 0;
   List<AppNotification> _notifications = [];
   UserProfile? _currentUserProfile;
@@ -505,12 +507,17 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await _supabase
           .from('profiles')
-          .update({'last_seen_at': DateTime.now().toUtc().toIso8601String()})
+          .update({
+            'last_seen_at': DateTime.now().toUtc().toIso8601String(),
+            'is_playing': TakeQuizScreen.isActive,
+          })
           .eq('id', userId);
     } catch (e) {
       debugPrint('Error sending heartbeat: $e');
     }
   }
+
+  Future<void> sendImmediateHeartbeat() => _sendHeartbeat();
 
   Future<void> setUserPlaying(bool isPlaying) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -523,6 +530,65 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Error setting is_playing = $isPlaying: $e');
     }
+  }
+
+  Future<void> _handleIncomingPendingChallenge(String challengeId) async {
+    if (_shownChallengeIds.contains(challengeId) || TakeQuizScreen.isActive) {
+      return;
+    }
+    _shownChallengeIds.add(challengeId);
+
+    try {
+      dynamic challengeData;
+      bool useTimer = true;
+      try {
+        challengeData = await _supabase
+            .from('quiz_challenges')
+            .select('*, quizzes(title), profiles!host_id(name, avatar_url), use_timer')
+            .eq('id', challengeId)
+            .single();
+        useTimer = challengeData['use_timer'] as bool? ?? true;
+      } catch (_) {
+        challengeData = await _supabase
+            .from('quiz_challenges')
+            .select('*, quizzes(title), profiles!host_id(name, avatar_url)')
+            .eq('id', challengeId)
+            .single();
+      }
+
+      final challengeStatus = challengeData['status'] as String? ?? 'pending';
+      if (challengeStatus != 'pending') return;
+
+      final quizTitle = challengeData['quizzes']['title'] as String;
+      final hostName = challengeData['profiles']['name'] as String;
+      final hostAvatarUrl = challengeData['profiles']['avatar_url'] as String?;
+      final quizId = challengeData['quiz_id'] as String;
+      final shuffle = challengeData['shuffle'] as bool? ?? false;
+
+      _showInvitationDialog(challengeId, hostName, hostAvatarUrl, quizTitle, quizId, shuffle, useTimer);
+    } catch (e) {
+      _shownChallengeIds.remove(challengeId);
+      debugPrint('Error loading challenge details: $e');
+    }
+  }
+
+  Future<void> _pollPendingChallenges() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null || TakeQuizScreen.isActive) return;
+    try {
+      final rows = await _supabase
+          .from('quiz_challenge_players')
+          .select('challenge_id, status')
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+
+      for (final row in (rows as List)) {
+        final challengeId = row['challenge_id'] as String?;
+        if (challengeId != null && !_shownChallengeIds.contains(challengeId)) {
+          await _handleIncomingPendingChallenge(challengeId);
+        }
+      }
+    } catch (_) {}
   }
 
   void _subscribeToChallenges() {
@@ -542,45 +608,26 @@ class FriendshipRepository extends ChangeNotifier with WidgetsBindingObserver {
         ),
         callback: (payload) async {
           final newPlayerRecord = payload.newRecord;
-          final status = newPlayerRecord['status'] as String;
-          final challengeId = newPlayerRecord['challenge_id'] as String;
+          final status = newPlayerRecord['status'] as String?;
+          final challengeId = newPlayerRecord['challenge_id'] as String?;
 
-          if (status == 'pending') {
-            try {
-              dynamic challengeData;
-              bool useTimer = true;
-              try {
-                challengeData = await _supabase
-                    .from('quiz_challenges')
-                    .select('*, quizzes(title), profiles!host_id(name, avatar_url), use_timer')
-                    .eq('id', challengeId)
-                    .single();
-                useTimer = challengeData['use_timer'] as bool? ?? true;
-              } catch (_) {
-                challengeData = await _supabase
-                    .from('quiz_challenges')
-                    .select('*, quizzes(title), profiles!host_id(name, avatar_url)')
-                    .eq('id', challengeId)
-                    .single();
-              }
-
-              final quizTitle = challengeData['quizzes']['title'] as String;
-              final hostName = challengeData['profiles']['name'] as String;
-              final hostAvatarUrl = challengeData['profiles']['avatar_url'] as String?;
-              final quizId = challengeData['quiz_id'] as String;
-              final shuffle = challengeData['shuffle'] as bool? ?? false;
-
-              _showInvitationDialog(challengeId, hostName, hostAvatarUrl, quizTitle, quizId, shuffle, useTimer);
-            } catch (e) {
-              debugPrint('Error loading challenge details: $e');
-            }
+          if (status == 'pending' && challengeId != null) {
+            await _handleIncomingPendingChallenge(challengeId);
           }
         },
       )
       ..subscribe();
+
+    // HTTPS polling fallback every 2 seconds in case School Wi-Fi firewall blocks WebSockets
+    _challengePollTimer?.cancel();
+    _challengePollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _pollPendingChallenges();
+    });
   }
 
   void _unsubscribeFromChallenges() {
+    _challengePollTimer?.cancel();
+    _challengePollTimer = null;
     if (_challengeChannel != null) {
       _supabase.removeChannel(_challengeChannel!);
       _challengeChannel = null;

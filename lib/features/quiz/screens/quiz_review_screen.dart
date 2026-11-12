@@ -619,12 +619,15 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.deepPurple),
               ),
               const SizedBox(width: 8),
-              Text(
-                'Live match in progress — rankings update in real time',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  'Live match in progress — rankings update in real time',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
@@ -677,6 +680,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                     duration: const Duration(milliseconds: 350),
                     curve: Curves.easeInOut,
                     margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: recentDelta != null
                           ? Colors.green.withValues(alpha: 0.08)
@@ -692,176 +696,188 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
                                 : Colors.transparent),
                       ),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                      leading: leading,
-                      title: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (isMe) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: Colors.deepPurple,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'YOU',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      subtitle: isStillPlaying
-                          ? Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                crossAxisAlignment: WrapCrossAlignment.center,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        leading,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.shade50,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.green.shade300),
+                                  Flexible(
+                                    child: Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.circle, size: 7, color: Colors.green.shade600),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          liveQ != null
-                                              ? 'Playing Q${liveQ.clamp(1, totalQ)}/$totalQ'
-                                              : 'Playing live',
+                                  ),
+                                  if (isMe) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.deepPurple,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'YOU',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if (isStillPlaying) ...[
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.green.shade300),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.circle, size: 7, color: Colors.green.shade600),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              liveQ != null
+                                                  ? 'Playing Q${liveQ.clamp(1, totalQ)}/$totalQ'
+                                                  : 'Playing live',
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.green.shade800,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (streak >= 2)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.amber.shade300),
+                                        ),
+                                        child: Text(
+                                          '🔥 $streak',
                                           style: TextStyle(
                                             fontSize: 10.5,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.green.shade800,
+                                            color: Colors.amber.shade900,
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (streak >= 2)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amber.shade50,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.amber.shade300),
                                       ),
-                                      child: Text(
-                                        '🔥 $streak',
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.amber.shade900,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            )
-                          : null,
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 250),
-                                transitionBuilder: (child, anim) =>
-                                    ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
-                                child: recentDelta != null
-                                    ? Container(
-                                        key: ValueKey('delta_${userId}_$recentDelta'),
-                                        margin: const EdgeInsets.only(right: 6),
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green.shade600,
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          '+$recentDelta pts',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      )
-                                    : const SizedBox.shrink(),
-                              ),
-                              TweenAnimationBuilder<double>(
-                                tween: Tween<double>(begin: 0, end: score.toDouble()),
-                                duration: const Duration(milliseconds: 550),
-                                curve: Curves.easeOutCubic,
-                                builder: (context, animValue, _) {
-                                  final displayPts = animValue.round();
-                                  if (isQuit) {
-                                    return Text(
-                                      'QUIT ($displayPts pts)',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.redAccent,
-                                        fontSize: 14,
-                                      ),
-                                    );
-                                  } else if (completedAt != null) {
-                                    return Text(
-                                      '$displayPts pts ($accuracyInt%)',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.deepPurple,
-                                        fontSize: 14,
-                                      ),
-                                    );
-                                  } else {
-                                    return Text(
-                                      '$displayPts pts',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.deepPurple,
-                                        fontSize: 14,
-                                      ),
-                                    );
-                                  }
-                                },
-                              ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
-                          // Only display XP when the player has ended their quiz attempt (completed or quit)
-                          if (isQuit || completedAt != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                '+$playerXp XP 🏆',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.amber.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TweenAnimationBuilder<double>(
+                              tween: Tween<double>(begin: 0, end: score.toDouble()),
+                              duration: const Duration(milliseconds: 550),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, animValue, _) {
+                                final displayPts = animValue.round();
+                                if (isQuit) {
+                                  return Text(
+                                    'QUIT ($displayPts pts)',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.redAccent,
+                                      fontSize: 14,
+                                    ),
+                                  );
+                                } else if (completedAt != null) {
+                                  return Text(
+                                    '$displayPts pts ($accuracyInt%)',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.deepPurple,
+                                      fontSize: 14,
+                                    ),
+                                  );
+                                } else {
+                                  return Text(
+                                    '$displayPts pts',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.deepPurple,
+                                      fontSize: 14,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              transitionBuilder: (child, anim) =>
+                                  ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
+                              child: recentDelta != null
+                                  ? Container(
+                                      key: ValueKey('delta_${userId}_$recentDelta'),
+                                      margin: const EdgeInsets.only(top: 3),
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade600,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '+$recentDelta pts',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            // Only display XP when the player has ended their quiz attempt (completed or quit)
+                            if (isQuit || completedAt != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  '+$playerXp XP 🏆',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.amber.shade700,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ),
                   );
                 }),

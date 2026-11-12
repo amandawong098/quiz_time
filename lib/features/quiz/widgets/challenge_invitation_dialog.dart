@@ -24,12 +24,14 @@ class ChallengeInvitationDialog extends StatefulWidget {
   });
 
   @override
-  State<ChallengeInvitationDialog> createState() => _ChallengeInvitationDialogState();
+  State<ChallengeInvitationDialog> createState() =>
+      _ChallengeInvitationDialogState();
 }
 
 class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
   int _secondsRemaining = 10;
   Timer? _timer;
+  Timer? _statusPollTimer;
   bool _isResponding = false;
   bool _accepted = false;
   RealtimeChannel? _statusChannel;
@@ -65,7 +67,7 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
   Future<void> _handleTimeout() async {
     if (_isResponding || _accepted) return;
     setState(() => _isResponding = true);
-    
+
     try {
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
@@ -113,49 +115,65 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
     } catch (e) {
       debugPrint('Error responding to challenge: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to respond: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to respond: $e')));
         Navigator.of(context).pop();
       }
     }
   }
 
+  void _handleChallengeStatusChange(String? newStatus) {
+    if (_starting || !mounted) return;
+    if (newStatus == 'started') {
+      _unsubscribeChallengeStatus();
+      setState(() {
+        _starting = true;
+      });
+      _startQuizTimer();
+    } else if (newStatus == 'cancelled') {
+      _unsubscribeChallengeStatus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Challenge cancelled by host.')),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
   void _subscribeChallengeStatus() {
     final client = Supabase.instance.client;
-    
-    _statusChannel = client.channel('public:quiz_challenges:status_${widget.challengeId}')
-      ..onPostgresChanges(
-        event: PostgresChangeEvent.update,
-        schema: 'public',
-        table: 'quiz_challenges',
-        filter: PostgresChangeFilter(
-          type: PostgresChangeFilterType.eq,
-          column: 'id',
-          value: widget.challengeId,
-        ),
-        callback: (payload) {
-          final newStatus = payload.newRecord['status'] as String;
-          if (newStatus == 'started') {
-            _unsubscribeChallengeStatus();
-            if (mounted) {
-              setState(() {
-                _starting = true;
-              });
-              _startQuizTimer();
-            }
-          } else if (newStatus == 'cancelled') {
-            _unsubscribeChallengeStatus();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Challenge cancelled by host.')),
-              );
-              Navigator.of(context).pop();
-            }
-          }
-        },
-      )
-      ..subscribe();
+
+    _statusChannel =
+        client.channel('public:quiz_challenges:status_${widget.challengeId}')
+          ..onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'quiz_challenges',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: widget.challengeId,
+            ),
+            callback: (payload) {
+              final newStatus = payload.newRecord['status'] as String?;
+              _handleChallengeStatusChange(newStatus);
+            },
+          )
+          ..subscribe();
+
+    // HTTPS polling fallback every 1 second in case School Wi-Fi blocks WebSockets
+    _statusPollTimer?.cancel();
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (_starting || !mounted) return;
+      try {
+        final row = await client
+            .from('quiz_challenges')
+            .select('status')
+            .eq('id', widget.challengeId)
+            .single();
+        _handleChallengeStatusChange(row['status'] as String?);
+      } catch (_) {}
+    });
   }
 
   void _startQuizTimer() {
@@ -178,6 +196,8 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
   }
 
   void _unsubscribeChallengeStatus() {
+    _statusPollTimer?.cancel();
+    _statusPollTimer = null;
     if (_statusChannel != null) {
       Supabase.instance.client.removeChannel(_statusChannel!);
       _statusChannel = null;
@@ -202,7 +222,11 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
             const SizedBox(height: 8),
             Text(
               'Starting quiz in $_startSecondsRemaining...',
-              style: const TextStyle(fontSize: 16, color: Colors.deepPurple, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.deepPurple,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -247,13 +271,22 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: Colors.deepPurple.shade100,
-                  backgroundImage: widget.hostAvatarUrl != null && widget.hostAvatarUrl!.isNotEmpty
+                  backgroundImage:
+                      widget.hostAvatarUrl != null &&
+                          widget.hostAvatarUrl!.isNotEmpty
                       ? NetworkImage(widget.hostAvatarUrl!)
                       : null,
-                  child: widget.hostAvatarUrl == null || widget.hostAvatarUrl!.isEmpty
+                  child:
+                      widget.hostAvatarUrl == null ||
+                          widget.hostAvatarUrl!.isEmpty
                       ? Text(
-                          widget.hostName.isNotEmpty ? widget.hostName[0].toUpperCase() : '?',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                          widget.hostName.isNotEmpty
+                              ? widget.hostName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepPurple,
+                          ),
                         )
                       : null,
                 ),
@@ -261,7 +294,10 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
                 Expanded(
                   child: Text(
                     '${widget.hostName} has challenged you to play:',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -269,7 +305,11 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
             const SizedBox(height: 16),
             Text(
               widget.quizTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepPurple),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.deepPurple,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -279,27 +319,40 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
               alignment: WrapAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: widget.useTimer ? Colors.amber.shade50 : Colors.blue.shade50,
+                    color: widget.useTimer
+                        ? Colors.amber.shade50
+                        : Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: widget.useTimer ? Colors.amber.shade200 : Colors.blue.shade200,
+                      color: widget.useTimer
+                          ? Colors.amber.shade200
+                          : Colors.blue.shade200,
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        widget.useTimer ? Icons.timer_outlined : Icons.timer_off_outlined,
+                        widget.useTimer
+                            ? Icons.timer_outlined
+                            : Icons.timer_off_outlined,
                         size: 14,
-                        color: widget.useTimer ? Colors.amber.shade900 : Colors.blue.shade900,
+                        color: widget.useTimer
+                            ? Colors.amber.shade900
+                            : Colors.blue.shade900,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         widget.useTimer ? 'Timer: ON' : 'Timer: OFF',
                         style: TextStyle(
-                          color: widget.useTimer ? Colors.amber.shade900 : Colors.blue.shade900,
+                          color: widget.useTimer
+                              ? Colors.amber.shade900
+                              : Colors.blue.shade900,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
@@ -309,7 +362,10 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
                 ),
                 if (widget.shuffle)
                   Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.deepPurple.shade50,
                       borderRadius: BorderRadius.circular(8),
@@ -318,7 +374,11 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.shuffle, size: 14, color: Colors.deepPurple),
+                        const Icon(
+                          Icons.shuffle,
+                          size: 14,
+                          color: Colors.deepPurple,
+                        ),
                         const SizedBox(width: 4),
                         const Text(
                           'Shuffle: ON',
@@ -341,7 +401,10 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
                 const SizedBox(width: 6),
                 Text(
                   'Responding in $_secondsRemaining seconds...',
-                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -355,7 +418,9 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: Colors.redAccent),
             foregroundColor: Colors.redAccent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: const Text('Reject'),
         ),
@@ -364,7 +429,9 @@ class _ChallengeInvitationDialogState extends State<ChallengeInvitationDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: const Text('Accept'),
         ),
