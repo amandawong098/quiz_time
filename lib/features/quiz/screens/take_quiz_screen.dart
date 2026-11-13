@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/repositories/friendship_repository.dart';
@@ -1674,6 +1675,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
           'Question ${_currentIndex + 1} of ${_questions.length}',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 77),
         actions: [
           // If multiplayer with timer turned OFF and user is Host: End Round button
           if (widget.challengeId != null && !_useTimer && _isHost)

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/friendship_repository.dart';
 import 'package:go_router/go_router.dart';
@@ -297,6 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 55),
         actions: const [NotificationIconBadge()],
       ),
       body: _isLoading
@@ -311,58 +313,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Stack(
+                  CosmicNebulaBox(
+                    borderRadius: BorderRadius.circular(20),
+                    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                    seed: 505,
+                    showPlanet: true,
+                    child: Column(
                       children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                          backgroundImage: user?.userMetadata?['avatar_url'] != null
-                              ? NetworkImage(user!.userMetadata!['avatar_url'])
-                              : null,
-                          child: user?.userMetadata?['avatar_url'] == null
-                              ? const Icon(Icons.person, size: 50, color: Colors.deepPurple)
-                              : null,
-                        ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: GestureDetector(
-                            onTap: () async {
-                              final result = await context.push('/me/edit');
-                              if (result == true) {
-                                setState(() {});
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
+                        Stack(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(3),
                               decoration: BoxDecoration(
-                                color: Colors.deepPurple,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: Colors.white,
+                                  color: CosmicColors.starlightGold.withValues(alpha: 0.75),
                                   width: 2,
                                 ),
                               ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 16,
-                                color: Colors.white,
+                              child: CircleAvatar(
+                                radius: 46,
+                                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                backgroundImage: user?.userMetadata?['avatar_url'] != null
+                                    ? NetworkImage(user!.userMetadata!['avatar_url'])
+                                    : null,
+                                child: user?.userMetadata?['avatar_url'] == null
+                                    ? const Icon(Icons.person, size: 46, color: Colors.white)
+                                    : null,
                               ),
                             ),
-                          ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final result = await context.push('/me/edit');
+                                  if (result == true) {
+                                    setState(() {});
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: CosmicColors.starlightGold,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: CosmicColors.spaceNavy,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit,
+                                    size: 15,
+                                    color: CosmicColors.spaceNavy,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          user?.userMetadata?['name'] ?? 'User Name',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    user?.userMetadata?['name'] ?? 'User Name',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
                   ),
                   const SizedBox(height: 16),
                   if (context.watch<AuthRepository>().isAdmin)

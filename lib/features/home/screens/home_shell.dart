@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/leaderboard_repository.dart';
 
@@ -160,25 +161,46 @@ class _HomeShellState extends State<HomeShell> {
       return null;
     }
 
-    return FloatingActionButton(
-      onPressed: () {
-        if (location.startsWith('/learn')) {
-          _showComingSoonSnackBar(context, 'Create Learning Content');
-        } else if (location.startsWith('/discussions') ||
-            location.startsWith('/my-discussions')) {
-          context.push('/create-topic');
-        } else {
-          // In quizzes tab: Admins can manually create or AI generate; Learners can only AI generate
-          if (isAdmin) {
-            context.push('/create-quiz');
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF5E35B1),
+            Color(0xFF28125A),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF7C4DFF).withValues(alpha: 0.45),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: FloatingActionButton(
+        onPressed: () {
+          if (location.startsWith('/learn')) {
+            _showComingSoonSnackBar(context, 'Create Learning Content');
+          } else if (location.startsWith('/discussions') ||
+              location.startsWith('/my-discussions')) {
+            context.push('/create-topic');
           } else {
-            context.push('/ai-quiz-generator');
+            // In quizzes tab: Admins can manually create or AI generate; Learners can only AI generate
+            if (isAdmin) {
+              context.push('/create-quiz');
+            } else {
+              context.push('/ai-quiz-generator');
+            }
           }
-        }
-      },
-      backgroundColor: Colors.deepPurple,
-      foregroundColor: Colors.white,
-      child: const Icon(Icons.add),
+        },
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: CosmicColors.starlightGold,
+        child: const Icon(Icons.add_rounded, size: 28),
+      ),
     );
   }
 
@@ -188,15 +210,22 @@ class _HomeShellState extends State<HomeShell> {
     final int selectedIndex = _calculateSelectedIndex(context, isAdmin);
 
     return Scaffold(
-      body: widget.child,
+      body: CosmicAmbientScaffoldBody(child: widget.child),
       floatingActionButton: _buildFloatingActionButton(context, selectedIndex, isAdmin),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
+          gradient: CosmicColors.dockGradient,
+          border: Border(
+            top: BorderSide(
+              color: CosmicColors.starlightGold.withValues(alpha: 0.25),
+              width: 1,
+            ),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
+              color: const Color(0xFF0E0728).withValues(alpha: 0.35),
+              blurRadius: 14,
+              offset: const Offset(0, -4),
             ),
           ],
         ),
@@ -204,10 +233,13 @@ class _HomeShellState extends State<HomeShell> {
           currentIndex: selectedIndex,
           onTap: (index) => _onItemTapped(index, context, isAdmin),
           type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          selectedItemColor: CosmicColors.starlightGold,
+          unselectedItemColor: const Color(0xFFB39DDB),
           elevation: 0,
           showUnselectedLabels: true,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 10),
           items: isAdmin
               ? const [
                   BottomNavigationBarItem(

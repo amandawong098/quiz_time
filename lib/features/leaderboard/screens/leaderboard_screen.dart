@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/friendship_repository.dart';
@@ -183,14 +184,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final leagueTheme = CosmicLeagueThemeData.forLeague(_selectedLeague);
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: leagueTheme.backgroundGradient.first,
       appBar: AppBar(
         title: const Text(
           'Leaderboard',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
+        flexibleSpace: CosmicAppBarFlexibleSpace(
+          seed: leagueTheme.seed,
+          league: _selectedLeague,
+        ),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -234,235 +241,278 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           const NotificationIconBadge(),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Top Summary Bar
-                if (_isAdmin)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    color: Colors.deepPurple.shade50,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.shade100,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.admin_panel_settings_rounded,
-                            color: Colors.deepPurple,
-                            size: 18,
+      body: CosmicLeagueFullBackground(
+        league: _selectedLeague,
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              )
+            : Column(
+                children: [
+                  // Top Summary Bar (Frosted Glass over Full Cosmic Background)
+                  if (_isAdmin)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.15),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Administrator View',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Colors.deepPurple,
-                                ),
-                              ),
-                              Text(
-                                'Viewing learner rankings. Admins do not participate in leaderboard rankings.',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.admin_panel_settings_rounded,
+                              color: leagueTheme.primaryAccent,
+                              size: 18,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    color: Colors.white,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // XP Pills Row
-                        Flexible(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.emoji_events, color: Colors.amber, size: 15),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '$_userXp XP',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
+                                Text(
+                                  'Administrator View',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 13),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '$_userWeeklyXp Weekly XP',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
+                                Text(
+                                  'Viewing learner rankings. Admins do not participate in leaderboard rankings.',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white70,
                                   ),
                                 ),
                               ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildFilterToggle(),
-                      ],
-                    ),
-                  ),
-                const Divider(height: 1),
-                
-                // League Badges tab bar container
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: _leaguesOrder.map((name) {
-                        final isSelected = _selectedLeague == name;
-                        final isLocked = _isLeagueLocked(name);
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedLeague = name;
-                              _isLoading = true;
-                            });
-                            _loadLeaderboard();
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 12.0),
-                            child: _buildLeagueBadgeIcon(name, isLocked, isSelected),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-
-                // Selected League Details Header
-                Container(
-                  color: Colors.white,
-                  width: double.infinity,
-                  padding: const EdgeInsets.only(bottom: 16, left: 24, right: 24),
-                  child: Column(
-                    children: [
-                      Text(
-                        _selectedLeague,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
-                          const SizedBox(width: 4),
-                          Text(
-                            _getTimeRemaining(),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-
-                // Rankings list
-                Expanded(
-                  child: _users.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _isFriendsOnly
-                                    ? Icons.people_outline_rounded
-                                    : Icons.group_outlined,
-                                size: 64,
-                                color: Colors.grey.shade300,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _isFriendsOnly
-                                    ? 'No friends in this league yet'
-                                    : 'No users in this league yet.',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (_isFriendsOnly) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Switch to Global to view all learners',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade500,
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.22),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // XP Pills Row
+                          Flexible(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.14),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.amber.withValues(alpha: 0.45),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.emoji_events, color: Colors.amber, size: 15),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '$_userXp XP',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.14),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: leagueTheme.primaryAccent.withValues(alpha: 0.5),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.calendar_today,
+                                          color: leagueTheme.primaryAccent,
+                                          size: 13,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '$_userWeeklyXp Weekly XP',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterToggle(leagueTheme.primaryAccent),
+                        ],
+                      ),
+                    ),
+
+                  // League Badges & Selected League Header directly on the Full Cosmic Background
+                  Padding(
+                    padding: const EdgeInsets.only(top: 18, bottom: 12),
+                    child: Column(
+                      children: [
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: _leaguesOrder.map((name) {
+                              final isSelected = _selectedLeague == name;
+                              final isLocked = _isLeagueLocked(name);
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedLeague = name;
+                                    _isLoading = true;
+                                  });
+                                  _loadLeaderboard();
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 12.0),
+                                  child: _buildLeagueBadgeIcon(name, isLocked, isSelected),
                                 ),
-                              ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.auto_awesome_rounded,
+                                    size: 18,
+                                    color: leagueTheme.primaryAccent,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _selectedLeague,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.access_time,
+                                    size: 14,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _getTimeRemaining(),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
-                        )
-                       : ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: _buildLeaderboardItems(),
                         ),
-                ),
-              ],
-            ),
+                      ],
+                    ),
+                  ),
+
+                  // Rankings list directly over the Full Cosmic Background
+                  Expanded(
+                    child: _users.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _isFriendsOnly
+                                      ? Icons.people_outline_rounded
+                                      : Icons.group_outlined,
+                                  size: 64,
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _isFriendsOnly
+                                      ? 'No friends in this league yet'
+                                      : 'No users in this league yet.',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (_isFriendsOnly) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Switch to Global to view all learners',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.white.withValues(alpha: 0.75),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          )
+                        : ListView(
+                            padding: const EdgeInsets.all(16),
+                            children: _buildLeaderboardItems(),
+                          ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -614,25 +664,41 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     required Color color,
     required IconData icon,
   }) {
+    final isPromo = color == Colors.green;
+    final badgeTextColor = isPromo ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-              letterSpacing: 0.5,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: badgeTextColor.withValues(alpha: 0.6),
+              width: 1,
             ),
           ),
-          const SizedBox(width: 8),
-          Icon(icon, color: color, size: 18),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: badgeTextColor, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: badgeTextColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(icon, color: badgeTextColor, size: 18),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -714,16 +780,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
   }
 
-  Widget _buildFilterToggle() {
-    const selectedBg = Colors.deepPurple;
-    const selectedText = Colors.white;
-    final unselectedText = Colors.grey.shade700;
-
+  Widget _buildFilterToggle(Color accentColor) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300, width: 1),
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
       ),
       padding: const EdgeInsets.all(2),
       child: Row(
@@ -736,15 +798,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: _isFriendsOnly ? selectedBg : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
+                color: _isFriendsOnly ? accentColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 'Friends only',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: _isFriendsOnly ? FontWeight.bold : FontWeight.w600,
-                  color: _isFriendsOnly ? selectedText : unselectedText,
+                  color: _isFriendsOnly ? CosmicColors.deepVoid : Colors.white,
                 ),
               ),
             ),
@@ -756,15 +818,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: !_isFriendsOnly ? selectedBg : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
+                color: !_isFriendsOnly ? accentColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 'Global',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: !_isFriendsOnly ? FontWeight.bold : FontWeight.w600,
-                  color: !_isFriendsOnly ? selectedText : unselectedText,
+                  color: !_isFriendsOnly ? CosmicColors.deepVoid : Colors.white,
                 ),
               ),
             ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
@@ -54,10 +55,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   String _getQuestionBadgeEmoji(int count) {
-    if (count <= 5) return '🌱';
-    if (count <= 10) return '⚡';
-    if (count <= 20) return '🔥';
-    return '🧠';
+    if (count <= 5) return '☄️';
+    if (count <= 10) return '🚀';
+    if (count <= 20) return '🪐';
+    return '🌌';
   }
 
   @override
@@ -65,7 +66,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quizzes'),
-        actions: const [NotificationIconBadge()],
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 22),
+        actions: const [
+          NotificationIconBadge(),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -131,39 +135,38 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
-                                      // Cover Image or Gradient Banner
-                                      Container(
-                                        height: 80,
-                                        decoration: BoxDecoration(
-                                          gradient: quiz.imageUrl == null
-                                              ? LinearGradient(
-                                                  colors: [
-                                                    Colors.deepPurple.shade700,
-                                                    Colors.indigo.shade500,
-                                                  ],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                )
-                                              : null,
-                                          image: quiz.imageUrl != null
-                                              ? DecorationImage(
+                                      // Cover Image or Cosmic Starfield Banner
+                                      quiz.imageUrl != null
+                                          ? Container(
+                                              height: 80,
+                                              decoration: BoxDecoration(
+                                                image: DecorationImage(
                                                   image: NetworkImage(
                                                     quiz.imageUrl!,
                                                   ),
                                                   fit: BoxFit.cover,
-                                                )
-                                              : null,
-                                        ),
-                                        child: quiz.imageUrl == null
-                                            ? const Center(
-                                                child: Icon(
-                                                  Icons.quiz_rounded,
-                                                  size: 28,
-                                                  color: Colors.white70,
                                                 ),
-                                              )
-                                            : null,
-                                      ),
+                                              ),
+                                            )
+                                          : SizedBox(
+                                              height: 80,
+                                              child: CosmicNebulaBox(
+                                                borderRadius: BorderRadius.zero,
+                                                seed: quiz.id.hashCode,
+                                                showPlanet: true,
+                                                child: Center(
+                                                  child: Icon(
+                                                    index % 3 == 0
+                                                        ? Icons.rocket_launch_rounded
+                                                        : (index % 3 == 1
+                                                            ? Icons.auto_awesome_rounded
+                                                            : Icons.public_rounded),
+                                                    size: 28,
+                                                    color: CosmicColors.starlightGold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                       // Content Area
                                       Expanded(
                                         child: Padding(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
@@ -258,7 +259,10 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
       appBar: AppBar(
         title: const Text('Discussions'),
         elevation: 0,
-        actions: const [NotificationIconBadge()],
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 44),
+        actions: const [
+          NotificationIconBadge(),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadTopics,

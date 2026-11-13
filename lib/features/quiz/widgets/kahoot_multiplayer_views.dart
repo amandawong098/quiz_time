@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 
 class PlayerLiveState {
@@ -664,36 +665,49 @@ class _KahootScoreboardViewState extends State<KahootScoreboardView>
       ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
 
     return Scaffold(
-      backgroundColor: Colors.deepPurple.shade900,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-              child: Column(
-                children: [
-                  const Text(
-                    'LEADERBOARD',
-                    style: TextStyle(
-                      color: Colors.amber,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
+      backgroundColor: CosmicColors.deepVoid,
+      body: CosmicNebulaBox(
+        borderRadius: BorderRadius.zero,
+        seed: 909,
+        showPlanet: true,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Top Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Column(
+                  children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, color: CosmicColors.starlightGold, size: 22),
+                        SizedBox(width: 8),
+                        Text(
+                          'LEADERBOARD',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.auto_awesome_rounded, color: CosmicColors.starlightGold, size: 22),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Question ${widget.currentQuestionIndex + 1} of ${widget.totalQuestions}',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 4),
+                    Text(
+                      'Question ${widget.currentQuestionIndex + 1} of ${widget.totalQuestions}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
             // Ranking List
             Expanded(
@@ -988,6 +1002,7 @@ class _KahootScoreboardViewState extends State<KahootScoreboardView>
               ),
             ),
           ],
+        ),
         ),
       ),
     );

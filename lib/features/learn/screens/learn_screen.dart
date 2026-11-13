@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../widgets/lessons_tab.dart';
@@ -56,12 +57,16 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
       appBar: AppBar(
         title: const Text('Learn'),
         elevation: 0,
-        actions: const [NotificationIconBadge()],
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 11),
+        actions: const [
+          NotificationIconBadge(),
+        ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white,
+          indicatorColor: CosmicColors.starlightGold,
+          indicatorWeight: 3,
+          labelColor: CosmicColors.starlightGold,
+          unselectedLabelColor: Colors.white70,
           indicatorSize: TabBarIndicatorSize.tab,
           tabs: const [
             Tab(

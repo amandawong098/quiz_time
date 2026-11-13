@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -106,6 +107,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quiz Details'),
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 66),
         leading: Navigator.of(context).canPop()
             ? null
             : IconButton(
@@ -170,9 +172,25 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                     backgroundImage: NetworkImage(_quiz!.imageUrl!),
                   )
                 else
-                  const CircleAvatar(
-                    radius: 60,
-                    child: Icon(Icons.quiz, size: 60),
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: CosmicNebulaBox(
+                      borderRadius: BorderRadius.circular(60),
+                      seed: _quiz!.id.hashCode,
+                      showPlanet: true,
+                      border: Border.all(
+                        color: CosmicColors.starlightGold.withValues(alpha: 0.7),
+                        width: 2,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.rocket_launch_rounded,
+                          size: 52,
+                          color: CosmicColors.starlightGold,
+                        ),
+                      ),
+                    ),
                   ),
                 const SizedBox(height: 16),
                 Text(
