@@ -74,7 +74,8 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
       final query = _searchQuery.toLowerCase();
       _filteredDecks = _decks.where((deck) {
         // search query filter
-        final matchesQuery = query.isEmpty ||
+        final matchesQuery =
+            query.isEmpty ||
             deck.title.toLowerCase().contains(query) ||
             (deck.description?.toLowerCase().contains(query) ?? false);
 
@@ -111,9 +112,7 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
       margin: EdgeInsets.zero,
       elevation: 2,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: Colors.white,
       child: InkWell(
         onTap: () => context.push(
@@ -139,9 +138,7 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                     : null,
                 image: deck.imageUrl != null && deck.imageUrl!.isNotEmpty
                     ? DecorationImage(
-                        image: NetworkImage(
-                          deck.imageUrl!,
-                        ),
+                        image: NetworkImage(deck.imageUrl!),
                         fit: BoxFit.cover,
                       )
                     : null,
@@ -212,12 +209,7 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text(
-                                '🎴',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                ),
-                              ),
+                              const Text('🎴', style: TextStyle(fontSize: 11)),
                               const SizedBox(width: 4),
                               Text(
                                 deck.cardCount == 1
@@ -252,13 +244,19 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                                   CircleAvatar(
                                     radius: 8,
                                     backgroundColor: Colors.deepPurple.shade100,
-                                    backgroundImage: (deck.creatorAvatarUrl != null &&
+                                    backgroundImage:
+                                        (deck.creatorAvatarUrl != null &&
                                             deck.creatorAvatarUrl!.isNotEmpty)
                                         ? NetworkImage(deck.creatorAvatarUrl!)
                                         : null,
-                                    child: (deck.creatorAvatarUrl == null ||
+                                    child:
+                                        (deck.creatorAvatarUrl == null ||
                                             deck.creatorAvatarUrl!.isEmpty)
-                                        ? const Icon(Icons.person, size: 9, color: Colors.deepPurple)
+                                        ? const Icon(
+                                            Icons.person,
+                                            size: 9,
+                                            color: Colors.deepPurple,
+                                          )
                                         : null,
                                   ),
                                   const SizedBox(width: 4),
@@ -299,201 +297,212 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
         onRefresh: _loadDecks,
         color: Colors.deepPurple,
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Colors.deepPurple))
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.deepPurple),
+              )
             : _filteredDecks.isEmpty
-                ? CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.all(20.0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            FlashcardFilterBar(
-                              searchQuery: _searchQuery,
-                              selectedRange: _selectedRange,
-                              onSearchChanged: (v) {
-                                _searchQuery = v;
-                                _applyFilters();
-                              },
-                              onRangeChanged: (v) {
-                                setState(() => _selectedRange = v);
-                                _applyFilters();
-                              },
-                              onReset: _resetFilters,
-                            ),
-                            const SizedBox(height: 40),
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const ByteMascot(
-                                    size: 108,
-                                    mood: ByteMascotMood.curious,
-                                    tapMessages: [
-                                      'No flashcard decks here yet! 🃏',
-                                      'Generate study cards in seconds with AI! ✨',
-                                      'Flashcards are great for quick memory boosts! 🚀',
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    _searchQuery.isNotEmpty || _selectedRange != null
-                                        ? 'No decks match your search'
-                                        : 'No flashcard decks yet.',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Builder(
-                                    builder: (context) {
-                                      final isAdmin = context.watch<AuthRepository>().isAdmin;
-                                      return CosmicActionButton(
-                                        label: isAdmin ? 'Create Flashcard Deck' : 'Generate with AI',
-                                        subtitle: 'Craft smart study cards in seconds',
-                                        icon: isAdmin ? Icons.style_rounded : Icons.auto_awesome_rounded,
-                                        onPressed: () async {
-                                          if (isAdmin) {
-                                            final result = await context.push('/create-flashcard-deck');
-                                            if (result == true) {
-                                              _loadDecks();
-                                            }
-                                          } else {
-                                            await context.push('/ai-flashcard-generator');
-                                            if (mounted) {
-                                              _loadDecks();
-                                            }
-                                          }
-                                        },
-                                      );
-                                    },
-                                  ),
+            ? CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20.0),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        FlashcardFilterBar(
+                          searchQuery: _searchQuery,
+                          selectedRange: _selectedRange,
+                          onSearchChanged: (v) {
+                            _searchQuery = v;
+                            _applyFilters();
+                          },
+                          onRangeChanged: (v) {
+                            setState(() => _selectedRange = v);
+                            _applyFilters();
+                          },
+                          onReset: _resetFilters,
+                        ),
+                        const SizedBox(height: 40),
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const ByteMascot(
+                                size: 108,
+                                mood: ByteMascotMood.curious,
+                                tapMessages: [
+                                  'No flashcard decks here yet! 🃏',
+                                  'Generate study cards in seconds with AI! ✨',
+                                  'Flashcards are great for quick memory boosts! 🚀',
                                 ],
                               ),
-                            ),
-                          ]),
-                        ),
-                      ),
-                    ],
-                  )
-                : CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.all(20.0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            // AI Flashcard Generator Banner
-                            InkWell(
-                              onTap: () {
-                                context.push('/ai-flashcard-generator');
-                              },
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.deepPurple.shade600,
-                                      Colors.purple.shade500,
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.deepPurple
-                                          .withValues(alpha: 0.25),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: const Row(
-                                  children: [
-                                    CircleAvatar(
-                                      backgroundColor: Colors.white24,
-                                      child: Icon(
-                                        Icons.auto_awesome,
-                                        color: Colors.amberAccent,
-                                        size: 20,
-                                      ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '✨ Generate Flashcards with AI',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          Text(
-                                            'Auto-generate high-yield study cards from topics or notes',
-                                            style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      color: Colors.white70,
-                                      size: 14,
-                                    ),
-                                  ],
+                              const SizedBox(height: 12),
+                              Text(
+                                _searchQuery.isNotEmpty ||
+                                        _selectedRange != null
+                                    ? 'No decks match your search'
+                                    : 'No flashcard decks yet.',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
                                 ),
                               ),
-                            ),
-                            FlashcardFilterBar(
-                              searchQuery: _searchQuery,
-                              selectedRange: _selectedRange,
-                              onSearchChanged: (v) {
-                                _searchQuery = v;
-                                _applyFilters();
-                              },
-                              onRangeChanged: (v) {
-                                setState(() => _selectedRange = v);
-                                _applyFilters();
-                              },
-                              onReset: _resetFilters,
-                            ),
-                            const SizedBox(height: 24),
-                          ]),
+                              const SizedBox(height: 20),
+                              Builder(
+                                builder: (context) {
+                                  final isAdmin = context
+                                      .watch<AuthRepository>()
+                                      .isAdmin;
+                                  return CosmicActionButton(
+                                    label: isAdmin
+                                        ? 'Create Flashcard Deck'
+                                        : 'Generate Flashcard Deck with AI',
+                                    subtitle:
+                                        'Craft smart study cards in seconds',
+                                    icon: isAdmin
+                                        ? Icons.style_rounded
+                                        : Icons.auto_awesome_rounded,
+                                    onPressed: () async {
+                                      if (isAdmin) {
+                                        final result = await context.push(
+                                          '/create-flashcard-deck',
+                                        );
+                                        if (result == true) {
+                                          _loadDecks();
+                                        }
+                                      } else {
+                                        await context.push(
+                                          '/ai-flashcard-generator',
+                                        );
+                                        if (mounted) {
+                                          _loadDecks();
+                                        }
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      ]),
+                    ),
+                  ),
+                ],
+              )
+            : CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20.0),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        // AI Flashcard Generator Banner
+                        InkWell(
+                          onTap: () {
+                            context.push('/ai-flashcard-generator');
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.deepPurple.shade600,
+                                  Colors.purple.shade500,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.deepPurple.withValues(
+                                    alpha: 0.25,
+                                  ),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(
+                                    Icons.auto_awesome,
+                                    color: Colors.amberAccent,
+                                    size: 20,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '✨ Generate Flashcards with AI',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Auto-generate high-yield study cards from topics or notes',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Colors.white70,
+                                  size: 14,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        FlashcardFilterBar(
+                          searchQuery: _searchQuery,
+                          selectedRange: _selectedRange,
+                          onSearchChanged: (v) {
+                            _searchQuery = v;
+                            _applyFilters();
+                          },
+                          onRangeChanged: (v) {
+                            setState(() => _selectedRange = v);
+                            _applyFilters();
+                          },
+                          onReset: _resetFilters,
+                        ),
+                        const SizedBox(height: 24),
+                      ]),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
                             childAspectRatio: 0.70,
                           ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final deck = _filteredDecks[index];
-                              return _buildDeckCard(deck);
-                            },
-                            childCount: _filteredDecks.length,
-                          ),
-                        ),
-                      ),
-                      const SliverToBoxAdapter(
-                        child: SizedBox(height: 80),
-                      ),
-                    ],
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final deck = _filteredDecks[index];
+                        return _buildDeckCard(deck);
+                      }, childCount: _filteredDecks.length),
+                    ),
                   ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                ],
+              ),
       ),
       floatingActionButton: context.watch<AuthRepository>().isAdmin
           ? FloatingActionButton(

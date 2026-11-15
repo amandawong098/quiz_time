@@ -162,10 +162,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
           ),
           Builder(
             builder: (context) {
-              final isAdmin = context.watch<AuthRepository>().isAdmin;
-              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-              final isVisible = _deck != null &&
-                  (_deck!.isPublic == true || isAdmin || _deck!.creatorId == currentUserId);
+              final isVisible = _deck != null && _deck!.isPublic == true;
               if (!isVisible) return const SizedBox.shrink();
 
               return TextButton.icon(
@@ -527,10 +524,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
                           ),
                           Builder(
                             builder: (context) {
-                              final isAdmin = context.watch<AuthRepository>().isAdmin;
-                              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-                              final isVisible = _deck != null &&
-                                  (_deck!.isPublic == true || isAdmin || _deck!.creatorId == currentUserId);
+                              final isVisible = _deck != null && _deck!.isPublic == true;
                               if (!isVisible) return const SizedBox.shrink();
 
                               return InkWell(

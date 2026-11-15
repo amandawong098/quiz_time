@@ -35,6 +35,7 @@ import '../../features/learn/screens/manage_cards_screen.dart';
 import 'dart:async';
 import '../../features/learn/screens/play_flashcards_screen.dart';
 import '../../features/learn/screens/flashcard_details_screen.dart';
+import '../../features/gamification/screens/space_cabin_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -127,6 +128,17 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/space-cabin',
+      builder: (context, state) {
+        final userId = state.uri.queryParameters['userId'];
+        final userName = state.uri.queryParameters['userName'];
+        return SpaceCabinScreen(
+          visitedUserId: userId,
+          visitedUserName: userName,
+        );
+      },
     ),
     GoRoute(
       path: '/quiz/:id',

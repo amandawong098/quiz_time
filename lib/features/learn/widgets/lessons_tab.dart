@@ -1311,9 +1311,7 @@ class LessonsTabState extends State<LessonsTab> {
                         ),
                         Builder(
                           builder: (context) {
-                            final isAdmin = context.watch<AuthRepository>().isAdmin;
-                            final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-                            final isVisible = course.isPublic || isAdmin || course.creatorId == currentUserId;
+                            final isVisible = course.isPublic;
                             if (!isVisible) {
                               return const SizedBox.shrink();
                             }
@@ -1855,9 +1853,7 @@ class LessonsTabState extends State<LessonsTab> {
               const SizedBox(height: 24),
               Builder(
                 builder: (context) {
-                  final isAdmin = context.watch<AuthRepository>().isAdmin;
-                  final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-                  final isVisible = activeCourse.isPublic || isAdmin || activeCourse.creatorId == currentUserId;
+                  final isVisible = activeCourse.isPublic;
                   if (!isVisible) {
                     return const SizedBox.shrink();
                   }

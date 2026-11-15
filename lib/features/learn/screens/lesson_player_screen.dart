@@ -11,6 +11,7 @@ import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/models/discussion_models.dart';
 import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
+import '../../gamification/gamification_service.dart';
 import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/video_preview_widget.dart';
 
@@ -240,14 +241,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         if (targetCourseId != null) {
           final courseRes = await client
               .from('lesson_courses')
-              .select('is_public, creator_id')
+              .select('is_public')
               .eq('id', targetCourseId)
               .maybeSingle();
           final isPublic = courseRes?['is_public'] as bool? ?? false;
-          final creatorId = courseRes?['creator_id'] as String?;
-          final authRepo = context.read<AuthRepository>();
-          final currentUserId = client.auth.currentUser?.id;
-          canView = isPublic || authRepo.isAdmin || creatorId == currentUserId;
+          canView = isPublic;
         }
       } catch (e) {
         debugPrint('Error checking discussion permission in player: $e');
@@ -526,6 +524,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                                 setDialogState(() => isSaving = true);
                                 try {
                                   await completionFuture;
+                                  await GamificationService.instance
+                                      .recordStudyCompletion();
                                 } catch (_) {}
                                 if (context.mounted) {
                                   Navigator.pop(context); // Dismiss dialog

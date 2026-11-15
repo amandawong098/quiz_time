@@ -9,6 +9,7 @@ import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
 import '../../../data/repositories/friendship_repository.dart';
+import '../../gamification/gamification_service.dart';
 import '../widgets/kahoot_multiplayer_views.dart';
 
 enum KahootRoundPhase {
@@ -94,6 +95,9 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     super.initState();
     _useTimer = widget.useTimer;
     TakeQuizScreen.isActive = true;
+    if (!widget.isPreview) {
+      SoundService.instance.startQuizMusic();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FriendshipRepository>().setUserPlaying(true);
     });
@@ -959,6 +963,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     if (_isFinishingQuiz) return;
     _isFinishingQuiz = true;
 
+    SoundService.instance.stopQuizMusic();
     _timer?.cancel();
     _revealTimer?.cancel();
     _scoreboardTimer?.cancel();
@@ -1066,8 +1071,13 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     try {
       final attemptId = await repo.saveQuizAttempt(attempt);
 
-      // Award XP points: 2 XP per correct answer
-      final int xpAwarded = _correctCount * 2;
+      // Award XP points: 2 XP per correct answer (1.5x if Byte is Supercharged!)
+      final int baseXp = _correctCount * 2;
+      final int xpAwarded =
+          (baseXp * GamificationService.instance.xpMultiplier).round();
+      if (!widget.isPreview) {
+        unawaited(GamificationService.instance.recordStudyCompletion());
+      }
       if (!widget.isPreview && xpAwarded > 0) {
         try {
           final client = Supabase.instance.client;
@@ -1112,6 +1122,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
               'xp': newXp,
               'weekly_xp': newWeeklyXp,
             }).eq('id', user.id);
+            GamificationService.instance.syncLifetimeXp(newXp);
           }
         } catch (e) {
           debugPrint('Error updating XP: $e');
@@ -1137,6 +1148,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   @override
   void dispose() {
     TakeQuizScreen.isActive = false;
+    SoundService.instance.clearQuizSessionOverride();
     _timer?.cancel();
     _revealTimer?.cancel();
     _scoreboardTimer?.cancel();
@@ -1217,6 +1229,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
               _playerStates.values.where((p) => p.isAnswered).length,
           onContinue: _isHost ? _hostSkipToScoreboard : null,
           onSendEmoji: _sendEmoji,
+          onOpenSettings: _showGameplaySettingsSheet,
         );
       } else if (_multiplayerPhase == KahootRoundPhase.scoreboard) {
         currentPhaseWidget = KahootScoreboardView(
@@ -1230,6 +1243,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
           onNextQuestion: _nextQuestion,
           currentUserId: _currentUserId ?? '',
           onSendEmoji: _sendEmoji,
+          onOpenSettings: _showGameplaySettingsSheet,
         );
       } else {
         currentPhaseWidget = _buildQuestionScreen(
@@ -1253,6 +1267,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
           continueLabel: _currentIndex < _questions.length - 1 ? 'Next' : 'Finish',
           onSendEmoji: _sendEmoji,
           isSolo: true,
+          onOpenSettings: _showGameplaySettingsSheet,
         );
       } else {
         currentPhaseWidget = _buildQuestionScreen(
@@ -1701,6 +1716,155 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     );
   }
 
+  void _showGameplaySettingsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return ListenableBuilder(
+          listenable: SoundService.instance,
+          builder: (context, _) {
+            final musicOn = SoundService.instance.quizMusicEnabled;
+            final soundOn = SoundService.instance.effectiveSoundEnabled;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.settings_rounded,
+                              color: Colors.deepPurple,
+                              size: 22,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Gameplay Settings',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepPurple,
+                              ),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Done'),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Changes here apply to this quiz session only.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            secondary: Icon(
+                              musicOn
+                                  ? Icons.music_note_rounded
+                                  : Icons.music_off_rounded,
+                              color: Colors.deepPurple,
+                            ),
+                            title: const Text(
+                              'Music',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                            subtitle: Text(
+                              musicOn
+                                  ? 'In-game cosmic arcade music on'
+                                  : 'Music muted for this quiz',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            activeThumbColor: Colors.deepPurple,
+                            value: musicOn,
+                            onChanged: (val) {
+                              SoundService.instance.setQuizSessionOverride(
+                                musicEnabled: val,
+                              );
+                            },
+                          ),
+                          Divider(height: 1, color: Colors.grey.shade200),
+                          SwitchListTile(
+                            secondary: Icon(
+                              soundOn
+                                  ? Icons.volume_up_rounded
+                                  : Icons.volume_off_rounded,
+                              color: Colors.deepPurple,
+                            ),
+                            title: const Text(
+                              'Sound Effects',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                            subtitle: Text(
+                              soundOn ? 'Quiz arcade sounds on' : 'Muted for this quiz',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            activeThumbColor: Colors.deepPurple,
+                            value: soundOn,
+                            onChanged: (val) {
+                              SoundService.instance.setQuizSessionOverride(
+                                soundEnabled: val,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildQuestionScreen(BuildContext context, {Key? key}) {
     final question = _questions[_currentIndex];
     double progress = question.durationSeconds > 0
@@ -1735,6 +1899,14 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
               ),
               onPressed: _endRoundEarly,
             ),
+          IconButton(
+            tooltip: 'Gameplay Settings',
+            icon: const Icon(
+              Icons.settings_rounded,
+              color: Colors.white,
+            ),
+            onPressed: _showGameplaySettingsSheet,
+          ),
         ],
       ),
       body: Padding(

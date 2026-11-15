@@ -319,6 +319,7 @@ class KahootRevealView extends StatelessWidget {
   final String continueLabel;
   final Function(String emoji) onSendEmoji;
   final bool isSolo;
+  final VoidCallback? onOpenSettings;
 
   const KahootRevealView({
     super.key,
@@ -334,6 +335,7 @@ class KahootRevealView extends StatelessWidget {
     this.continueLabel = 'Scoreboard',
     required this.onSendEmoji,
     this.isSolo = false,
+    this.onOpenSettings,
   });
 
   @override
@@ -362,22 +364,24 @@ class KahootRevealView extends StatelessWidget {
         child: Column(
           children: [
             // Top Hero Banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-              decoration: BoxDecoration(
-                color: bannerBg,
-                boxShadow: [
-                  BoxShadow(
-                    color: bannerBg.withValues(alpha: 0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+            Stack(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: bannerBg,
+                    boxShadow: [
+                      BoxShadow(
+                        color: bannerBg.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Icon(bannerIcon, color: Colors.white, size: 56),
+                  child: Column(
+                    children: [
+                      Icon(bannerIcon, color: Colors.white, size: 56),
                   const SizedBox(height: 8),
                   Text(
                     bannerTitle,
@@ -430,6 +434,21 @@ class KahootRevealView extends StatelessWidget {
                 ],
               ),
             ),
+            if (onOpenSettings != null)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  tooltip: 'Gameplay Settings',
+                  icon: const Icon(
+                    Icons.settings_rounded,
+                    color: Colors.white,
+                  ),
+                  onPressed: onOpenSettings,
+                ),
+              ),
+          ],
+        ),
 
             // Middle: Answer Distribution Chart
             Expanded(
@@ -655,6 +674,7 @@ class KahootScoreboardView extends StatefulWidget {
   final VoidCallback onNextQuestion;
   final String currentUserId;
   final Function(String emoji) onSendEmoji;
+  final VoidCallback? onOpenSettings;
 
   const KahootScoreboardView({
     super.key,
@@ -667,6 +687,7 @@ class KahootScoreboardView extends StatefulWidget {
     required this.onNextQuestion,
     required this.currentUserId,
     required this.onSendEmoji,
+    this.onOpenSettings,
   });
 
   @override
@@ -725,36 +746,53 @@ class _KahootScoreboardViewState extends State<KahootScoreboardView>
             children: [
               // Top Bar
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Column(
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Column(
                       children: [
-                        Icon(Icons.auto_awesome_rounded, color: CosmicColors.starlightGold, size: 22),
-                        SizedBox(width: 8),
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.auto_awesome_rounded, color: CosmicColors.starlightGold, size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              'LEADERBOARD',
+                              style: TextStyle(
+                                color: Colors.amber,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.auto_awesome_rounded, color: CosmicColors.starlightGold, size: 22),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
                         Text(
-                          'LEADERBOARD',
+                          'Question ${widget.currentQuestionIndex + 1} of ${widget.totalQuestions}',
                           style: TextStyle(
-                            color: Colors.amber,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(width: 8),
-                        Icon(Icons.auto_awesome_rounded, color: CosmicColors.starlightGold, size: 22),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Question ${widget.currentQuestionIndex + 1} of ${widget.totalQuestions}',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                    if (widget.onOpenSettings != null)
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: IconButton(
+                          tooltip: 'Gameplay Settings',
+                          icon: const Icon(
+                            Icons.settings_rounded,
+                            color: Colors.white,
+                          ),
+                          onPressed: widget.onOpenSettings,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

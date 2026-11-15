@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
@@ -25,12 +26,16 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
   List<Question> _questions = [];
   bool _shuffleQuestions = false;
   bool _useTimer = true;
+  bool _quizMusic = true;
+  late bool _quizSoundEffects;
   int _totalDiscussionsCount = 0;
   Map<String, int> _questionDiscussionCounts = {};
 
   @override
   void initState() {
     super.initState();
+    _quizMusic = SoundService.instance.quizMusicEnabled;
+    _quizSoundEffects = SoundService.instance.isEnabled;
     _loadData();
   }
 
@@ -119,10 +124,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
         actions: [
           Builder(
             builder: (context) {
-              final isAdmin = context.watch<AuthRepository>().isAdmin;
-              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-              final isVisible = _quiz != null &&
-                  (_quiz!.isPublic == true || isAdmin || _quiz!.creatorId == currentUserId);
+              final isVisible = _quiz != null && _quiz!.isPublic == true;
               if (!isVisible) return const SizedBox.shrink();
 
               return TextButton.icon(
@@ -270,40 +272,116 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                 else
                   Column(
                     children: [
-                      SizedBox(
-                        width: 220,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Turn on Timer', style: TextStyle(fontWeight: FontWeight.bold)),
-                            Switch(
-                              value: _useTimer,
-                              activeThumbColor: Colors.deepPurple,
-                              activeTrackColor: Colors.deepPurple.shade100,
-                              onChanged: (val) {
-                                setState(() {
-                                  _useTimer = val;
-                                });
-                              },
-                            ),
-                          ],
+                      Container(
+                        width: 280,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
                         ),
-                      ),
-                      SizedBox(
-                        width: 220,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.shade50.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.deepPurple.shade100,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Shuffle Questions', style: TextStyle(fontWeight: FontWeight.bold)),
-                            Switch(
-                              value: _shuffleQuestions,
-                              activeThumbColor: Colors.deepPurple,
-                              activeTrackColor: Colors.deepPurple.shade100,
-                              onChanged: (val) {
-                                setState(() {
-                                  _shuffleQuestions = val;
-                                });
-                              },
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.tune_rounded,
+                                  size: 16,
+                                  color: Colors.deepPurple,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Gameplay Settings',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.deepPurple.shade800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Turn on Timer',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                Switch(
+                                  value: _useTimer,
+                                  activeThumbColor: Colors.deepPurple,
+                                  activeTrackColor: Colors.deepPurple.shade100,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _useTimer = val;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Shuffle Questions',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                Switch(
+                                  value: _shuffleQuestions,
+                                  activeThumbColor: Colors.deepPurple,
+                                  activeTrackColor: Colors.deepPurple.shade100,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _shuffleQuestions = val;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Music',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                Switch(
+                                  value: _quizMusic,
+                                  activeThumbColor: Colors.deepPurple,
+                                  activeTrackColor: Colors.deepPurple.shade100,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _quizMusic = val;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Sound Effects',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                Switch(
+                                  value: _quizSoundEffects,
+                                  activeThumbColor: Colors.deepPurple,
+                                  activeTrackColor: Colors.deepPurple.shade100,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _quizSoundEffects = val;
+                                    });
+                                  },
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -312,8 +390,16 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                       SizedBox(
                         width: 280,
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.person),
-                          label: const Text('Play Solo Mode'),
+                          icon: Icon(
+                            _quiz!.isPublic == false
+                                ? Icons.play_arrow_rounded
+                                : Icons.person,
+                          ),
+                          label: Text(
+                            _quiz!.isPublic == false
+                                ? 'Start Quiz'
+                                : 'Play Solo Mode',
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.deepPurple,
                             foregroundColor: Colors.white,
@@ -321,32 +407,17 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () {
+                            SoundService.instance.setQuizSessionOverride(
+                              musicEnabled: _quizMusic,
+                              soundEnabled: _quizSoundEffects,
+                              playFeedback: false,
+                            );
                             context.push('/quiz/${widget.quizId}/take?shuffle=$_shuffleQuestions&useTimer=$_useTimer');
                           },
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      if (_quiz!.isPublic == false) ...[
-                        SizedBox(
-                          width: 280,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.people_outline),
-                            label: const Text('Multiplayer Mode (Disabled)'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.grey.shade300,
-                              foregroundColor: Colors.grey.shade600,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            onPressed: null, // Disabled
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Multiplayer mode is turned off for private quizzes.',
-                          style: TextStyle(color: Colors.red.shade400, fontSize: 12, fontStyle: FontStyle.italic),
-                        ),
-                      ] else ...[
+                      if (_quiz!.isPublic == true) ...[
+                        const SizedBox(height: 16),
                         SizedBox(
                           width: 280,
                           child: ElevatedButton.icon(
@@ -359,6 +430,11 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () {
+                              SoundService.instance.setQuizSessionOverride(
+                                musicEnabled: _quizMusic,
+                                soundEnabled: _quizSoundEffects,
+                                playFeedback: false,
+                              );
                               showDialog(
                                 context: context,
                                 barrierDismissible: false,
@@ -469,10 +545,7 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                           ),
                           Builder(
                             builder: (context) {
-                              final isAdmin = context.watch<AuthRepository>().isAdmin;
-                              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-                              final isVisible = _quiz != null &&
-                                  (_quiz!.isPublic == true || isAdmin || _quiz!.creatorId == currentUserId);
+                              final isVisible = _quiz != null && _quiz!.isPublic == true;
                               if (!isVisible) return const SizedBox.shrink();
 
                               return Row(

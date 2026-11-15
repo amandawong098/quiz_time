@@ -16,6 +16,7 @@ import 'data/repositories/friendship_repository.dart';
 import 'data/repositories/lesson_repository.dart';
 import 'data/repositories/flashcard_repository.dart';
 import 'data/repositories/leaderboard_repository.dart';
+import 'features/gamification/gamification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,9 @@ Future<void> main() async {
         Provider<LeaderboardRepository>(create: (_) => LeaderboardRepository()),
         ChangeNotifierProvider<SoundService>.value(
           value: SoundService.instance,
+        ),
+        ChangeNotifierProvider<GamificationService>.value(
+          value: GamificationService.instance,
         ),
       ],
       child: const LearnByteApp(),

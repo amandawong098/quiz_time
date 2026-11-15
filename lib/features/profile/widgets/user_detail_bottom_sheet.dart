@@ -8,6 +8,8 @@ import '../../learn/models/lesson_models.dart';
 import '../../learn/models/flashcard_models.dart';
 import '../../../data/models/friendship_models.dart';
 import '../../../data/repositories/friendship_repository.dart';
+import '../../gamification/gamification_service.dart';
+import '../../gamification/widgets/space_cabin_widget.dart';
 
 class UserDetailBottomSheet extends StatefulWidget {
   final String userId;
@@ -60,6 +62,7 @@ class UserDetailBottomSheet extends StatefulWidget {
 class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
   bool _isLoading = true;
   UserProfile? _profile;
+  UserCosmicState _cosmicState = const UserCosmicState();
   List<LessonCourse> _courses = [];
   List<Quiz> _quizzes = [];
   List<FlashcardDeck> _decks = [];
@@ -84,6 +87,8 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
           .eq('id', widget.userId)
           .single();
       final profile = UserProfile.fromJson(profileRes);
+      final cosmicState =
+          await GamificationService.instance.fetchUserCosmicState(widget.userId);
 
       List<LessonCourse> courses = [];
       List<Quiz> quizzes = [];
@@ -156,6 +161,7 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
       if (mounted) {
         setState(() {
           _profile = profile;
+          _cosmicState = cosmicState;
           _courses = courses;
           _quizzes = quizzes;
           _decks = decks;
@@ -569,14 +575,11 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
             ),
           ),
           const SizedBox(height: 8),
-          // User Avatar
-          CircleAvatar(
+          // User Avatar with Cosmic Frame
+          CosmicAvatarFrame(
+            avatarUrl: avatarUrl,
+            frameId: isAdmin ? 'frame_default' : _cosmicState.equippedFrame,
             radius: 36,
-            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
-            backgroundColor: Colors.deepPurple.shade100,
-            child: (avatarUrl == null || avatarUrl.isEmpty)
-                ? const Icon(Icons.person, size: 36, color: Colors.deepPurple)
-                : null,
           ),
           const SizedBox(height: 12),
           // User Name
@@ -585,6 +588,13 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             textAlign: TextAlign.center,
           ),
+          if (!isAdmin && _cosmicState.equippedTitle != 'title_none') ...[
+            const SizedBox(height: 6),
+            CosmicTitleBadgeWidget(
+              titleId: _cosmicState.equippedTitle,
+              compact: true,
+            ),
+          ],
           const SizedBox(height: 8),
 
           if (_isLoading) ...[
@@ -777,6 +787,31 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF5E35B1),
+                  side: const BorderSide(color: Color(0xFF7C4DFF), width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Text('🛸', style: TextStyle(fontSize: 18)),
+                label: Text(
+                  'Visit $name\'s Space Cabin (👋 ${_cosmicState.roomLikes})',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.push(
+                    '/space-cabin?userId=${Uri.encodeComponent(widget.userId)}&userName=${Uri.encodeComponent(name)}',
+                  );
+                },
+              ),
             ),
             // 3. Learner: NO CONTRIBUTIONS PART!
             // 4. Send Friend Request / Friendship Section

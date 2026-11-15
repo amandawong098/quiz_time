@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Central Sound Effect Service for LearnByte.
@@ -17,10 +17,32 @@ class SoundService extends ChangeNotifier {
 
   static const String _prefKey = 'learnbyte_sfx_enabled';
 
+  static final AudioContext _gameAudioContext = AudioContext(
+    android: const AudioContextAndroid(
+      isSpeakerphoneOn: false,
+      stayAwake: false,
+      contentType: AndroidContentType.sonification,
+      usageType: AndroidUsageType.game,
+      audioFocus: AndroidAudioFocus.none,
+    ),
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.ambient,
+    ),
+  );
+
   bool _isEnabled = true;
   bool get isEnabled => _isEnabled;
 
+  // Temporary per-quiz session overrides (do not overwrite system/Profile settings)
+  bool _quizMusicEnabled = true;
+  bool _isInQuizGameplay = false;
+  bool? _quizSessionSoundOverride;
+
+  bool get quizMusicEnabled => _quizMusicEnabled;
+  bool get effectiveSoundEnabled => _quizSessionSoundOverride ?? _isEnabled;
+
   bool _initialized = false;
+  bool _audioContextConfigured = false;
   DateTime _lastSpecializedSfxTime = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastButtonClickTime = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -29,48 +51,104 @@ class SoundService extends ChangeNotifier {
   int _poolIndex = 0;
   static const int _poolSize = 4;
 
-  // Pre-synthesized 16-bit PCM WAV buffers in memory
-  late final Uint8List _softButtonClickWav;
-  late final Uint8List _softTabSwitchWav;
-  late final Uint8List _arcadeOptionSelectWav;
-  late final Uint8List _arcadeCorrectWav;
-  late final Uint8List _arcadeWrongWav;
-  late final Uint8List _arcadeEmojiPopWav;
-  late final Uint8List _arcadeQuizCompleteWav;
-  late final Uint8List _arcadeTimerTickWav;
-  late final Uint8List _mascotChirpWav;
+  // Dedicated AudioPlayer for looping in-game quiz background music
+  AudioPlayer? _bgmPlayer;
+  StreamSubscription<void>? _bgmCompleteSub;
+  String? _bgmTempFilePath;
+
+  // Lazy-synthesized 16-bit PCM WAV buffers in memory (hot-reload safe)
+  Uint8List? _softButtonClickWavCache;
+  Uint8List? _softTabSwitchWavCache;
+  Uint8List? _arcadeOptionSelectWavCache;
+  Uint8List? _arcadeCorrectWavCache;
+  Uint8List? _arcadeWrongWavCache;
+  Uint8List? _arcadeEmojiPopWavCache;
+  Uint8List? _arcadeQuizCompleteWavCache;
+  Uint8List? _arcadeTimerTickWavCache;
+  Uint8List? _mascotChirpWavCache;
+  Uint8List? _arcadeQuizBgmWavCache;
+
+  Uint8List get _softButtonClickWav =>
+      _softButtonClickWavCache ??= _generateSoftButtonClick();
+  Uint8List get _softTabSwitchWav =>
+      _softTabSwitchWavCache ??= _generateSoftTabSwitch();
+  Uint8List get _arcadeOptionSelectWav =>
+      _arcadeOptionSelectWavCache ??= _generateArcadeOptionSelect();
+  Uint8List get _arcadeCorrectWav =>
+      _arcadeCorrectWavCache ??= _generateArcadeCorrect();
+  Uint8List get _arcadeWrongWav =>
+      _arcadeWrongWavCache ??= _generateArcadeWrong();
+  Uint8List get _arcadeEmojiPopWav =>
+      _arcadeEmojiPopWavCache ??= _generateArcadeEmojiPop();
+  Uint8List get _arcadeQuizCompleteWav =>
+      _arcadeQuizCompleteWavCache ??= _generateArcadeQuizComplete();
+  Uint8List get _arcadeTimerTickWav =>
+      _arcadeTimerTickWavCache ??= _generateArcadeTimerTick();
+  Uint8List get _mascotChirpWav =>
+      _mascotChirpWavCache ??= _generateMascotChirp();
+  Uint8List get _arcadeQuizBgmWav =>
+      _arcadeQuizBgmWavCache ??= _generateArcadeQuizBgmLoop();
 
   Future<void> init() async {
-    if (_initialized) return;
+    if (_initialized) {
+      await _ensureAudioSetup();
+      return;
+    }
     _initialized = true;
 
-    // Synthesize all sound buffers in memory
-    _softButtonClickWav = _generateSoftButtonClick();
-    _softTabSwitchWav = _generateSoftTabSwitch();
-    _arcadeOptionSelectWav = _generateArcadeOptionSelect();
-    _arcadeCorrectWav = _generateArcadeCorrect();
-    _arcadeWrongWav = _generateArcadeWrong();
-    _arcadeEmojiPopWav = _generateArcadeEmojiPop();
-    _arcadeQuizCompleteWav = _generateArcadeQuizComplete();
-    _arcadeTimerTickWav = _generateArcadeTimerTick();
-    _mascotChirpWav = _generateMascotChirp();
+    // Pre-warm all sound buffers in memory
+    _softButtonClickWav;
+    _softTabSwitchWav;
+    _arcadeOptionSelectWav;
+    _arcadeCorrectWav;
+    _arcadeWrongWav;
+    _arcadeEmojiPopWav;
+    _arcadeQuizCompleteWav;
+    _arcadeTimerTickWav;
+    _mascotChirpWav;
+    _arcadeQuizBgmWav;
 
     try {
       final prefs = await SharedPreferences.getInstance();
       _isEnabled = prefs.getBool(_prefKey) ?? true;
     } catch (_) {}
 
+    await _ensureAudioSetup();
+    notifyListeners();
+  }
+
+  Future<void> _ensureAudioSetup() async {
     try {
-      for (int i = 0; i < _poolSize; i++) {
-        final player = AudioPlayer();
-        await player.setReleaseMode(ReleaseMode.stop);
-        _playerPool.add(player);
+      if (!_audioContextConfigured) {
+        _audioContextConfigured = true;
+        await AudioPlayer.global.setAudioContext(_gameAudioContext);
+        for (final p in _playerPool) {
+          await p.setAudioContext(_gameAudioContext);
+        }
+      }
+      if (_playerPool.isEmpty) {
+        for (int i = 0; i < _poolSize; i++) {
+          final player = AudioPlayer();
+          await player.setAudioContext(_gameAudioContext);
+          await player.setReleaseMode(ReleaseMode.stop);
+          _playerPool.add(player);
+        }
+      }
+      if (_bgmPlayer == null) {
+        final bgm = AudioPlayer();
+        await bgm.setAudioContext(_gameAudioContext);
+        await bgm.setReleaseMode(ReleaseMode.loop);
+        _bgmCompleteSub?.cancel();
+        _bgmCompleteSub = bgm.onPlayerComplete.listen((_) {
+          if (_isInQuizGameplay && _quizMusicEnabled) {
+            _startBgmPlayback();
+          }
+        });
+        _bgmPlayer = bgm;
       }
     } catch (e) {
       debugPrint('SoundService AudioPlayer init error: $e');
     }
-
-    notifyListeners();
   }
 
   Future<void> toggleSound() async {
@@ -86,7 +164,117 @@ class SoundService extends ChangeNotifier {
       await prefs.setBool(_prefKey, _isEnabled);
     } catch (_) {}
     if (_isEnabled) {
-      playTabSwitch();
+      if (!_initialized) init();
+      _playBytes(_softTabSwitchWav, volume: 0.50);
+    }
+  }
+
+  /// Sets temporary music/sound overrides for the current quiz session only,
+  /// without modifying the user's global system settings in SharedPreferences.
+  void setQuizSessionOverride({
+    bool? musicEnabled,
+    bool? soundEnabled,
+    bool playFeedback = true,
+  }) {
+    bool changed = false;
+    if (musicEnabled != null && _quizMusicEnabled != musicEnabled) {
+      _quizMusicEnabled = musicEnabled;
+      changed = true;
+      if (_isInQuizGameplay) {
+        if (_quizMusicEnabled) {
+          _startBgmPlayback();
+        } else {
+          _pauseBgmPlayback();
+        }
+      }
+    }
+    if (soundEnabled != null && _quizSessionSoundOverride != soundEnabled) {
+      _quizSessionSoundOverride = soundEnabled;
+      changed = true;
+      if (soundEnabled && playFeedback) {
+        if (!_initialized) init();
+        _playBytes(_softTabSwitchWav, volume: 0.50);
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  /// Starts in-game background music for quiz gameplay if Music is enabled for the session.
+  Future<void> startQuizMusic() async {
+    _isInQuizGameplay = true;
+    await _ensureAudioSetup();
+    if (_quizMusicEnabled) {
+      await _startBgmPlayback();
+    }
+  }
+
+  /// Stops in-game background music when leaving quiz gameplay.
+  Future<void> stopQuizMusic() async {
+    _isInQuizGameplay = false;
+    try {
+      await _bgmPlayer?.stop();
+    } catch (_) {}
+  }
+
+  Future<String?> _ensureBgmFile() async {
+    if (kIsWeb) return null;
+    if (_bgmTempFilePath != null) {
+      try {
+        if (await File(_bgmTempFilePath!).exists()) {
+          return _bgmTempFilePath;
+        }
+      } catch (_) {}
+    }
+    try {
+      final tempFile =
+          File('${Directory.systemTemp.path}/learnbyte_quiz_bgm_v1.wav');
+      await tempFile.writeAsBytes(_arcadeQuizBgmWav, flush: true);
+      _bgmTempFilePath = tempFile.path;
+      return _bgmTempFilePath;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _startBgmPlayback() async {
+    try {
+      await _ensureAudioSetup();
+      if (_bgmPlayer == null || !_isInQuizGameplay || !_quizMusicEnabled) return;
+      await _bgmPlayer!.setReleaseMode(ReleaseMode.loop);
+      await _bgmPlayer!.setVolume(0.32);
+
+      final filePath = await _ensureBgmFile();
+      if (filePath != null) {
+        await _bgmPlayer!.play(DeviceFileSource(filePath));
+      } else {
+        await _bgmPlayer!.play(
+          BytesSource(_arcadeQuizBgmWav, mimeType: 'audio/wav'),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error starting quiz BGM: $e');
+    }
+  }
+
+  Future<void> _pauseBgmPlayback() async {
+    try {
+      await _bgmPlayer?.pause();
+    } catch (_) {}
+  }
+
+  /// Clears any temporary quiz session overrides and stops quiz music so global system settings resume.
+  /// Defers notifyListeners() to a post-frame callback so calling this inside Widget.dispose()
+  /// never triggers a "widget tree was locked" assertion error.
+  void clearQuizSessionOverride() {
+    unawaited(stopQuizMusic());
+    if (!_quizMusicEnabled || _quizSessionSoundOverride != null) {
+      _quizMusicEnabled = true;
+      _quizSessionSoundOverride = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
@@ -96,7 +284,8 @@ class SoundService extends ChangeNotifier {
 
   /// Soft, modern UI pop for general button taps.
   void playButtonClick() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     final now = DateTime.now();
     // Skip if a specialized sound or another click just played
     if (now.difference(_lastSpecializedSfxTime).inMilliseconds < 140) return;
@@ -104,16 +293,15 @@ class SoundService extends ChangeNotifier {
     _lastButtonClickTime = now;
 
     if (!_initialized) init();
-    HapticFeedback.selectionClick();
     _playBytes(_softButtonClickWav, volume: 0.42);
   }
 
   /// Smooth, airy cosmic micro-chime when switching bottom navigation tabs.
   void playTabSwitch() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     _lastSpecializedSfxTime = DateTime.now();
     if (!_initialized) init();
-    HapticFeedback.lightImpact();
     _playBytes(_softTabSwitchWav, volume: 0.50);
   }
 
@@ -123,72 +311,73 @@ class SoundService extends ChangeNotifier {
 
   /// Crisp arcade blip when selecting a quiz option.
   void playOptionSelect() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     _lastSpecializedSfxTime = DateTime.now();
     if (!_initialized) init();
-    HapticFeedback.selectionClick();
     _playBytes(_arcadeOptionSelectWav, volume: 0.65);
   }
 
   /// Upbeat arcade 3-note ascending chime for a correct answer.
   void playCorrectAnswer() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     _lastSpecializedSfxTime = DateTime.now();
     if (!_initialized) init();
-    HapticFeedback.mediumImpact();
     _playBytes(_arcadeCorrectWav, volume: 0.78);
   }
 
   /// Playful arcade descending two-tone buzz for a wrong answer or timeout.
   void playWrongAnswer() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     _lastSpecializedSfxTime = DateTime.now();
     if (!_initialized) init();
-    HapticFeedback.heavyImpact();
     _playBytes(_arcadeWrongWav, volume: 0.68);
   }
 
   /// Bubbly arcade pop when sending a live emoji reaction.
   void playEmojiReaction() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     _lastSpecializedSfxTime = DateTime.now();
     if (!_initialized) init();
-    HapticFeedback.lightImpact();
     _playBytes(_arcadeEmojiPopWav, volume: 0.60);
   }
 
   /// Celebratory arcade victory fanfare when finishing a quiz.
   void playQuizComplete() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     _lastSpecializedSfxTime = DateTime.now();
     if (!_initialized) init();
-    HapticFeedback.mediumImpact();
     _playBytes(_arcadeQuizCompleteWav, volume: 0.82);
   }
 
   /// Subtle arcade countdown tick for the final 5 seconds of a question.
   void playTimerTick() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     if (!_initialized) init();
     _playBytes(_arcadeTimerTickWav, volume: 0.45);
   }
 
   /// Cute melodic astro-bot chirp when tapping Byte the mascot.
   void playMascotChirp() {
-    if (!_isEnabled) return;
+    if (!effectiveSoundEnabled) return;
+
     _lastSpecializedSfxTime = DateTime.now();
     if (!_initialized) init();
-    HapticFeedback.lightImpact();
     _playBytes(_mascotChirpWav, volume: 0.65);
   }
 
   void _playBytes(Uint8List wavBytes, {double volume = 0.6}) {
-    if (_playerPool.isEmpty) return;
-    final player = _playerPool[_poolIndex];
-    _poolIndex = (_poolIndex + 1) % _playerPool.length;
-
     unawaited(() async {
       try {
+        await _ensureAudioSetup();
+        if (_playerPool.isEmpty) return;
+        final player = _playerPool[_poolIndex];
+        _poolIndex = (_poolIndex + 1) % _playerPool.length;
         await player.stop();
         await player.setVolume(volume);
         await player.play(BytesSource(wavBytes, mimeType: 'audio/wav'));
@@ -416,6 +605,137 @@ class SoundService extends ChangeNotifier {
       phase += (2 * pi * freq) / _sampleRate;
       samples[i] = (0.8 * sin(phase) + 0.2 * sin(phase * 2)) * env * 0.72;
     }
+    return _encodeWav(samples);
+  }
+
+  /// Upbeat Kahoot / Space-Arcade thinking music loop (4 bars at 120 BPM = 8.0s).
+  /// Combines a bouncy syncopated pluck melody, warm cosmic synth chords,
+  /// octave bass groove, and soft four-on-the-floor pulse beat.
+  static Uint8List _generateArcadeQuizBgmLoop() {
+    const double durationSec = 8.0; // 16 beats at 120 BPM (64 sixteenth-note steps)
+    final int numSamples = (_sampleRate * durationSec).round(); // 176,400 samples
+    final Float64List samples = Float64List(numSamples);
+
+    // 64-step (4-bar) Kahoot-style bouncy pluck melody in A minor / C major (0.0 = rest)
+    // Bar 1: Am7 | Bar 2: Fmaj7 | Bar 3: Cmaj7 | Bar 4: G6 -> E7 turnaround
+    const List<double> melodyFreqs = [
+      // Bar 1 (Am7: A4=440, C5=523.25, E5=659.25, G5=783.99, A5=880)
+      440.00, 0.0, 523.25, 659.25, 0.0, 523.25, 783.99, 0.0,
+      659.25, 523.25, 440.00, 0.0, 523.25, 0.0, 659.25, 0.0,
+      // Bar 2 (Fmaj7: F4=349.23, A4=440, C5=523.25, E5=659.25, G5=783.99)
+      349.23, 0.0, 440.00, 523.25, 0.0, 440.00, 659.25, 0.0,
+      523.25, 440.00, 349.23, 0.0, 440.00, 523.25, 659.25, 0.0,
+      // Bar 3 (Cmaj7: G4=392.00, C5=523.25, E5=659.25, G5=783.99, A5=880)
+      523.25, 0.0, 659.25, 783.99, 0.0, 659.25, 880.00, 0.0,
+      783.99, 659.25, 523.25, 0.0, 659.25, 0.0, 783.99, 0.0,
+      // Bar 4 (G6 -> E7 turnaround: G4=392, B4=493.88, D5=587.33, E5=659.25, G#4=415.30)
+      587.33, 0.0, 493.88, 392.00, 0.0, 493.88, 587.33, 0.0,
+      659.25, 0.0, 587.33, 493.88, 523.25, 0.0, 493.88, 0.0,
+    ];
+
+    // Bass root notes per bar (Am -> F -> C -> G/E)
+    const List<double> barBassRoots = [
+      110.00, // A2
+      87.31,  // F2
+      130.81, // C3
+      98.00,  // G2
+    ];
+
+    // Warm cosmic synth pad triads per bar
+    const List<List<double>> barPadChords = [
+      [220.00, 261.63, 329.63], // Am (A3, C4, E4)
+      [174.61, 220.00, 261.63], // F  (F3, A3, C4)
+      [261.63, 329.63, 392.00], // C  (C4, E4, G4)
+      [196.00, 246.94, 293.66], // G  (G3, B3, D4)
+    ];
+
+    const double stepSec = 0.125; // 16th note at 120 BPM
+    final double samplesPerStep = _sampleRate * stepSec;
+
+    double leadPhase = 0.0;
+    double bassPhase = 0.0;
+    int lastStep = -1;
+
+    for (int i = 0; i < numSamples; i++) {
+      final double timeSec = i / _sampleRate;
+      final int step = (i / samplesPerStep).floor().clamp(0, 63);
+      final double stepLocalT = (i - step * samplesPerStep) / samplesPerStep;
+      final int bar = (step ~/ 16).clamp(0, 3);
+      final int stepInBeat = step % 4;
+
+      if (step != lastStep) {
+        lastStep = step;
+      }
+
+      // 1. Lead Cosmic Pluck Melody
+      double leadSample = 0.0;
+      final double leadFreq = melodyFreqs[step];
+      if (leadFreq > 0.0) {
+        leadPhase += (2 * pi * leadFreq) / _sampleRate;
+        final double attack = (stepLocalT / 0.06).clamp(0.0, 1.0);
+        final double decay = exp(-stepLocalT * 4.2);
+        final double pluckWave = 0.70 * sin(leadPhase) +
+            0.22 * sin(leadPhase * 2.0) +
+            0.08 * sin(leadPhase * 3.0);
+        leadSample = pluckWave * attack * decay * 0.36;
+      }
+
+      // 2. Bouncy Octave Arcade Bassline (plays on 8th-note steps: 0, 2, 4, 6...)
+      double bassSample = 0.0;
+      double bassRoot = barBassRoots[bar];
+      if (bar == 3 && step >= 56) {
+        bassRoot = 82.41; // E2 turnaround on final 2 beats
+      }
+      // Octave jump on the "&" eighth note (stepInBeat == 2)
+      final double bassFreq = (stepInBeat >= 2) ? bassRoot * 2.0 : bassRoot;
+      final double eighthLocalT = ((step % 2) + stepLocalT) * 0.5;
+      bassPhase += (2 * pi * bassFreq) / _sampleRate;
+      final double bassAttack = (eighthLocalT / 0.04).clamp(0.0, 1.0);
+      final double bassDecay = exp(-eighthLocalT * 3.4);
+      final double bassWave =
+          0.75 * sin(bassPhase) + 0.25 * sin(bassPhase * 2.0);
+      bassSample = bassWave * bassAttack * bassDecay * 0.32;
+
+      // 3. Warm Cosmic Synth Pad Chords
+      final List<double> chord = barPadChords[bar];
+      final double padLfo = 0.85 + 0.15 * sin(2 * pi * 1.5 * timeSec);
+      final double padWave = (sin(2 * pi * chord[0] * timeSec) +
+              sin(2 * pi * chord[1] * timeSec) +
+              sin(2 * pi * chord[2] * timeSec)) /
+          3.0;
+      final double padSample = padWave * padLfo * 0.16;
+
+      // 4. Soft Arcade Four-on-the-Floor Kick + Off-beat Hi-Hat Pulse
+      double drumSample = 0.0;
+      if (stepInBeat == 0) {
+        // Soft kick on every quarter beat
+        final double kickEnv = exp(-stepLocalT * 9.5);
+        final double kickFreq = 58.0 + 95.0 * exp(-stepLocalT * 18.0);
+        drumSample += sin(2 * pi * kickFreq * (stepLocalT * stepSec)) *
+            kickEnv *
+            0.26;
+      } else if (stepInBeat == 2) {
+        // Subtle metallic hi-hat tick on the off-beat
+        final double hatEnv = exp(-stepLocalT * 22.0);
+        final double pseudoNoise =
+            sin(i * 1.73) * cos(i * 2.91) * sin(i * 4.17);
+        drumSample += pseudoNoise * hatEnv * 0.08;
+      }
+
+      // Mix all 4 layers together with soft headroom
+      double mixed = leadSample + bassSample + padSample + drumSample;
+
+      // Smooth 6ms micro fade-in/out at loop boundaries to prevent any click
+      const int fadeSamples = 132;
+      if (i < fadeSamples) {
+        mixed *= i / fadeSamples;
+      } else if (i > numSamples - fadeSamples) {
+        mixed *= (numSamples - i) / fadeSamples;
+      }
+
+      samples[i] = mixed.clamp(-0.95, 0.95);
+    }
+
     return _encodeWav(samples);
   }
 
