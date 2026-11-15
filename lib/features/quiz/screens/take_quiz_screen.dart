@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
@@ -472,6 +473,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
   }
 
   void _sendEmoji(String emoji) {
+    SoundService.instance.playEmojiReaction();
     _triggerLocalEmoji(emoji);
     if (widget.challengeId != null && _challengeChannel != null) {
       _challengeChannel!.sendBroadcastMessage(
@@ -572,6 +574,9 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
           setState(() {
             _remainingSeconds--;
           });
+          if (_remainingSeconds > 0 && _remainingSeconds <= 5) {
+            SoundService.instance.playTimerTick();
+          }
         } else {
           timer.cancel();
           if (widget.challengeId != null) {
@@ -625,10 +630,37 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     }
     _lastAnswerCorrect = isCorrect;
 
-    // Solo Mode Flow
+    int points = 0;
+    if (isCorrect) {
+      if (_useTimer && currentQ.durationSeconds > 0) {
+        final totalMs = (currentQ.durationSeconds * 1000).toDouble();
+        final ratio = (timeTakenMs / totalMs).clamp(0.0, 1.0);
+        // Kahoot formula: 500 to 1000 points based on speed
+        points = (1000 * (1.0 - ratio * 0.5)).round();
+      } else {
+        points = 1000;
+      }
+      _myStreak++;
+    } else {
+      _myStreak = 0;
+    }
+
+    _myRoundPoints = points;
+    _myTotalScore += points;
+
+    // Solo Mode Flow (uses the same KahootRevealView design as Multiplayer)
     if (widget.challengeId == null) {
+      if (isCorrect) {
+        SoundService.instance.playCorrectAnswer();
+      } else {
+        SoundService.instance.playWrongAnswer();
+      }
       setState(() {
         _isAnswerChecked = true;
+        _multiplayerPhase = KahootRoundPhase.reveal;
+        for (var oId in _selectedOptionIds) {
+          _optionVoteCounts[oId] = (_optionVoteCounts[oId] ?? 0) + 1;
+        }
         _userAnswers.add({
           'question_id': currentQ.id,
           'question_text': currentQ.questionText,
@@ -649,32 +681,15 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
         });
       });
 
-      // Auto next after 2 seconds for solo
-      Future.delayed(const Duration(seconds: 2), () {
+      // Auto next after 2.8 seconds for solo (or user can tap Next immediately)
+      _revealTimer?.cancel();
+      _revealTimer = Timer(const Duration(milliseconds: 2800), () {
         if (mounted) _nextQuestion();
       });
       return;
     }
 
     // Multiplayer Flow (Kahoot style)
-    int points = 0;
-    if (isCorrect) {
-      if (_useTimer) {
-        final totalMs =
-            (currentQ.durationSeconds * 1000).toDouble();
-        final ratio = (timeTakenMs / totalMs).clamp(0.0, 1.0);
-        // Kahoot formula: 500 to 1000 points based on speed
-        points = (1000 * (1.0 - ratio * 0.5)).round();
-      } else {
-        points = 1000;
-      }
-      _myStreak++;
-    } else {
-      _myStreak = 0;
-    }
-
-    _myRoundPoints = points;
-    _myTotalScore += points;
     _hasLockedAnswer = true;
 
     setState(() {
@@ -733,6 +748,8 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
     // Persist live score & accuracy in DB so Review screen standings update in real time
     _updateLivePlayerProgressInDb();
+
+    SoundService.instance.playOptionSelect();
 
     // Check if everyone has submitted
     _checkAllPlayersAnswered();
@@ -819,6 +836,11 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     }
 
     if (mounted) {
+      if (_lastAnswerCorrect == true) {
+        SoundService.instance.playCorrectAnswer();
+      } else {
+        SoundService.instance.playWrongAnswer();
+      }
       setState(() {
         _multiplayerPhase = KahootRoundPhase.reveal;
       });
@@ -947,6 +969,10 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
     if (widget.isPreview) {
       if (mounted) context.pop();
       return;
+    }
+
+    if (!isQuit) {
+      SoundService.instance.playQuizComplete();
     }
 
     final repo = context.read<QuizRepository>();
@@ -1212,10 +1238,28 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
         );
       }
     } else {
-      currentPhaseWidget = _buildQuestionScreen(
-        context,
-        key: ValueKey('question_$_currentIndex'),
-      );
+      if (_multiplayerPhase == KahootRoundPhase.reveal) {
+        currentPhaseWidget = KahootRevealView(
+          key: ValueKey('solo_reveal_$_currentIndex'),
+          isCorrect: _lastAnswerCorrect == true,
+          isTimedOut: _selectedOptionIds.isEmpty,
+          pointsEarned: _myRoundPoints,
+          streak: _myStreak,
+          question: question,
+          userSelectedOptionIds: _selectedOptionIds.toList(),
+          optionVoteCounts: _optionVoteCounts,
+          totalAnswered: _selectedOptionIds.isEmpty ? 0 : 1,
+          onContinue: _nextQuestion,
+          continueLabel: _currentIndex < _questions.length - 1 ? 'Next' : 'Finish',
+          onSendEmoji: _sendEmoji,
+          isSolo: true,
+        );
+      } else {
+        currentPhaseWidget = _buildQuestionScreen(
+          context,
+          key: ValueKey('question_$_currentIndex'),
+        );
+      }
     }
 
     return PopScope(
@@ -1804,6 +1848,7 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                         onChanged: disableSelection
                             ? null
                             : (val) {
+                                SoundService.instance.playOptionSelect();
                                 setState(() {
                                   if (val == true) {
                                     _selectedOptionIds.add(option.id);

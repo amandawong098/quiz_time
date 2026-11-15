@@ -47,6 +47,7 @@ dependencies:
   google_generative_ai: ^0.4.6
   http: ^1.2.1
   archive: ^3.6.1
+  audioplayers: ^6.7.1
 
 dev_dependencies:
   flutter_test:

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
@@ -183,6 +184,7 @@ class _QuizReviewScreenState extends State<QuizReviewScreen> {
   }
 
   void _sendEmoji(String emoji) {
+    SoundService.instance.playEmojiReaction();
     _triggerLocalEmoji(emoji);
     _liveBroadcastChannel?.sendBroadcastMessage(
       event: 'player_reaction',

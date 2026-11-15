@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/friendship_repository.dart';
@@ -295,11 +296,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final profile = context.watch<FriendshipRepository>().currentUserProfile;
     final leagueStyle = _getLeagueStyle(profile?.league ?? 'Stargazer');
 
+    final soundService = context.watch<SoundService>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
         flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 55),
-        actions: const [NotificationIconBadge()],
+        actions: [
+          IconButton(
+            tooltip: soundService.isEnabled
+                ? 'Mute Sound Effects'
+                : 'Enable Sound Effects',
+            icon: Icon(
+              soundService.isEnabled
+                  ? Icons.volume_up_rounded
+                  : Icons.volume_off_rounded,
+            ),
+            onPressed: () => soundService.toggleSound(),
+          ),
+          const NotificationIconBadge(),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -631,6 +647,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: SwitchListTile(
+                      secondary: Icon(
+                        soundService.isEnabled
+                            ? Icons.volume_up_rounded
+                            : Icons.volume_off_rounded,
+                        color: Colors.deepPurple,
+                      ),
+                      title: const Text(
+                        'Sound Effects',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      subtitle: Text(
+                        soundService.isEnabled
+                            ? 'UI clicks, tab chimes & quiz arcade sounds on'
+                            : 'Muted',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      activeThumbColor: Colors.deepPurple,
+                      value: soundService.isEnabled,
+                      onChanged: (val) => soundService.setEnabled(val),
                     ),
                   ),
                   const SizedBox(height: 16),

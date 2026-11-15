@@ -316,7 +316,9 @@ class KahootRevealView extends StatelessWidget {
   final Map<String, int> optionVoteCounts;
   final int totalAnswered;
   final VoidCallback? onContinue;
+  final String continueLabel;
   final Function(String emoji) onSendEmoji;
+  final bool isSolo;
 
   const KahootRevealView({
     super.key,
@@ -329,7 +331,9 @@ class KahootRevealView extends StatelessWidget {
     required this.optionVoteCounts,
     required this.totalAnswered,
     this.onContinue,
+    this.continueLabel = 'Scoreboard',
     required this.onSendEmoji,
+    this.isSolo = false,
   });
 
   @override
@@ -535,6 +539,40 @@ class KahootRevealView extends StatelessWidget {
                         },
                       ),
                     ),
+                    if (question.explanation != null &&
+                        question.explanation!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.shade200),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.lightbulb_outline_rounded,
+                              size: 18,
+                              color: Colors.amber.shade900,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                question.explanation!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.amber.shade900,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -546,38 +584,50 @@ class KahootRevealView extends StatelessWidget {
               color: Colors.white,
               child: Row(
                 children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: ['🔥', '👏', '😱', '😂', '🎯', '💀', '🎉', '🤯'].map((emoji) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: InkWell(
-                              onTap: () => onSendEmoji(emoji),
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(12),
+                  if (!isSolo)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: ['🔥', '👏', '😱', '😂', '🎯', '💀', '🎉', '🤯'].map((emoji) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: InkWell(
+                                onTap: () => onSendEmoji(emoji),
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
                                 ),
-                                child: Text(emoji, style: const TextStyle(fontSize: 22)),
                               ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: Text(
+                        'Moving to next question...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                  ),
                   if (onContinue != null) ...[
                     const SizedBox(width: 8),
                     TextButton.icon(
                       onPressed: onContinue,
                       icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                      label: const Text('Scoreboard'),
+                      label: Text(continueLabel),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.deepPurple,
                         textStyle: const TextStyle(fontWeight: FontWeight.bold),

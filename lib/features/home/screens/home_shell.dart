@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/leaderboard_repository.dart';
@@ -89,6 +90,7 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   void _onItemTapped(int index, BuildContext context, bool isAdmin) {
+    SoundService.instance.playTabSwitch();
     if (isAdmin) {
       switch (index) {
         case 0:

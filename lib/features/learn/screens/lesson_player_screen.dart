@@ -11,6 +11,7 @@ import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/models/discussion_models.dart';
 import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/video_preview_widget.dart';
 
 class LessonPlayerScreen extends StatefulWidget {
@@ -733,20 +734,13 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             BorderSide borderSide = BorderSide(color: Colors.grey.shade300);
 
             if (state.checked) {
-              if (state.isCorrect == true) {
-                // Correct answer: highlight the correct option in green
-                if (isCorrectOption) {
-                  cardColor = Colors.green.shade200;
-                  borderSide = BorderSide(color: Colors.green.shade400, width: 2);
-                }
-              } else {
-                // Incorrect answer:
-                // DO NOT reveal which option is correct!
-                // Only highlight the learner's chosen wrong option in red.
-                if (isSelected) {
-                  cardColor = Colors.red.shade200;
-                  borderSide = BorderSide(color: Colors.red.shade400, width: 2);
-                }
+              // Directly reveal the correct option in green, and highlight any wrong chosen option in red
+              if (isCorrectOption) {
+                cardColor = Colors.green.shade200;
+                borderSide = BorderSide(color: Colors.green.shade400, width: 2);
+              } else if (isSelected) {
+                cardColor = Colors.red.shade200;
+                borderSide = BorderSide(color: Colors.red.shade400, width: 2);
               }
             } else if (isSelected) {
               borderSide = const BorderSide(color: Colors.deepPurple, width: 2);
@@ -770,6 +764,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                       onChanged: state.checked
                           ? null
                           : (val) {
+                              SoundService.instance.playOptionSelect();
                               setState(() {
                                 if (val == true) {
                                   state.selectedIndices.add(optIdx);
@@ -790,6 +785,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                       onChanged: state.checked
                           ? null
                           : (val) {
+                              if (isCorrectOption) {
+                                SoundService.instance.playCorrectAnswer();
+                              } else {
+                                SoundService.instance.playWrongAnswer();
+                              }
                               setState(() {
                                 state.selectedIndex = val;
                                 // Auto-check for single choice
@@ -801,75 +801,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
             );
           }),
         ),
-        // When answered INCORRECTLY: Do not reveal explanation. Provide hint to review previous pages.
-        if (state.checked && state.isCorrect == false) ...[
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.shade300, width: 1.2),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.lightbulb_rounded, size: 20, color: Colors.amber.shade900),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Hint',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.amber.shade900,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Not quite right! Go back to the previous pages to review the lesson material and find the answer, then tap Try Again.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.amber.shade900,
-                    height: 1.35,
-                  ),
-                ),
-                if (pageIndex > 0) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 36,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.amber.shade900,
-                        side: BorderSide(color: Colors.amber.shade700),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                      icon: const Icon(Icons.arrow_back_rounded, size: 16),
-                      label: const Text(
-                        'Review Previous Page',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                      onPressed: () {
-                        _pageController.previousPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-        // When answered CORRECTLY: Reveal explanation if present
-        if (state.checked && (state.isCorrect == true) && block.content['explanation'] != null && (block.content['explanation'] as String).trim().isNotEmpty) ...[
+        // Directly reveal explanation if present (for both correct and wrong answers)
+        if (state.checked && block.content['explanation'] != null && (block.content['explanation'] as String).trim().isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -935,22 +868,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     final allChecked = testBlocks.every((b) => _questionStates[b.id]?.checked == true);
 
     if (allChecked) {
-      final anyWrong = testBlocks.any((b) => _questionStates[b.id]?.isCorrect != true);
-      if (anyWrong) {
-        return _buildTryAgainButton(() {
-          setState(() {
-            for (var b in testBlocks) {
-              final state = _questionStates[b.id];
-              if (state != null && state.isCorrect != true) {
-                state.checked = false;
-                state.isCorrect = null;
-                state.selectedIndex = null;
-                state.selectedIndices.clear();
-              }
-            }
-          });
-        });
-      }
       return _buildContinueButton(() {
         _handleContinue(totalSlides);
       });
@@ -983,6 +900,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                 ),
                 onPressed: canSubmit
                     ? () {
+                        bool allSubmittedCorrect = true;
                         setState(() {
                           for (var b in uncheckedCheckboxes) {
                             final state = _questionStates[b.id]!;
@@ -997,8 +915,16 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                             state.isCorrect =
                                 state.selectedIndices.length == correctIndices.length &&
                                 state.selectedIndices.every((i) => correctIndices.contains(i));
+                            if (state.isCorrect != true) {
+                              allSubmittedCorrect = false;
+                            }
                           }
                         });
+                        if (allSubmittedCorrect) {
+                          SoundService.instance.playCorrectAnswer();
+                        } else {
+                          SoundService.instance.playWrongAnswer();
+                        }
                       }
                     : null,
                 child: const Text(
@@ -1016,32 +942,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         );
       }
     }
-  }
-
-  Widget _buildTryAgainButton(VoidCallback onPressed) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 56.0),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: onPressed,
-            child: const Text(
-              'Try Again',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildContinueButton(VoidCallback onPressed) {

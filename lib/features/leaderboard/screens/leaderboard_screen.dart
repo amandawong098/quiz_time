@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -144,6 +145,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   void _onToggleFilter(bool friendsOnly) {
     if (_isFriendsOnly == friendsOnly) return;
+    SoundService.instance.playTabSwitch();
     _isFriendsOnly = friendsOnly;
     _applyFilter();
   }
@@ -194,10 +196,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
-        flexibleSpace: CosmicAppBarFlexibleSpace(
-          seed: leagueTheme.seed,
-          league: _selectedLeague,
-        ),
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 33),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -401,6 +400,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                               final isLocked = _isLeagueLocked(name);
                               return GestureDetector(
                                 onTap: () {
+                                  SoundService.instance.playTabSwitch();
                                   setState(() {
                                     _selectedLeague = name;
                                     _isLoading = true;
@@ -562,13 +562,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     final config = _getLeagueConfig(_selectedLeague);
     final promoCount = (totalCount * config.promotionPct).ceil();
     final demoCount = (totalCount * config.demotionPct).ceil();
+    final leagueTheme = CosmicLeagueThemeData.forLeague(_selectedLeague);
 
-    Color rankColor = Colors.grey.shade500;
+    Color rankColor = Colors.white.withValues(alpha: 0.75);
     if (totalCount >= 3) {
       if (rank <= promoCount) {
-        rankColor = Colors.green.shade700;
+        rankColor = const Color(0xFF69F0AE);
       } else if (rank > totalCount - demoCount && _selectedLeague != 'Stargazer') {
-        rankColor = Colors.red.shade700;
+        rankColor = const Color(0xFFFF8A80);
       }
     }
 
@@ -585,16 +586,27 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       ),
     );
 
-    return Card(
-      elevation: isMe ? 2 : 0,
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: isMe ? 0.38 : 0.26),
         borderRadius: BorderRadius.circular(16),
-        side: isMe
-            ? const BorderSide(color: Colors.deepPurple, width: 2)
-            : BorderSide(color: Colors.grey.shade200),
+        border: Border.all(
+          color: isMe
+              ? leagueTheme.primaryAccent.withValues(alpha: 0.85)
+              : Colors.white.withValues(alpha: 0.18),
+          width: isMe ? 1.8 : 1.0,
+        ),
+        boxShadow: isMe
+            ? [
+                BoxShadow(
+                  color: leagueTheme.primaryAccent.withValues(alpha: 0.35),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
       ),
-      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Row(
@@ -639,7 +651,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   style: TextStyle(
                     fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
                     fontSize: 15,
-                    color: Colors.black87,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -650,7 +662,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
-                color: user.weeklyXp > 0 ? Colors.black87 : Colors.grey,
+                color: user.weeklyXp > 0
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.6),
               ),
             ),
           ],

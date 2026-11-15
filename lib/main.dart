@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 // ignore: depend_on_referenced_packages
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+import 'core/services/sound_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'data/repositories/auth_repository.dart';
@@ -17,6 +19,7 @@ import 'data/repositories/leaderboard_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(SoundService.instance.init());
 
   final ImagePickerPlatform imagePickerImplementation =
       ImagePickerPlatform.instance;
@@ -41,6 +44,9 @@ Future<void> main() async {
         Provider<LessonRepository>(create: (_) => LessonRepository()),
         Provider<FlashcardRepository>(create: (_) => FlashcardRepository()),
         Provider<LeaderboardRepository>(create: (_) => LeaderboardRepository()),
+        ChangeNotifierProvider<SoundService>.value(
+          value: SoundService.instance,
+        ),
       ],
       child: const LearnByteApp(),
     ),
@@ -57,6 +63,11 @@ class LearnByteApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
       routerConfig: appRouter,
+      builder: (context, child) {
+        return GlobalSoundTapDetector(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
