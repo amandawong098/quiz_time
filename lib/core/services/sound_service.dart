@@ -38,6 +38,7 @@ class SoundService extends ChangeNotifier {
   late final Uint8List _arcadeEmojiPopWav;
   late final Uint8List _arcadeQuizCompleteWav;
   late final Uint8List _arcadeTimerTickWav;
+  late final Uint8List _mascotChirpWav;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -52,6 +53,7 @@ class SoundService extends ChangeNotifier {
     _arcadeEmojiPopWav = _generateArcadeEmojiPop();
     _arcadeQuizCompleteWav = _generateArcadeQuizComplete();
     _arcadeTimerTickWav = _generateArcadeTimerTick();
+    _mascotChirpWav = _generateMascotChirp();
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -169,6 +171,15 @@ class SoundService extends ChangeNotifier {
     if (!_isEnabled) return;
     if (!_initialized) init();
     _playBytes(_arcadeTimerTickWav, volume: 0.45);
+  }
+
+  /// Cute melodic astro-bot chirp when tapping Byte the mascot.
+  void playMascotChirp() {
+    if (!_isEnabled) return;
+    _lastSpecializedSfxTime = DateTime.now();
+    if (!_initialized) init();
+    HapticFeedback.lightImpact();
+    _playBytes(_mascotChirpWav, volume: 0.65);
   }
 
   void _playBytes(Uint8List wavBytes, {double volume = 0.6}) {
@@ -373,6 +384,37 @@ class SoundService extends ChangeNotifier {
       phase += (2 * pi * 920.0) / _sampleRate;
       final env = pow(1.0 - t, 2.2).toDouble();
       samples[i] = sin(phase) * env * 0.65;
+    }
+    return _encodeWav(samples);
+  }
+
+  /// Cute melodic two-note astro-bot whistle/chirp for Byte the mascot (155ms).
+  static Uint8List _generateMascotChirp() {
+    const durationSec = 0.155;
+    final numSamples = (_sampleRate * durationSec).round();
+    final samples = Float64List(numSamples);
+    double phase = 0.0;
+
+    for (int i = 0; i < numSamples; i++) {
+      final t = i / numSamples;
+      double freq;
+      double env;
+      if (t < 0.42) {
+        final localT = t / 0.42;
+        // First little chirp: 680Hz -> 1020Hz
+        freq = 680.0 + 340.0 * sin(pi * 0.5 * localT);
+        env = sin(pi * localT);
+      } else if (t < 0.50) {
+        freq = 800.0;
+        env = 0.0; // Tiny gap between chirps
+      } else {
+        final localT = (t - 0.50) / 0.50;
+        // Second cheerful upward whistle: 880Hz -> 1420Hz
+        freq = 880.0 + 540.0 * pow(localT, 1.3);
+        env = sin(pi * pow(localT, 0.75));
+      }
+      phase += (2 * pi * freq) / _sampleRate;
+      samples[i] = (0.8 * sin(phase) + 0.2 * sin(phase * 2)) * env * 0.72;
     }
     return _encodeWav(samples);
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/repositories/flashcard_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/flashcard_filter_bar.dart';
 import '../../../core/services/ai_generation_manager.dart';
 import '../models/flashcard_models.dart';
@@ -474,17 +475,21 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
                               physics: const AlwaysScrollableScrollPhysics(),
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 100),
+                                  padding: const EdgeInsets.only(top: 56),
                                   child: Center(
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(
-                                          Icons.style_outlined,
-                                          size: 72,
-                                          color: Colors.grey.shade400,
+                                        const ByteMascot(
+                                          size: 110,
+                                          mood: ByteMascotMood.curious,
+                                          tapMessages: [
+                                            'Ready to craft some study cards? 🎴',
+                                            'Use AI Generator to build a deck from any topic! ✨',
+                                            'Byte loves reviewing flashcards with you! 🚀',
+                                          ],
                                         ),
-                                        const SizedBox(height: 16),
+                                        const SizedBox(height: 12),
                                         Text(
                                           _searchQuery.isNotEmpty ||
                                                   _selectedRange != null ||
@@ -497,23 +502,17 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
                                             color: Colors.grey,
                                           ),
                                         ),
-                                        const SizedBox(height: 16),
-                                        ElevatedButton.icon(
+                                        const SizedBox(height: 20),
+                                        CosmicActionButton(
+                                          label: 'Create Flashcard Deck',
+                                          subtitle: 'Build or generate study cards',
+                                          icon: Icons.style_rounded,
                                           onPressed: () async {
                                             final result = await context.push('/create-flashcard-deck');
                                             if (result == true) {
                                               _loadDecks();
                                             }
                                           },
-                                          icon: const Icon(Icons.add),
-                                          label: const Text('Create Deck'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.deepPurple,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                          ),
                                         ),
                                       ],
                                     ),

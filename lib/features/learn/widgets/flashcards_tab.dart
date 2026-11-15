@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/flashcard_filter_bar.dart';
 import '../../../core/services/ai_generation_manager.dart';
 import '../models/flashcard_models.dart';
@@ -325,12 +326,16 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(
-                                    Icons.style_outlined,
-                                    size: 72,
-                                    color: Colors.grey.shade400,
+                                  const ByteMascot(
+                                    size: 108,
+                                    mood: ByteMascotMood.curious,
+                                    tapMessages: [
+                                      'No flashcard decks here yet! 🃏',
+                                      'Generate study cards in seconds with AI! ✨',
+                                      'Flashcards are great for quick memory boosts! 🚀',
+                                    ],
                                   ),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 12),
                                   Text(
                                     _searchQuery.isNotEmpty || _selectedRange != null
                                         ? 'No decks match your search'
@@ -341,11 +346,14 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                                       color: Colors.grey,
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 20),
                                   Builder(
                                     builder: (context) {
                                       final isAdmin = context.watch<AuthRepository>().isAdmin;
-                                      return ElevatedButton.icon(
+                                      return CosmicActionButton(
+                                        label: isAdmin ? 'Create Flashcard Deck' : 'Generate with AI',
+                                        subtitle: 'Craft smart study cards in seconds',
+                                        icon: isAdmin ? Icons.style_rounded : Icons.auto_awesome_rounded,
                                         onPressed: () async {
                                           if (isAdmin) {
                                             final result = await context.push('/create-flashcard-deck');
@@ -353,18 +361,12 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                                               _loadDecks();
                                             }
                                           } else {
-                                            context.push('/ai-flashcard-generator');
+                                            await context.push('/ai-flashcard-generator');
+                                            if (mounted) {
+                                              _loadDecks();
+                                            }
                                           }
                                         },
-                                        icon: Icon(isAdmin ? Icons.add : Icons.auto_awesome),
-                                        label: Text(isAdmin ? 'Create Deck' : 'Generate with AI'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.deepPurple,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                        ),
                                       );
                                     },
                                   ),

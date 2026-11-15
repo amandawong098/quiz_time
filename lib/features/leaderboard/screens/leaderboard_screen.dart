@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/sound_service.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -474,14 +475,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  _isFriendsOnly
-                                      ? Icons.people_outline_rounded
-                                      : Icons.group_outlined,
-                                  size: 64,
-                                  color: Colors.white.withValues(alpha: 0.55),
+                                const ByteMascot(
+                                  size: 112,
+                                  mood: ByteMascotMood.curious,
+                                  darkThemeContext: true,
+                                  tapMessages: [
+                                    'Nothing on the radar here yet! 📡',
+                                    'Try switching to Global to spot more explorers! 🌍',
+                                    'Earn Weekly XP to climb the cosmic ranks! 🚀',
+                                  ],
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12),
                                 Text(
                                   _isFriendsOnly
                                       ? 'No friends in this league yet'

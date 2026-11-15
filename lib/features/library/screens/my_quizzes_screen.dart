@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
 import '../../../core/services/ai_generation_manager.dart';
 
@@ -215,10 +217,61 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
                     : _myQuizzes.isEmpty
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            children: const [
+                            children: [
                               Padding(
-                                padding: EdgeInsets.only(top: 100),
-                                child: Center(child: Text('No quizzes found.')),
+                                padding: const EdgeInsets.only(top: 56),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const ByteMascot(
+                                        size: 112,
+                                        mood: ByteMascotMood.curious,
+                                        tapMessages: [
+                                          'No created quizzes here yet! 📝',
+                                          'Tap + or AI Generator to build your first quiz! ✨',
+                                          'Challenge your friends once your quiz is ready! 🚀',
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _searchQuery.isNotEmpty ||
+                                                _selectedQuestionRange != null ||
+                                                _visibilityFilter != 'All'
+                                            ? 'No quizzes match your search.'
+                                            : 'No quizzes created yet.',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Builder(
+                                        builder: (context) {
+                                          final isAdmin = context.watch<AuthRepository>().isAdmin;
+                                          return CosmicActionButton(
+                                            label: isAdmin ? 'Create New Quiz' : 'Generate Quiz with AI',
+                                            subtitle: 'Design questions & challenge friends',
+                                            icon: isAdmin
+                                                ? Icons.rocket_launch_rounded
+                                                : Icons.auto_awesome_rounded,
+                                            onPressed: () async {
+                                              if (isAdmin) {
+                                                await context.push('/create-quiz');
+                                              } else {
+                                                await context.push('/ai-quiz-generator');
+                                              }
+                                              if (mounted) {
+                                                _loadMyQuizzes();
+                                              }
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           )

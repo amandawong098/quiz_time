@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/quiz_models.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/quiz_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/quiz_filter_bar.dart';
 import '../../../core/widgets/notification_badge.dart';
@@ -103,10 +105,68 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     : _quizzes.isEmpty
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            children: const [
+                            children: [
                               Padding(
-                                padding: EdgeInsets.only(top: 100),
-                                child: Center(child: Text('No quizzes found.')),
+                                padding: const EdgeInsets.only(top: 64),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const ByteMascot(
+                                        size: 112,
+                                        mood: ByteMascotMood.curious,
+                                        tapMessages: [
+                                          'No quizzes in this sector yet! 🔭',
+                                          'Try clearing your search or filters! ✨',
+                                          'Or create a new quiz from your Profile! 🚀',
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'No quizzes found.',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _searchQuery.isNotEmpty || _selectedQuestionRange != null
+                                            ? 'Try adjusting your search or filter settings'
+                                            : 'Be the first to launch a new quiz into the cosmos!',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Builder(
+                                        builder: (context) {
+                                          final isAdmin = context.watch<AuthRepository>().isAdmin;
+                                          return CosmicActionButton(
+                                            label: isAdmin ? 'Create New Quiz' : 'Generate Quiz with AI',
+                                            subtitle: 'Challenge yourself & your friends',
+                                            icon: isAdmin
+                                                ? Icons.rocket_launch_rounded
+                                                : Icons.auto_awesome_rounded,
+                                            onPressed: () async {
+                                              if (isAdmin) {
+                                                await context.push('/create-quiz');
+                                              } else {
+                                                await context.push('/ai-quiz-generator');
+                                              }
+                                              if (mounted) {
+                                                _loadQuizzes();
+                                              }
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           )

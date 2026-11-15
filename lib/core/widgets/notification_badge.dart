@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../data/repositories/friendship_repository.dart';
 import '../../data/models/friendship_models.dart';
 import '../router/app_router.dart';
+import 'byte_mascot.dart';
 
 class NotificationIconBadge extends StatelessWidget {
   const NotificationIconBadge({super.key});
@@ -44,10 +45,38 @@ class NotificationIconBadge extends StatelessWidget {
                     const Divider(),
                     Expanded(
                       child: list.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No notifications yet.',
-                                style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const ByteMascot(
+                                    size: 108,
+                                    mood: ByteMascotMood.curious,
+                                    tapMessages: [
+                                      'All quiet on the cosmic radio! 📡',
+                                      'Friend requests & league updates will land here! ✨',
+                                      'Beep boop! You are all caught up! 🚀',
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'No notifications yet.',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Byte will alert you when new cosmic transmissions arrive!',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             )
                           : ListView.builder(

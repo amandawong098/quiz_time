@@ -14,6 +14,7 @@ import '../../learn/models/flashcard_models.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 import './create_topic_screen.dart'; // Reuse PendingAttachment class
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/in_app_video_player.dart';
 import '../../../core/widgets/video_preview_widget.dart';
 
@@ -868,7 +869,7 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                 }
               },
             ),
-            _buildTopicPopupMenu(),
+            _buildTopicPopupMenu(iconColor: Colors.white),
             const SizedBox(width: 8),
           ],
         ],
@@ -1161,13 +1162,41 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
                   if (treeRoots.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 28),
                       child: Center(
-                        child: Text(
-                          'No replies yet. Be the first to start the discussion!',
-                          style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-                          textAlign: TextAlign.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const ByteMascot(
+                              size: 100,
+                              mood: ByteMascotMood.curious,
+                              tapMessages: [
+                                'No replies on this frequency yet! 💬',
+                                'Share your thoughts below to spark the discussion! ✨',
+                                'Byte loves a helpful community reply! 🚀',
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No replies yet.',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Be the first to start the discussion!',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
                     )
@@ -1646,14 +1675,14 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
     }
   }
 
-  Widget _buildTopicPopupMenu() {
+  Widget _buildTopicPopupMenu({Color iconColor = Colors.grey}) {
     if (_topic == null) return const SizedBox.shrink();
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     final isAdmin = context.watch<AuthRepository>().isAdmin;
     final isOwn = _topic!.authorId == currentUserId;
 
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, size: 20, color: Colors.grey),
+      icon: Icon(Icons.more_vert, size: 20, color: iconColor),
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
       tooltip: 'Topic Options',

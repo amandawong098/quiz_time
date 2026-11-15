@@ -7,6 +7,7 @@ import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../core/services/ai_generation_manager.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../models/lesson_models.dart';
 import './lesson_discussions_sheet.dart';
 import '../models/lesson_progress.dart';
@@ -466,22 +467,49 @@ class LessonsTabState extends State<LessonsTab> {
   }
 
   Widget _buildEmptyPlaceholder(String message) {
+    final isAdmin = context.watch<AuthRepository>().isAdmin;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 24.0),
+        padding: const EdgeInsets.symmetric(vertical: 36.0, horizontal: 24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.school_outlined, size: 56, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
+            const ByteMascot(
+              size: 104,
+              mood: ByteMascotMood.curious,
+              tapMessages: [
+                'No lessons in this tab right now! 📚',
+                'Try switching tabs or generating a lesson with AI! ✨',
+                'Byte is ready whenever you start a new lesson! 🚀',
+              ],
+            ),
+            const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade500,
+                color: Colors.grey.shade600,
                 fontWeight: FontWeight.w500,
               ),
+            ),
+            const SizedBox(height: 20),
+            CosmicActionButton(
+              label: isAdmin ? 'Create Lesson' : 'Generate Lesson with AI',
+              subtitle: 'Build interactive slides & chapters',
+              icon: isAdmin
+                  ? Icons.menu_book_rounded
+                  : Icons.auto_awesome_rounded,
+              onPressed: () async {
+                if (isAdmin) {
+                  await context.push('/create-lesson');
+                } else {
+                  await context.push('/ai-lesson-generator');
+                }
+                if (mounted) {
+                  loadDbLessons();
+                }
+              },
             ),
           ],
         ),
@@ -491,18 +519,22 @@ class LessonsTabState extends State<LessonsTab> {
 
   Widget _buildDiscoveryView() {
     if (_dbCourses.isEmpty) {
+      final isAdmin = context.watch<AuthRepository>().isAdmin;
       return Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 64.0, horizontal: 24.0),
+          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.school_outlined,
-                size: 64,
-                color: Colors.grey.shade400,
+              const ByteMascot(
+                size: 112,
+                mood: ByteMascotMood.curious,
+                tapMessages: [
+                  'No lessons available in orbit yet! 🪐',
+                  'Use ✨ Generate Lesson with AI to create one! 🚀',
+                ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               const Text(
                 'No lessons available yet',
                 style: TextStyle(
@@ -513,9 +545,27 @@ class LessonsTabState extends State<LessonsTab> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Check back later for newly added learning materials.',
+                'Be the first to launch a new learning course into orbit!',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 24),
+              CosmicActionButton(
+                label: isAdmin ? 'Create Lesson' : 'Generate Lesson with AI',
+                subtitle: 'Build interactive slides & chapters',
+                icon: isAdmin
+                    ? Icons.menu_book_rounded
+                    : Icons.auto_awesome_rounded,
+                onPressed: () async {
+                  if (isAdmin) {
+                    await context.push('/create-lesson');
+                  } else {
+                    await context.push('/ai-lesson-generator');
+                  }
+                  if (mounted) {
+                    loadDbLessons();
+                  }
+                },
               ),
             ],
           ),

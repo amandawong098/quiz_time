@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../../data/repositories/discussion_repository.dart';
@@ -428,12 +429,30 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                             physics: const AlwaysScrollableScrollPhysics(),
                             children: const [
                               Padding(
-                                padding: EdgeInsets.only(top: 100),
+                                padding: EdgeInsets.only(top: 56),
                                 child: Center(
-                                  child: Text(
-                                    'No discussions found.\nBe the first to start a conversation!',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ByteMascot(
+                                        size: 110,
+                                        mood: ByteMascotMood.curious,
+                                        tapMessages: [
+                                          'Quiet on the comms channel! 📡',
+                                          'Tap + to start the first cosmic discussion! 💬',
+                                          'Ask questions or share study tips with fellow explorers! ✨',
+                                        ],
+                                      ),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        'No discussions found.\nBe the first to start a conversation!',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),

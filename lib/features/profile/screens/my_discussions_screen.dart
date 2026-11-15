@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
@@ -145,12 +146,29 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
                             physics: const AlwaysScrollableScrollPhysics(),
                             children: const [
                               Padding(
-                                padding: EdgeInsets.only(top: 100),
+                                padding: EdgeInsets.only(top: 56),
                                 child: Center(
-                                  child: Text(
-                                    'You haven\'t posted any discussions yet.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ByteMascot(
+                                        size: 110,
+                                        mood: ByteMascotMood.curious,
+                                        tapMessages: [
+                                          'No discussion threads started by you yet! 💬',
+                                          'Head to Discussions or any Lesson/Quiz to start a topic! ✨',
+                                        ],
+                                      ),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        'You haven\'t posted any discussions yet.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),

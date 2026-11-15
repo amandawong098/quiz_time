@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/repositories/auth_repository.dart';
 import 'package:go_router/go_router.dart';
@@ -94,50 +95,22 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Cosmic Emblem
-                  Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF7C4DFF), Color(0xFF311B92)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                        color: CosmicColors.starlightGold.withValues(alpha: 0.7),
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF7C4DFF).withValues(alpha: 0.5),
-                          blurRadius: 24,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: const Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Icon(
-                          Icons.rocket_launch_rounded,
-                          size: 42,
-                          color: Colors.white,
-                        ),
-                        Positioned(
-                          top: 14,
-                          right: 16,
-                          child: Icon(
-                            Icons.auto_awesome,
-                            size: 16,
-                            color: CosmicColors.starlightGold,
-                          ),
-                        ),
-                      ],
-                    ),
+                  // Byte the Astro-Bot Mascot
+                  ByteMascot(
+                    size: 118,
+                    mood: _isLogin ? ByteMascotMood.idle : ByteMascotMood.happy,
+                    darkThemeContext: true,
+                    initialBubbleText: _isLogin
+                        ? "Hi! I'm Byte — tap me! 👋"
+                        : 'Welcome aboard, new Explorer! 🚀',
+                    tapMessages: const [
+                      'Beep boop! Ready to explore the cosmos? ✨',
+                      'Rise from Stargazer ⭐ to Cosmic Legend! 🪐',
+                      'Challenge friends in live multiplayer quizzes! 🔥',
+                      "Let's launch your learning journey! 🚀",
+                    ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Text(
                     _isLogin ? 'Welcome to LearnByte' : 'Join the Cosmos',
                     style: const TextStyle(

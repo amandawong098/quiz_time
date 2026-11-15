@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../data/repositories/friendship_repository.dart';
 import '../../../data/models/friendship_models.dart';
 import '../widgets/user_detail_bottom_sheet.dart';
@@ -250,19 +251,57 @@ class _FriendsScreenState extends State<FriendsScreen>
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            vertical: 64.0,
+                            vertical: 32.0,
                             horizontal: 16.0,
                           ),
                           child: Center(
-                            child: Text(
-                              _friendsQuery.isEmpty
-                                  ? 'You haven\'t added any friends yet.\nGo to "Discover" tab to add new connections!'
-                                  : 'No friends matching "$_friendsQuery"',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontStyle: FontStyle.italic,
-                              ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const ByteMascot(
+                                  size: 108,
+                                  mood: ByteMascotMood.happy,
+                                  tapMessages: [
+                                    'Studying with friends is twice the fun! 🤝',
+                                    'Hop over to Discover New Friends to connect! ✨',
+                                    'Challenge your friends in Multiplayer Quiz mode! 🚀',
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _friendsQuery.isEmpty
+                                      ? 'No friends in your crew yet!'
+                                      : 'No friends matching "$_friendsQuery"',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _friendsQuery.isEmpty
+                                      ? 'Explore the Discover tab to add fellow Stargazers!'
+                                      : 'Try searching with a different name.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                if (_friendsQuery.isEmpty) ...[
+                                  const SizedBox(height: 20),
+                                  CosmicActionButton(
+                                    label: 'Discover New Friends',
+                                    subtitle: 'Find fellow learners to connect with',
+                                    icon: Icons.person_search_rounded,
+                                    onPressed: () {
+                                      _tabController.animateTo(1);
+                                    },
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ),
@@ -408,18 +447,46 @@ class _FriendsScreenState extends State<FriendsScreen>
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            vertical: 64.0,
+                            vertical: 32.0,
                             horizontal: 16.0,
                           ),
                           child: Center(
-                            child: Text(
-                              _discoverQuery.isEmpty
-                                  ? 'No new profiles found to discover.'
-                                  : 'No profiles matching "$_discoverQuery"',
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontStyle: FontStyle.italic,
-                              ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const ByteMascot(
+                                  size: 108,
+                                  mood: ByteMascotMood.curious,
+                                  tapMessages: [
+                                    'Scanning the galaxy for new Stargazers! 🔭',
+                                    'Try adjusting your search to find more learners! ✨',
+                                    'Every great crew starts with a single hello! 👋',
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _discoverQuery.isEmpty
+                                      ? 'No new profiles found to discover.'
+                                      : 'No profiles matching "$_discoverQuery"',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _discoverQuery.isEmpty
+                                      ? 'You have already connected with everyone in this sector!'
+                                      : 'Try searching with a different name.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -428,9 +495,67 @@ class _FriendsScreenState extends State<FriendsScreen>
                   : ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: EdgeInsets.zero,
-                      itemCount: filtered.length,
+                      itemCount: filtered.length + 1,
                       itemBuilder: (context, index) {
-                        final user = filtered[index];
+                        if (index == 0) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.deepPurple.shade50,
+                                  Colors.indigo.shade50.withValues(alpha: 0.6),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.deepPurple.shade100,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const ByteMascot(
+                                  size: 56,
+                                  mood: ByteMascotMood.happy,
+                                  tapMessages: [
+                                    'Say hi to a new study buddy! 👋',
+                                    'Tap Add to send a friend request! 🚀',
+                                  ],
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Meet Fellow Stargazers ✨',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13.5,
+                                          color: Colors.deepPurple.shade900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Connect with learners to compare XP and play multiplayer quizzes!',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: Colors.deepPurple.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        final user = filtered[index - 1];
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
                           shape: RoundedRectangleBorder(

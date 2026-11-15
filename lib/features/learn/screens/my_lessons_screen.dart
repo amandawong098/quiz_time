@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../core/services/ai_generation_manager.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../models/lesson_models.dart';
 
 class MyLessonsScreen extends StatefulWidget {
@@ -529,12 +530,21 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
   }
 
   Widget _buildNoCoursesView() {
+    final isAdmin = context.watch<AuthRepository>().isAdmin;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.menu_book_outlined, size: 64, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
+          const ByteMascot(
+            size: 112,
+            mood: ByteMascotMood.curious,
+            tapMessages: [
+              'Ready to author your first cosmic lesson? 📚',
+              'Use AI Generator to build multi-page slides in seconds! ✨',
+              'Your created lessons will appear right here! 🚀',
+            ],
+          ),
+          const SizedBox(height: 12),
           Text(
             'No lessons created yet',
             style: TextStyle(
@@ -549,18 +559,22 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
             style: TextStyle(color: Colors.grey),
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: _addCourse,
-            icon: const Icon(Icons.add),
-            label: const Text('Create New Lesson'),
+          CosmicActionButton(
+            label: isAdmin ? 'Create New Lesson' : 'Generate Lesson with AI',
+            subtitle: 'Build multi-page courses & slides',
+            icon: isAdmin
+                ? Icons.menu_book_rounded
+                : Icons.auto_awesome_rounded,
+            onPressed: () async {
+              if (isAdmin) {
+                await _addCourse();
+              } else {
+                await context.push('/ai-lesson-generator');
+                if (mounted) {
+                  _loadLessons();
+                }
+              }
+            },
           ),
         ],
       ),
