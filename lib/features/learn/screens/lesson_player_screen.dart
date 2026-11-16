@@ -13,6 +13,7 @@ import '../models/lesson_models.dart';
 import '../models/lesson_progress.dart';
 import '../../gamification/gamification_service.dart';
 import '../../../core/services/sound_service.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/video_preview_widget.dart';
 
 class LessonPlayerScreen extends StatefulWidget {
@@ -1736,15 +1737,11 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                                   children: [
                                     Row(
                                       children: [
-                                        CircleAvatar(
+                                        UserByteAvatar(
                                           radius: 9,
-                                          backgroundColor: Colors.deepPurple.shade100,
-                                          backgroundImage: topic.authorAvatarUrl != null
-                                              ? NetworkImage(topic.authorAvatarUrl!)
-                                              : null,
-                                          child: topic.authorAvatarUrl == null
-                                              ? const Icon(Icons.person, size: 9)
-                                              : null,
+                                          userId: topic.authorId,
+                                          name: topic.authorName,
+                                          avatarData: topic.authorAvatarUrl,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(

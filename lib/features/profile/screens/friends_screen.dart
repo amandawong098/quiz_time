@@ -141,15 +141,9 @@ class _FriendsScreenState extends State<FriendsScreen>
                     );
                     if (mounted) _loadData(showFullLoading: false);
                   },
-                  child: CircleAvatar(
-                    backgroundImage:
-                        (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-                        ? NetworkImage(user.avatarUrl!)
-                        : null,
-                    backgroundColor: Colors.deepPurple.shade100,
-                    child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                        ? const Icon(Icons.person, color: Colors.deepPurple)
-                        : null,
+                  child: UserByteAvatar(
+                    avatarUrl: user.avatarUrl,
+                    radius: 20,
                   ),
                 ),
                 title: GestureDetector(
@@ -330,21 +324,9 @@ class _FriendsScreenState extends State<FriendsScreen>
                                 );
                                 if (mounted) _loadData(showFullLoading: false);
                               },
-                              child: CircleAvatar(
-                                backgroundImage:
-                                    (friend.avatarUrl != null &&
-                                        friend.avatarUrl!.isNotEmpty)
-                                    ? NetworkImage(friend.avatarUrl!)
-                                    : null,
-                                backgroundColor: Colors.deepPurple.shade100,
-                                child:
-                                    (friend.avatarUrl == null ||
-                                        friend.avatarUrl!.isEmpty)
-                                    ? const Icon(
-                                        Icons.person,
-                                        color: Colors.deepPurple,
-                                      )
-                                    : null,
+                              child: UserByteAvatar(
+                                avatarUrl: friend.avatarUrl,
+                                radius: 20,
                               ),
                             ),
                             title: GestureDetector(
@@ -573,21 +555,9 @@ class _FriendsScreenState extends State<FriendsScreen>
                                 );
                                 if (mounted) _loadData(showFullLoading: false);
                               },
-                              child: CircleAvatar(
-                                backgroundImage:
-                                    (user.avatarUrl != null &&
-                                        user.avatarUrl!.isNotEmpty)
-                                    ? NetworkImage(user.avatarUrl!)
-                                    : null,
-                                backgroundColor: Colors.deepPurple.shade100,
-                                child:
-                                    (user.avatarUrl == null ||
-                                        user.avatarUrl!.isEmpty)
-                                    ? const Icon(
-                                        Icons.person,
-                                        color: Colors.deepPurple,
-                                      )
-                                    : null,
+                              child: UserByteAvatar(
+                                avatarUrl: user.avatarUrl,
+                                radius: 20,
                               ),
                             ),
                             title: GestureDetector(

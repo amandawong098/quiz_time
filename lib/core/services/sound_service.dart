@@ -38,7 +38,12 @@ class SoundService extends ChangeNotifier {
   bool _isInQuizGameplay = false;
   bool? _quizSessionSoundOverride;
 
+  // Mini-game background music state (reuses quiz BGM)
+  bool _miniGameMusicEnabled = true;
+  bool _isInMiniGame = false;
+
   bool get quizMusicEnabled => _quizMusicEnabled;
+  bool get miniGameMusicEnabled => _miniGameMusicEnabled;
   bool get effectiveSoundEnabled => _quizSessionSoundOverride ?? _isEnabled;
 
   bool _initialized = false;
@@ -142,6 +147,8 @@ class SoundService extends ChangeNotifier {
         _bgmCompleteSub = bgm.onPlayerComplete.listen((_) {
           if (_isInQuizGameplay && _quizMusicEnabled) {
             _startBgmPlayback();
+          } else if (_isInMiniGame && _miniGameMusicEnabled) {
+            _startMiniGameBgmPlayback();
           }
         });
         _bgmPlayer = bgm;
@@ -216,6 +223,57 @@ class SoundService extends ChangeNotifier {
     try {
       await _bgmPlayer?.stop();
     } catch (_) {}
+  }
+
+  /// Starts chill cosmic lounge music for the Byte Avatar Studio mini-game.
+  Future<void> startMiniGameMusic() async {
+    _isInMiniGame = true;
+    _isInQuizGameplay = false;
+    await _ensureAudioSetup();
+    if (_miniGameMusicEnabled) {
+      await _startMiniGameBgmPlayback();
+    }
+  }
+
+  /// Stops mini-game background music when leaving the Byte Avatar Studio.
+  Future<void> stopMiniGameMusic() async {
+    _isInMiniGame = false;
+    try {
+      await _bgmPlayer?.stop();
+    } catch (_) {}
+  }
+
+  Future<void> toggleMiniGameMusic() async {
+    _miniGameMusicEnabled = !_miniGameMusicEnabled;
+    notifyListeners();
+    if (!_isInMiniGame) return;
+    if (_miniGameMusicEnabled) {
+      await _startMiniGameBgmPlayback();
+    } else {
+      await _pauseBgmPlayback();
+    }
+  }
+
+  Future<void> _startMiniGameBgmPlayback() async {
+    try {
+      await _ensureAudioSetup();
+      if (_bgmPlayer == null || !_isInMiniGame || !_miniGameMusicEnabled) {
+        return;
+      }
+      await _bgmPlayer!.setReleaseMode(ReleaseMode.loop);
+      await _bgmPlayer!.setVolume(0.28);
+
+      final filePath = await _ensureBgmFile();
+      if (filePath != null) {
+        await _bgmPlayer!.play(DeviceFileSource(filePath));
+      } else {
+        await _bgmPlayer!.play(
+          BytesSource(_arcadeQuizBgmWav, mimeType: 'audio/wav'),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error starting mini-game BGM: $e');
+    }
   }
 
   Future<String?> _ensureBgmFile() async {

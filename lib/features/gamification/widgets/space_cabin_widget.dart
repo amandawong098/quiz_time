@@ -1,824 +1,593 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../../core/services/sound_service.dart';
 import '../../../core/widgets/byte_mascot.dart';
-import '../gamification_service.dart';
 
-/// Renders a user's profile avatar with their equipped Cosmic Avatar Frame.
+/// Backwards-compatible wrapper that renders `UserByteAvatar` anywhere a framed
+/// avatar is used.
 class CosmicAvatarFrame extends StatelessWidget {
   final String? avatarUrl;
-  final String frameId;
+  final ByteAppearance? appearanceOverride;
   final double radius;
-  final VoidCallback? onEditTap;
+  final bool isCurrentUser;
+  final VoidCallback? onTap;
 
   const CosmicAvatarFrame({
     super.key,
-    required this.avatarUrl,
-    this.frameId = 'frame_default',
+    this.avatarUrl,
+    this.appearanceOverride,
     this.radius = 44,
-    this.onEditTap,
+    this.isCurrentUser = false,
+    this.onTap,
   });
-
-  List<Color> _frameColors() {
-    switch (frameId) {
-      case 'frame_orbit':
-        return const [Color(0xFF00E5FF), Color(0xFF38BDF8), Color(0xFF1D4ED8)];
-      case 'frame_neon':
-        return const [Color(0xFFF472B6), Color(0xFFD946EF), Color(0xFF7E22CE)];
-      case 'frame_plasma':
-        return const [Color(0xFF34D399), Color(0xFF10B981), Color(0xFF047857)];
-      case 'frame_supernova':
-        return const [
-          Color(0xFFFBBF24),
-          Color(0xFFEC4899),
-          Color(0xFF00E5FF),
-          Color(0xFFFBBF24),
-        ];
-      default:
-        return const [Color(0xFFFFD54F), Color(0xFFB388FF)];
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final colors = _frameColors();
-    final isSpecial = frameId != 'frame_default';
+    return UserByteAvatar(
+      avatarUrl: avatarUrl,
+      appearanceOverride: appearanceOverride,
+      radius: radius,
+      isCurrentUser: isCurrentUser,
+      onTap: onTap,
+    );
+  }
+}
 
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.center,
-      children: [
-        Container(
-          padding: EdgeInsets.all(isSpecial ? 4.5 : 3.0),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: SweepGradient(colors: [...colors, colors.first]),
-            boxShadow: isSpecial
-                ? [
-                    BoxShadow(
-                      color: colors.first.withValues(alpha: 0.55),
-                      blurRadius: 14,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : null,
+/// Chunky 3D-beveled game button used throughout the Byte Mini-Game HUD.
+class GameBevelButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final Color topColor;
+  final Color bottomColor;
+  final Color bevelColor;
+  final Color borderColor;
+  final double borderRadius;
+  final EdgeInsetsGeometry padding;
+
+  const GameBevelButton({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.topColor = const Color(0xFF8B5CF6),
+    this.bottomColor = const Color(0xFF6D28D9),
+    this.bevelColor = const Color(0xFF4C1D95),
+    this.borderColor = const Color(0xFFC4B5FD),
+    this.borderRadius = 18,
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+  });
+
+  @override
+  State<GameBevelButton> createState() => _GameBevelButtonState();
+}
+
+class _GameBevelButtonState extends State<GameBevelButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final double pressOffset = _pressed ? 3.0 : 0.0;
+    final double shadowDepth = _pressed ? 1.5 : 4.5;
+
+    return GestureDetector(
+      onTapDown: widget.onTap != null
+          ? (_) => setState(() => _pressed = true)
+          : null,
+      onTapUp: widget.onTap != null
+          ? (_) {
+              setState(() => _pressed = false);
+              widget.onTap!();
+            }
+          : null,
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 70),
+        transform: Matrix4.translationValues(0, pressOffset, 0),
+        padding: widget.padding,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [widget.topColor, widget.bottomColor],
           ),
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
-              color: Color(0xFF140D2E),
-              shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+          border: Border.all(color: widget.borderColor, width: 1.8),
+          boxShadow: [
+            BoxShadow(
+              color: widget.bevelColor,
+              offset: Offset(0, shadowDepth),
+              blurRadius: 0,
             ),
-            child: CircleAvatar(
-              radius: radius,
-              backgroundColor: Colors.white.withValues(alpha: 0.15),
-              backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-                  ? NetworkImage(avatarUrl!)
-                  : null,
-              child: (avatarUrl == null || avatarUrl!.isEmpty)
-                  ? Icon(Icons.person, size: radius, color: Colors.white)
-                  : null,
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              offset: Offset(0, shadowDepth + 3),
+              blurRadius: 8,
             ),
-          ),
+          ],
         ),
-        if (frameId == 'frame_supernova')
-          const Positioned(
-            top: -12,
-            child: Text('👑', style: TextStyle(fontSize: 20)),
-          ),
-        if (onEditTap != null)
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: GestureDetector(
-              onTap: onEditTap,
-              child: Container(
-                padding: const EdgeInsets.all(6),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Circular floating game action orb (like Shopee Pets side action icons).
+class GameFloatingActionOrb extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final String? badgeText;
+  final Color badgeColor;
+  final Color glowColor;
+  final VoidCallback onTap;
+
+  const GameFloatingActionOrb({
+    super.key,
+    required this.emoji,
+    required this.label,
+    this.badgeText,
+    this.badgeColor = const Color(0xFF10B981),
+    this.glowColor = const Color(0xFF38BDF8),
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFD54F),
                   shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      glowColor.withValues(alpha: 0.45),
+                      const Color(0xFF1E1B4B).withValues(alpha: 0.92),
+                    ],
+                  ),
                   border: Border.all(
-                    color: const Color(0xFF140D2E),
-                    width: 2,
+                    color: glowColor.withValues(alpha: 0.85),
+                    width: 2.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: glowColor.withValues(alpha: 0.38),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                    const BoxShadow(
+                      color: Color(0xFF090514),
+                      offset: Offset(0, 4),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                ),
+              ),
+              // Glossy top crescent reflection
+              Positioned(
+                top: 4,
+                child: Container(
+                  width: 30,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Icon(
-                  Icons.edit,
-                  size: 15,
-                  color: Color(0xFF140D2E),
+              ),
+              if (badgeText != null)
+                Positioned(
+                  top: -5,
+                  right: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeColor,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      badgeText!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
                 ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.3,
               ),
             ),
           ),
-      ],
-    );
-  }
-}
-
-/// Renders the user's equipped Cosmic Title badge pill.
-class CosmicTitleBadgeWidget extends StatelessWidget {
-  final String titleId;
-  final bool compact;
-
-  const CosmicTitleBadgeWidget({
-    super.key,
-    required this.titleId,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (titleId == 'title_none' || titleId.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final item = GamificationService.itemById(titleId);
-    if (item == null) return const SizedBox.shrink();
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 10 : 12,
-        vertical: compact ? 3 : 5,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: item.previewColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.45),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: item.previewColors.first.withValues(alpha: 0.40),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
         ],
       ),
-      child: Text(
-        item.name,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: compact ? 11 : 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.3,
-        ),
-      ),
     );
   }
 }
 
-/// Interactive Byte's Space Cabin scene used in both the owner's Space Cabin Hub
-/// and when visiting a friend's Space Cabin.
-class InteractiveSpaceCabinWidget extends StatefulWidget {
-  final UserCosmicState cosmicState;
-  final String ownerName;
-  final bool isVisitor;
-  final VoidCallback? onGadgetTapped;
+/// Full-screen 2D Game World Canvas that renders the selected Stage World,
+/// animated stars/nebula/grid, and the 3D Holographic Stage Pedestal under Byte.
+class GameStageWorldCanvas extends StatefulWidget {
+  final String stageId;
+  final Offset pedestalCenterFraction;
 
-  const InteractiveSpaceCabinWidget({
+  const GameStageWorldCanvas({
     super.key,
-    required this.cosmicState,
-    required this.ownerName,
-    this.isVisitor = false,
-    this.onGadgetTapped,
+    required this.stageId,
+    this.pedestalCenterFraction = const Offset(0.5, 0.50),
   });
 
   @override
-  State<InteractiveSpaceCabinWidget> createState() =>
-      _InteractiveSpaceCabinWidgetState();
+  State<GameStageWorldCanvas> createState() => _GameStageWorldCanvasState();
 }
 
-class _InteractiveSpaceCabinWidgetState
-    extends State<InteractiveSpaceCabinWidget>
+class _GameStageWorldCanvasState extends State<GameStageWorldCanvas>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ambientController;
-  String? _activePopupText;
-  String? _pulsingGadgetId;
+  late final AnimationController _worldController;
 
   @override
   void initState() {
     super.initState();
-    _ambientController = AnimationController(
+    _worldController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 6),
+      duration: const Duration(milliseconds: 6000),
     )..repeat();
   }
 
   @override
   void dispose() {
-    _ambientController.dispose();
+    _worldController.dispose();
     super.dispose();
-  }
-
-  void _triggerGadgetInteraction(String id, String message) {
-    SoundService.instance.playMascotChirp();
-    setState(() {
-      _pulsingGadgetId = id;
-      _activePopupText = message;
-    });
-    widget.onGadgetTapped?.call();
-    Future.delayed(const Duration(milliseconds: 1800), () {
-      if (mounted && _activePopupText == message) {
-        setState(() {
-          _pulsingGadgetId = null;
-          _activePopupText = null;
-        });
-      }
-    });
-  }
-
-  List<Color> _cabinBackgroundGradient(String windowId) {
-    switch (windowId) {
-      case 'win_mars':
-        return const [
-          Color(0xFF450A0A),
-          Color(0xFF7F1D1D),
-          Color(0xFF1F122B),
-        ];
-      case 'win_saturn':
-        return const [
-          Color(0xFF1E1B4B),
-          Color(0xFF451A03),
-          Color(0xFF171332),
-        ];
-      case 'win_cyber':
-        return const [
-          Color(0xFF3B0764),
-          Color(0xFF701A75),
-          Color(0xFF0F172A),
-        ];
-      case 'win_supernova':
-        return const [
-          Color(0xFF064E3B),
-          Color(0xFF3B0764),
-          Color(0xFF0F172A),
-        ];
-      default:
-        return const [
-          Color(0xFF0F0A26),
-          Color(0xFF1E1446),
-          Color(0xFF130D2E),
-        ];
-    }
-  }
-
-  Color _visorAccentColor(String visorId) {
-    switch (visorId) {
-      case 'visor_gold':
-        return const Color(0xFFFFD54F);
-      case 'visor_magenta':
-        return const Color(0xFFF472B6);
-      case 'visor_emerald':
-        return const Color(0xFF34D399);
-      case 'visor_rainbow':
-        return const Color(0xFFE879F9);
-      default:
-        return const Color(0xFF00E5FF);
-    }
-  }
-
-  Widget _buildHatOverlay(String hatId) {
-    switch (hatId) {
-      case 'hat_crown':
-        return const Text('👑', style: TextStyle(fontSize: 30));
-      case 'hat_grad':
-        return const Text('🎓', style: TextStyle(fontSize: 30));
-      case 'hat_wizard':
-        return const Text('🧙', style: TextStyle(fontSize: 30));
-      case 'hat_headphones':
-        return const Text('🎧', style: TextStyle(fontSize: 28));
-      case 'hat_astro':
-        return Container(
-          width: 58,
-          height: 16,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF38BDF8), width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF38BDF8).withValues(alpha: 0.7),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-        );
-      default:
-        return const SizedBox.shrink();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.cosmicState;
-    final bgGradient = _cabinBackgroundGradient(s.equippedWindow);
-    final visorColor = _visorAccentColor(s.equippedVisor);
-    final unlockedCount = s.unlockedIds.length;
-
-    return Container(
-      height: 285,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: bgGradient,
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: visorColor.withValues(alpha: 0.45),
-          width: 1.6,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: bgGradient.first.withValues(alpha: 0.55),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+    return AnimatedBuilder(
+      animation: _worldController,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _GameStageWorldPainter(
+            stageId: widget.stageId,
+            phase: _worldController.value,
+            pedestalCenterFraction: widget.pedestalCenterFraction,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // 1. Animated Space Window & Cabin Floor Painter
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _ambientController,
-                builder: (context, _) {
-                  return CustomPaint(
-                    painter: _SpaceCabinScenePainter(
-                      progress: _ambientController.value,
-                      windowTheme: s.equippedWindow,
-                      visorColor: visorColor,
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            // 2. Top Cabin Status Bar (Stage + Trophy Shelf + Likes)
-            Positioned(
-              top: 12,
-              left: 14,
-              right: 14,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Byte Evolution Stage & Trophy Shelf
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.42),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('🏆', style: TextStyle(fontSize: 13)),
-                        const SizedBox(width: 4),
-                        Text(
-                          s.byteStageTitle,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (unlockedCount >= 7) ...[
-                          const SizedBox(width: 6),
-                          const Text('🥇', style: TextStyle(fontSize: 12)),
-                        ],
-                        if (s.byteBondXp >= 45) ...[
-                          const SizedBox(width: 2),
-                          const Text('🌟', style: TextStyle(fontSize: 12)),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // Room High-Fives / Likes Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.42),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFFFD54F).withValues(alpha: 0.45),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('👋', style: TextStyle(fontSize: 13)),
-                        const SizedBox(width: 5),
-                        Text(
-                          '${s.roomLikes} High-Fives',
-                          style: const TextStyle(
-                            color: Color(0xFFFFD54F),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 3. Interactive Room Gadgets (Left & Right sides of Cabin)
-            if (s.activeGadgets.contains('gad_lava_lamp'))
-              Positioned(
-                left: 18,
-                bottom: 58,
-                child: _buildInteractiveGadget(
-                  id: 'gad_lava_lamp',
-                  emoji: '🧪',
-                  label: 'Plasma Lamp',
-                  color: const Color(0xFFEC4899),
-                  onTap: () => _triggerGadgetInteraction(
-                    'gad_lava_lamp',
-                    '🫧 Zero-G plasma bubbles floating!',
-                  ),
-                ),
-              ),
-            if (s.activeGadgets.contains('gad_arcade'))
-              Positioned(
-                left: 22,
-                top: 68,
-                child: _buildInteractiveGadget(
-                  id: 'gad_arcade',
-                  emoji: '🕹️',
-                  label: 'Arcade',
-                  color: const Color(0xFFF59E0B),
-                  onTap: () => _triggerGadgetInteraction(
-                    'gad_arcade',
-                    '🎵 Retro cosmic high-score unlocked!',
-                  ),
-                ),
-              ),
-            if (s.activeGadgets.contains('gad_hologram'))
-              Positioned(
-                right: 22,
-                top: 68,
-                child: _buildInteractiveGadget(
-                  id: 'gad_hologram',
-                  emoji: '🌐',
-                  label: 'Star Map',
-                  color: const Color(0xFF00E5FF),
-                  onTap: () => _triggerGadgetInteraction(
-                    'gad_hologram',
-                    '🌌 3D sector map scanning nearby galaxies!',
-                  ),
-                ),
-              ),
-            if (s.activeGadgets.contains('gad_robopet'))
-              Positioned(
-                right: 18,
-                bottom: 58,
-                child: _buildInteractiveGadget(
-                  id: 'gad_robopet',
-                  emoji: '🐾',
-                  label: 'Astro-Pup',
-                  color: const Color(0xFFF43F5E),
-                  onTap: () => _triggerGadgetInteraction(
-                    'gad_robopet',
-                    '🐶 Astro-Pup did a zero-gravity backflip! ❤️',
-                  ),
-                ),
-              ),
-
-            // 4. Center Customized Byte Mascot with Visor Aura & Hat
-            Positioned(
-              top: 48,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Custom Visor / Core Aura Ring behind Byte
-                      Container(
-                        width: s.byteStage == 3
-                            ? 150
-                            : (s.byteStage == 2 ? 138 : 126),
-                        height: s.byteStage == 3
-                            ? 150
-                            : (s.byteStage == 2 ? 138 : 126),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              visorColor.withValues(alpha: 0.36),
-                              visorColor.withValues(alpha: 0.08),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                      ByteMascot(
-                        size: s.byteStage == 3
-                            ? 128
-                            : (s.byteStage == 2 ? 118 : 110),
-                        mood: s.isSupercharged
-                            ? ByteMascotMood.happy
-                            : ByteMascotMood.idle,
-                        initialBubbleText: _activePopupText,
-                        darkThemeContext: true,
-                      ),
-                      // Equipped Hat overlay
-                      if (s.equippedHat != 'hat_none')
-                        Positioned(
-                          top: -4,
-                          child: IgnorePointer(
-                            child: _buildHatOverlay(s.equippedHat),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // 5. Bottom Energy & XP Multiplier Bar inside Cabin
-            Positioned(
-              bottom: 10,
-              left: 14,
-              right: 14,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.50),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: s.isSupercharged
-                        ? const Color(0xFFFFD54F).withValues(alpha: 0.65)
-                        : Colors.white.withValues(alpha: 0.16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      s.isSupercharged
-                          ? Icons.bolt_rounded
-                          : Icons.battery_charging_full_rounded,
-                      size: 16,
-                      color: s.isSupercharged
-                          ? const Color(0xFFFFD54F)
-                          : const Color(0xFF00E5FF),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Energy ${s.byteEnergy}%',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: s.byteEnergy / 100.0,
-                          minHeight: 7,
-                          backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            s.isSupercharged
-                                ? const Color(0xFFFFD54F)
-                                : const Color(0xFF00E5FF),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: s.isSupercharged
-                            ? const Color(0xFFFFD54F).withValues(alpha: 0.22)
-                            : Colors.white.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        s.isSupercharged ? '⚡ 1.5x XP ACTIVE' : '80% for 1.5x XP',
-                        style: TextStyle(
-                          color: s.isSupercharged
-                              ? const Color(0xFFFFD54F)
-                              : Colors.white70,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInteractiveGadget({
-    required String id,
-    required String emoji,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    final isPulsing = _pulsingGadgetId == id;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedScale(
-        scale: isPulsing ? 1.22 : 1.0,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.elasticOut,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.22),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: color.withValues(alpha: 0.75),
-              width: 1.4,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.35),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+          size: Size.infinite,
+        );
+      },
     );
   }
 }
 
-class _SpaceCabinScenePainter extends CustomPainter {
-  final double progress;
-  final String windowTheme;
-  final Color visorColor;
+class _GameStageWorldPainter extends CustomPainter {
+  final String stageId;
+  final double phase;
+  final Offset pedestalCenterFraction;
 
-  _SpaceCabinScenePainter({
-    required this.progress,
-    required this.windowTheme,
-    required this.visorColor,
+  _GameStageWorldPainter({
+    required this.stageId,
+    required this.phase,
+    required this.pedestalCenterFraction,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
+    final double w = size.width;
+    final double h = size.height;
+    final double px = w * pedestalCenterFraction.dx;
+    final double py = h * pedestalCenterFraction.dy;
 
-    // 1. Draw Panoramic Spaceship Window Frame in upper-center
-    final windowRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(w * 0.5, h * 0.42),
-        width: w * 0.58,
-        height: h * 0.52,
-      ),
-      const Radius.circular(24),
-    );
+    List<Color> skyColors;
+    Color pedestalGlow;
+    Color pedestalCore;
 
-    final windowBorderPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.16)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0;
-    canvas.drawRRect(windowRect, windowBorderPaint);
-
-    // 2. Twinkling stars inside the window
-    final rng = Random(42);
-    final starPaint = Paint()..color = Colors.white;
-    for (int i = 0; i < 24; i++) {
-      final sx = w * 0.12 + rng.nextDouble() * (w * 0.76);
-      final sy = h * 0.12 + rng.nextDouble() * (h * 0.58);
-      final twinkle = 0.35 + 0.65 * sin(progress * 2 * pi + i);
-      starPaint.color = Colors.white.withValues(alpha: twinkle.clamp(0.1, 1.0));
-      canvas.drawCircle(Offset(sx, sy), 1.2 + (i % 2) * 0.8, starPaint);
+    switch (stageId) {
+      case 'stage_mars':
+        skyColors = const [
+          Color(0xFF1F0505),
+          Color(0xFF5C1111),
+          Color(0xFF9A3412),
+          Color(0xFF2A0808),
+        ];
+        pedestalGlow = const Color(0xFFFB923C);
+        pedestalCore = const Color(0xFFFDE047);
+        break;
+      case 'stage_saturn':
+        skyColors = const [
+          Color(0xFF041322),
+          Color(0xFF0C3B5E),
+          Color(0xFF0284C7),
+          Color(0xFF061A2E),
+        ];
+        pedestalGlow = const Color(0xFF38BDF8);
+        pedestalCore = const Color(0xFFE0F2FE);
+        break;
+      case 'stage_cyber':
+        skyColors = const [
+          Color(0xFF090418),
+          Color(0xFF2E094E),
+          Color(0xFF831843),
+          Color(0xFF11052C),
+        ];
+        pedestalGlow = const Color(0xFFF43F5E);
+        pedestalCore = const Color(0xFF00E5FF);
+        break;
+      case 'stage_supernova':
+        skyColors = const [
+          Color(0xFF1C0D02),
+          Color(0xFF6B3406),
+          Color(0xFFB45309),
+          Color(0xFF291303),
+        ];
+        pedestalGlow = const Color(0xFFFACC15);
+        pedestalCore = const Color(0xFFFFFFFF);
+        break;
+      case 'stage_nebula':
+      default:
+        skyColors = const [
+          Color(0xFF090418),
+          Color(0xFF1E0B4C),
+          Color(0xFF3B1582),
+          Color(0xFF12072B),
+        ];
+        pedestalGlow = const Color(0xFF8B5CF6);
+        pedestalCore = const Color(0xFF00E5FF);
+        break;
     }
 
-    // 3. Theme-specific celestial bodies in window
-    if (windowTheme == 'win_mars') {
-      final marsPaint = Paint()
-        ..shader = const RadialGradient(
-          colors: [Color(0xFFF87171), Color(0xFF991B1B)],
-        ).createShader(
-          Rect.fromCircle(center: Offset(w * 0.66, h * 0.28), radius: 22),
-        );
-      canvas.drawCircle(Offset(w * 0.66, h * 0.28), 22, marsPaint);
-    } else if (windowTheme == 'win_saturn') {
-      final saturnCenter = Offset(w * 0.65, h * 0.30);
-      final ringPaint = Paint()
-        ..color = const Color(0xFFFBBF24).withValues(alpha: 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4;
+    // 1. Full-Screen Sky Gradient
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: skyColors,
+          stops: const [0.0, 0.35, 0.72, 1.0],
+        ).createShader(Offset.zero & size),
+    );
+
+    // 2. Twinkling Starfield across upper sky
+    final rng = Random(77);
+    for (int i = 0; i < 42; i++) {
+      final double sx = rng.nextDouble() * w;
+      final double sy = rng.nextDouble() * h * 0.65;
+      final double twinkle =
+          0.30 + 0.70 * (0.5 + 0.5 * sin(phase * 2 * pi + i * 0.8));
+      final double r = 1.0 + (i % 3) * 0.7;
+      canvas.drawCircle(
+        Offset(sx, sy),
+        r,
+        Paint()..color = Colors.white.withValues(alpha: twinkle * 0.85),
+      );
+    }
+
+    // 3. Stage-Specific World Scenery
+    if (stageId == 'stage_mars') {
+      // Twin moons of Mars
+      canvas.drawCircle(
+        Offset(w * 0.22, h * 0.16),
+        22,
+        Paint()..color = const Color(0xFFFED7AA).withValues(alpha: 0.85),
+      );
+      canvas.drawCircle(
+        Offset(w * 0.78, h * 0.22),
+        12,
+        Paint()..color = const Color(0xFFFDBA74).withValues(alpha: 0.7),
+      );
+      // Martian dunes horizon
+      final Path dunes = Path()
+        ..moveTo(0, py + 10)
+        ..quadraticBezierTo(w * 0.28, py - 35, w * 0.55, py + 5)
+        ..quadraticBezierTo(w * 0.80, py + 35, w, py - 20)
+        ..lineTo(w, h)
+        ..lineTo(0, h)
+        ..close();
+      canvas.drawPath(
+        dunes,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF7C2D12), Color(0xFF3B0A0A)],
+          ).createShader(Rect.fromLTWH(0, py - 40, w, h - py + 40)),
+      );
+    } else if (stageId == 'stage_saturn') {
+      // Giant Ringed Saturn in top-right sky
+      final Offset saturnCenter = Offset(w * 0.75, h * 0.18);
       canvas.save();
       canvas.translate(saturnCenter.dx, saturnCenter.dy);
-      canvas.rotate(-0.35);
+      canvas.rotate(-0.3);
       canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: 54, height: 16),
-        ringPaint,
+        Rect.fromCenter(center: Offset.zero, width: 120, height: 32),
+        Paint()
+          ..color = const Color(0xFF7DD3FC).withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8,
+      );
+      canvas.drawCircle(
+        Offset.zero,
+        28,
+        Paint()
+          ..shader = const LinearGradient(
+            colors: [Color(0xFFFDE68A), Color(0xFF38BDF8)],
+          ).createShader(Rect.fromCircle(center: Offset.zero, radius: 28)),
       );
       canvas.restore();
-      final planetPaint = Paint()..color = const Color(0xFFF59E0B);
-      canvas.drawCircle(saturnCenter, 14, planetPaint);
-    } else if (windowTheme == 'win_supernova') {
-      final auroraPaint = Paint()
-        ..shader = LinearGradient(
-          colors: [
-            const Color(0xFF34D399).withValues(alpha: 0.28),
-            const Color(0xFFA855F7).withValues(alpha: 0.28),
-          ],
-        ).createShader(Rect.fromLTWH(0, 0, w, h * 0.6));
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(w * 0.5, h * 0.28),
-          width: w * 0.52,
-          height: 55,
-        ),
-        auroraPaint,
+    } else if (stageId == 'stage_cyber') {
+      // Synthwave Retro Sun & 3D Perspective Grid Floor
+      final Offset sunCenter = Offset(px, py - 45);
+      canvas.drawCircle(
+        sunCenter,
+        75,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFACC15), Color(0xFFF43F5E), Color(0xFF9333EA)],
+          ).createShader(Rect.fromCircle(center: sunCenter, radius: 75)),
       );
+      // Perspective floor grid lines below horizon
+      final Paint gridPaint = Paint()
+        ..color = const Color(0xFF00E5FF).withValues(alpha: 0.35)
+        ..strokeWidth = 1.4;
+      final double horizonY = py - 10;
+      for (int i = -6; i <= 6; i++) {
+        canvas.drawLine(
+          Offset(px + i * 18.0, horizonY),
+          Offset(px + i * 95.0, h),
+          gridPaint,
+        );
+      }
+      for (int r = 1; r <= 6; r++) {
+        final double gy = horizonY + pow(r / 6.0, 1.6) * (h - horizonY);
+        canvas.drawLine(Offset(0, gy), Offset(w, gy), gridPaint);
+      }
+    } else if (stageId == 'stage_supernova') {
+      // Rotating golden supernova rays behind Byte
+      canvas.save();
+      canvas.translate(px, py - 70);
+      canvas.rotate(phase * 2 * pi * 0.25);
+      for (int i = 0; i < 12; i++) {
+        canvas.rotate(pi / 6);
+        final Path ray = Path()
+          ..moveTo(0, 0)
+          ..lineTo(-18, -220)
+          ..lineTo(18, -220)
+          ..close();
+        canvas.drawPath(
+          ray,
+          Paint()..color = const Color(0xFFFACC15).withValues(alpha: 0.09),
+        );
+      }
+      canvas.restore();
     }
 
-    // 4. Spaceship Cabin Metallic Deck Floor & Glowing Holo-Pad under Byte
-    final deckPath = Path()
-      ..moveTo(0, h)
-      ..lineTo(w * 0.14, h * 0.74)
-      ..lineTo(w * 0.86, h * 0.74)
-      ..lineTo(w, h)
+    // 4. Spotlight Beam shining down onto the Holographic Stage Pedestal
+    final Path beam = Path()
+      ..moveTo(px - 55, 0)
+      ..lineTo(px + 55, 0)
+      ..lineTo(px + 135, py + 15)
+      ..lineTo(px - 135, py + 15)
       ..close();
-    final deckPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          Colors.white.withValues(alpha: 0.10),
-          Colors.black.withValues(alpha: 0.35),
-        ],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(Rect.fromLTWH(0, h * 0.74, w, h * 0.26));
-    canvas.drawPath(deckPath, deckPaint);
-
-    // Glowing levitation pad ellipse beneath Byte
-    final padOval = Rect.fromCenter(
-      center: Offset(w * 0.5, h * 0.77),
-      width: 112,
-      height: 22,
+    canvas.drawPath(
+      beam,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            pedestalGlow.withValues(alpha: 0.0),
+            pedestalGlow.withValues(alpha: 0.14),
+            pedestalCore.withValues(alpha: 0.22),
+          ],
+        ).createShader(Rect.fromLTWH(px - 140, 0, 280, py + 20)),
     );
-    final padPaint = Paint()
-      ..color = visorColor.withValues(alpha: 0.28)
-      ..style = PaintingStyle.fill;
-    canvas.drawOval(padOval, padPaint);
 
-    final padRingPaint = Paint()
-      ..color = visorColor.withValues(alpha: 0.70)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-    canvas.drawOval(padOval, padRingPaint);
+    // 5. 3D Holographic Stage Pedestal under Byte
+    final double pulse = 0.92 + 0.08 * sin(phase * 4 * pi);
+
+    // Pedestal outer energy ring
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(px, py + 18),
+        width: 220 * pulse,
+        height: 54 * pulse,
+      ),
+      Paint()
+        ..color = pedestalGlow.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
+
+    // Metallic 3D Pedestal Base Tier
+    final Rect baseOval = Rect.fromCenter(
+      center: Offset(px, py + 24),
+      width: 196,
+      height: 46,
+    );
+    canvas.drawOval(
+      baseOval,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E1B4B), Color(0xFF0F172A), Color(0xFF311068)],
+        ).createShader(baseOval),
+    );
+    canvas.drawOval(
+      baseOval,
+      Paint()
+        ..color = pedestalGlow.withValues(alpha: 0.85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0,
+    );
+
+    // Glowing Inner Hologram Pad
+    final Rect innerOval = Rect.fromCenter(
+      center: Offset(px, py + 16),
+      width: 154,
+      height: 34,
+    );
+    canvas.drawOval(
+      innerOval,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            pedestalCore.withValues(alpha: 0.85),
+            pedestalGlow.withValues(alpha: 0.55),
+            const Color(0xFF1E1B4B),
+          ],
+        ).createShader(innerOval),
+    );
+    canvas.drawOval(
+      innerOval,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _SpaceCabinScenePainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.windowTheme != windowTheme ||
-        oldDelegate.visorColor != visorColor;
+  bool shouldRepaint(covariant _GameStageWorldPainter oldDelegate) {
+    return oldDelegate.stageId != stageId ||
+        oldDelegate.phase != phase ||
+        oldDelegate.pedestalCenterFraction != pedestalCenterFraction;
   }
 }

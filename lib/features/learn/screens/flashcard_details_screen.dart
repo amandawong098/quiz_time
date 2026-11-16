@@ -7,6 +7,7 @@ import '../widgets/flashcard_discussions_sheet.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class FlashcardDetailsScreen extends StatefulWidget {
@@ -277,18 +278,11 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          CircleAvatar(
+                          UserByteAvatar(
                             radius: 10,
-                            backgroundColor: Colors.deepPurple.shade100,
-                            backgroundImage: (_deck!.creatorAvatarUrl != null &&
-                                    _deck!.creatorAvatarUrl!.isNotEmpty)
-                                ? NetworkImage(_deck!.creatorAvatarUrl!)
-                                : null,
-                            child: (_deck!.creatorAvatarUrl == null ||
-                                    _deck!.creatorAvatarUrl!.isEmpty)
-                                ? const Icon(Icons.person,
-                                    size: 11, color: Colors.deepPurple)
-                                : null,
+                            userId: _deck!.creatorId,
+                            name: _deck!.creatorName,
+                            avatarData: _deck!.creatorAvatarUrl,
                           ),
                           const SizedBox(width: 6),
                           Text(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/discussion_repository.dart';
@@ -485,15 +486,9 @@ class _QuizDiscussionsSheetState extends State<QuizDiscussionsSheet> {
                                   children: [
                                     Row(
                                       children: [
-                                        CircleAvatar(
-                                          radius: 9,
-                                          backgroundColor: Colors.deepPurple.shade100,
-                                          backgroundImage: topic.authorAvatarUrl != null
-                                              ? NetworkImage(topic.authorAvatarUrl!)
-                                              : null,
-                                          child: topic.authorAvatarUrl == null
-                                              ? const Icon(Icons.person, size: 9)
-                                              : null,
+                                        UserByteAvatar(
+                                          avatarUrl: topic.authorAvatarUrl,
+                                          radius: 10,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(

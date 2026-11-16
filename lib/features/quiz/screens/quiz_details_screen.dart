@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/sound_service.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
@@ -230,18 +231,9 @@ class _QuizDetailsScreenState extends State<QuizDetailsScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundColor: Colors.deepPurple.shade100,
-                            backgroundImage: (_quiz!.creatorAvatarUrl != null &&
-                                    _quiz!.creatorAvatarUrl!.isNotEmpty)
-                                ? NetworkImage(_quiz!.creatorAvatarUrl!)
-                                : null,
-                            child: (_quiz!.creatorAvatarUrl == null ||
-                                    _quiz!.creatorAvatarUrl!.isEmpty)
-                                ? const Icon(Icons.person,
-                                    size: 11, color: Colors.deepPurple)
-                                : null,
+                          UserByteAvatar(
+                            avatarUrl: _quiz!.creatorAvatarUrl,
+                            radius: 11,
                           ),
                           const SizedBox(width: 6),
                           Text(

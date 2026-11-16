@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 
@@ -850,18 +851,10 @@ class _KahootScoreboardViewState extends State<KahootScoreboardView>
                       children: [
                         rankBadge,
                         const SizedBox(width: 12),
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Colors.white24,
-                          backgroundImage: p.avatarUrl != null && p.avatarUrl!.isNotEmpty
-                              ? NetworkImage(p.avatarUrl!)
-                              : null,
-                          child: p.avatarUrl == null || p.avatarUrl!.isEmpty
-                              ? Text(
-                                  p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                )
-                              : null,
+                        UserByteAvatar(
+                          avatarUrl: p.avatarUrl,
+                          isCurrentUser: isMe,
+                          radius: 19,
                         ),
                         const SizedBox(width: 12),
                         Expanded(

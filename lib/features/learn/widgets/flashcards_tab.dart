@@ -241,23 +241,11 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  CircleAvatar(
+                                  UserByteAvatar(
                                     radius: 8,
-                                    backgroundColor: Colors.deepPurple.shade100,
-                                    backgroundImage:
-                                        (deck.creatorAvatarUrl != null &&
-                                            deck.creatorAvatarUrl!.isNotEmpty)
-                                        ? NetworkImage(deck.creatorAvatarUrl!)
-                                        : null,
-                                    child:
-                                        (deck.creatorAvatarUrl == null ||
-                                            deck.creatorAvatarUrl!.isEmpty)
-                                        ? const Icon(
-                                            Icons.person,
-                                            size: 9,
-                                            color: Colors.deepPurple,
-                                          )
-                                        : null,
+                                    userId: deck.creatorId,
+                                    name: deck.creatorName,
+                                    avatarData: deck.creatorAvatarUrl,
                                   ),
                                   const SizedBox(width: 4),
                                   Expanded(

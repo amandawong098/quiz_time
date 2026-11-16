@@ -6,6 +6,7 @@ import '../../../data/models/discussion_models.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../models/lesson_models.dart';
 
 class LessonDiscussionsSheet extends StatefulWidget {
@@ -595,15 +596,11 @@ class _LessonDiscussionsSheetState extends State<LessonDiscussionsSheet> {
                                   children: [
                                     Row(
                                       children: [
-                                        CircleAvatar(
+                                        UserByteAvatar(
                                           radius: 9,
-                                          backgroundColor: Colors.deepPurple.shade100,
-                                          backgroundImage: topic.authorAvatarUrl != null
-                                              ? NetworkImage(topic.authorAvatarUrl!)
-                                              : null,
-                                          child: topic.authorAvatarUrl == null
-                                              ? const Icon(Icons.person, size: 9)
-                                              : null,
+                                          userId: topic.authorId,
+                                          name: topic.authorName,
+                                          avatarData: topic.authorAvatarUrl,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(

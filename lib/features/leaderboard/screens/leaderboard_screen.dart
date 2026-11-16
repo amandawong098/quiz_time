@@ -617,7 +617,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           children: [
             rankIndicator,
             const SizedBox(width: 16),
-            // Avatar
+            // Byte Avatar
             GestureDetector(
               onTap: () => UserDetailBottomSheet.show(
                 context,
@@ -625,19 +625,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 name: user.name,
                 avatarUrl: user.avatarUrl,
               ),
-              child: CircleAvatar(
+              child: UserByteAvatar(
+                avatarUrl: user.avatarUrl,
+                isCurrentUser: isMe,
                 radius: 20,
-                backgroundColor: Colors.deepPurple.shade100,
-                backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-                child: user.avatarUrl == null
-                    ? Text(
-                        user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                          color: Colors.deepPurple,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : null,
               ),
             ),
             const SizedBox(width: 16),

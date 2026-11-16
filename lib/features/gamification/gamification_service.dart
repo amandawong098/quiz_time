@@ -1,18 +1,15 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/services/sound_service.dart';
+import '../../core/widgets/byte_mascot.dart';
 
 enum CosmicItemCategory {
-  hat,
-  visor,
-  windowTheme,
-  gadget,
-  avatarFrame,
-  titleBadge,
+  costume, // Full Vector Costumes (Astronaut, Alien, Planet, Wizard, Ninja, Royalty)
+  body,    // Body & Helmet Armor Paint
+  eye,     // Visor Eye Style & Color
+  stage,   // Game Stage & Avatar Backdrop World
 }
 
 enum CosmicItemRarity {
@@ -26,21 +23,21 @@ class CosmicShopItem {
   final String id;
   final String name;
   final String description;
-  final String emoji;
-  final int costXp;
   final CosmicItemCategory category;
   final CosmicItemRarity rarity;
-  final List<Color> previewColors;
+  final int costXp;
+  final Color primaryColor;
+  final Color secondaryColor;
 
   const CosmicShopItem({
     required this.id,
     required this.name,
     required this.description,
-    required this.emoji,
-    required this.costXp,
     required this.category,
     required this.rarity,
-    this.previewColors = const [Color(0xFF7C4DFF), Color(0xFF311B92)],
+    required this.costXp,
+    required this.primaryColor,
+    required this.secondaryColor,
   });
 
   String get rarityLabel {
@@ -59,710 +56,610 @@ class CosmicShopItem {
   Color get rarityColor {
     switch (rarity) {
       case CosmicItemRarity.common:
-        return const Color(0xFF38BDF8);
+        return const Color(0xFF94A3B8);
       case CosmicItemRarity.rare:
-        return const Color(0xFFA855F7);
+        return const Color(0xFF38BDF8);
       case CosmicItemRarity.epic:
-        return const Color(0xFFF59E0B);
+        return const Color(0xFFC084FC);
       case CosmicItemRarity.legendary:
-        return const Color(0xFFEC4899);
+        return const Color(0xFFFACC15);
+    }
+  }
+
+  /// Creates a preview `ByteAppearance` showing this item applied on top of `base`.
+  ByteAppearance previewOn(ByteAppearance base) {
+    switch (category) {
+      case CosmicItemCategory.costume:
+        return base.copyWith(costumeId: id);
+      case CosmicItemCategory.body:
+        return base.copyWith(bodyId: id);
+      case CosmicItemCategory.eye:
+        return base.copyWith(eyeId: id);
+      case CosmicItemCategory.stage:
+        return base.copyWith(stageId: id);
     }
   }
 }
 
-/// Represents a user's complete Cosmic Customization & Byte Space Cabin state.
-/// Can be serialized to/from `public.profiles.customization`, `userMetadata`, and `SharedPreferences`.
 class UserCosmicState {
+  static const List<String> starterItemIds = [
+    'costume_none',
+    'body_classic',
+    'eye_cyan',
+    'stage_nebula',
+  ];
+
   final int spentXp;
-  final int bonusEarnedXp;
-  final Set<String> unlockedIds;
-  final String equippedHat;
-  final String equippedVisor;
-  final String equippedWindow;
-  final Set<String> activeGadgets;
-  final String equippedFrame;
-  final String equippedTitle;
-  final int byteEnergy; // 0..100
-  final int byteBondXp; // Pet evolution XP
-  final String? lastFreeFeedDate; // YYYY-MM-DD
-  final int roomLikes;
-  final Set<String> likedUserIds;
-  final Map<String, int> dailyMissionProgress; // key -> count for today
-  final Set<String> claimedDailyMissions; // missionId_YYYY-MM-DD
-  final String? missionDate; // YYYY-MM-DD
+  final int bonusXpEarned;
+  final List<String> ownedItems;
+  final String equippedCostume;
+  final String equippedBody;
+  final String equippedEye;
+  final String equippedStage;
 
   const UserCosmicState({
     this.spentXp = 0,
-    this.bonusEarnedXp = 0,
-    this.unlockedIds = const {
-      'hat_none',
-      'visor_cyan',
-      'win_deep_space',
-      'frame_default',
-      'title_none',
-    },
-    this.equippedHat = 'hat_none',
-    this.equippedVisor = 'visor_cyan',
-    this.equippedWindow = 'win_deep_space',
-    this.activeGadgets = const {},
-    this.equippedFrame = 'frame_default',
-    this.equippedTitle = 'title_none',
-    this.byteEnergy = 75,
-    this.byteBondXp = 0,
-    this.lastFreeFeedDate,
-    this.roomLikes = 0,
-    this.likedUserIds = const {},
-    this.dailyMissionProgress = const {},
-    this.claimedDailyMissions = const {},
-    this.missionDate,
+    this.bonusXpEarned = 0,
+    this.ownedItems = starterItemIds,
+    this.equippedCostume = 'costume_none',
+    this.equippedBody = 'body_classic',
+    this.equippedEye = 'eye_cyan',
+    this.equippedStage = 'stage_nebula',
   });
 
-  int get byteStage {
-    if (byteBondXp >= 120) return 3; // Hyper-Byte
-    if (byteBondXp >= 45) return 2; // Astro-Byte
-    return 1; // Mini-Byte
+  ByteAppearance get appearance => ByteAppearance(
+        bodyId: equippedBody,
+        eyeId: equippedEye,
+        costumeId: equippedCostume,
+        stageId: equippedStage,
+      );
+
+  /// Number of paid/unlockable wardrobe items the user owns (excludes the 4 free starters).
+  int get unlockedPaidCount =>
+      ownedItems.where((id) => !starterItemIds.contains(id)).length;
+
+  /// Option B: Wardrobe Collection Milestone Quiz XP Multiplier.
+  /// Owning more Byte customization items grants a permanent passive Quiz XP Boost
+  /// regardless of which outfit you currently wear.
+  double get quizXpMultiplier {
+    final c = unlockedPaidCount;
+    if (c >= 14) return 1.5;
+    if (c >= 9) return 1.3;
+    if (c >= 5) return 1.2;
+    if (c >= 2) return 1.1;
+    return 1.0;
   }
 
-  String get byteStageTitle {
-    switch (byteStage) {
-      case 3:
-        return 'Stage 3 • Hyper-Byte';
-      case 2:
-        return 'Stage 2 • Astro-Byte';
-      default:
-        return 'Stage 1 • Mini-Byte';
-    }
+  int get boostPercent => ((quizXpMultiplier - 1.0) * 100).round();
+
+  int? get nextBoostThreshold {
+    final c = unlockedPaidCount;
+    if (c < 2) return 2;
+    if (c < 5) return 5;
+    if (c < 9) return 9;
+    if (c < 14) return 14;
+    return null;
   }
 
-  bool get isSupercharged => byteEnergy >= 80;
+  double get boostProgress {
+    final c = unlockedPaidCount;
+    if (c >= 14) return 1.0;
+    if (c >= 9) return (c - 9) / 5.0;
+    if (c >= 5) return (c - 5) / 4.0;
+    if (c >= 2) return (c - 2) / 3.0;
+    return c / 2.0;
+  }
+
+  bool get hasActiveBoost => quizXpMultiplier > 1.0;
 
   UserCosmicState copyWith({
     int? spentXp,
-    int? bonusEarnedXp,
-    Set<String>? unlockedIds,
-    String? equippedHat,
-    String? equippedVisor,
-    String? equippedWindow,
-    Set<String>? activeGadgets,
-    String? equippedFrame,
-    String? equippedTitle,
-    int? byteEnergy,
-    int? byteBondXp,
-    String? lastFreeFeedDate,
-    int? roomLikes,
-    Set<String>? likedUserIds,
-    Map<String, int>? dailyMissionProgress,
-    Set<String>? claimedDailyMissions,
-    String? missionDate,
+    int? bonusXpEarned,
+    List<String>? ownedItems,
+    String? equippedCostume,
+    String? equippedBody,
+    String? equippedEye,
+    String? equippedStage,
   }) {
     return UserCosmicState(
       spentXp: spentXp ?? this.spentXp,
-      bonusEarnedXp: bonusEarnedXp ?? this.bonusEarnedXp,
-      unlockedIds: unlockedIds ?? this.unlockedIds,
-      equippedHat: equippedHat ?? this.equippedHat,
-      equippedVisor: equippedVisor ?? this.equippedVisor,
-      equippedWindow: equippedWindow ?? this.equippedWindow,
-      activeGadgets: activeGadgets ?? this.activeGadgets,
-      equippedFrame: equippedFrame ?? this.equippedFrame,
-      equippedTitle: equippedTitle ?? this.equippedTitle,
-      byteEnergy: (byteEnergy ?? this.byteEnergy).clamp(0, 100),
-      byteBondXp: byteBondXp ?? this.byteBondXp,
-      lastFreeFeedDate: lastFreeFeedDate ?? this.lastFreeFeedDate,
-      roomLikes: roomLikes ?? this.roomLikes,
-      likedUserIds: likedUserIds ?? this.likedUserIds,
-      dailyMissionProgress: dailyMissionProgress ?? this.dailyMissionProgress,
-      claimedDailyMissions: claimedDailyMissions ?? this.claimedDailyMissions,
-      missionDate: missionDate ?? this.missionDate,
+      bonusXpEarned: bonusXpEarned ?? this.bonusXpEarned,
+      ownedItems: ownedItems ?? this.ownedItems,
+      equippedCostume: equippedCostume ?? this.equippedCostume,
+      equippedBody: equippedBody ?? this.equippedBody,
+      equippedEye: equippedEye ?? this.equippedEye,
+      equippedStage: equippedStage ?? this.equippedStage,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'spent_xp': spentXp,
-      'bonus_earned_xp': bonusEarnedXp,
-      'unlocked_ids': unlockedIds.toList(),
-      'equipped_hat': equippedHat,
-      'equipped_visor': equippedVisor,
-      'equipped_window': equippedWindow,
-      'active_gadgets': activeGadgets.toList(),
-      'equipped_frame': equippedFrame,
-      'equipped_title': equippedTitle,
-      'byte_energy': byteEnergy,
-      'byte_bond_xp': byteBondXp,
-      'last_free_feed_date': lastFreeFeedDate,
-      'room_likes': roomLikes,
-      'liked_user_ids': likedUserIds.toList(),
-      'daily_mission_progress': dailyMissionProgress,
-      'claimed_daily_missions': claimedDailyMissions.toList(),
-      'mission_date': missionDate,
+      'spentXp': spentXp,
+      'bonusXpEarned': bonusXpEarned,
+      'ownedItems': ownedItems,
+      'equippedCostume': equippedCostume,
+      'equippedBody': equippedBody,
+      'equippedEye': equippedEye,
+      'equippedStage': equippedStage,
     };
   }
 
   factory UserCosmicState.fromJson(Map<String, dynamic>? json) {
-    if (json == null) return const UserCosmicState();
-    final unlockedRaw = (json['unlocked_ids'] as List?)?.map((e) => e.toString()).toSet() ?? {};
-    unlockedRaw.addAll(const {
-      'hat_none',
-      'visor_cyan',
-      'win_deep_space',
-      'frame_default',
-      'title_none',
-    });
+    if (json == null || json.isEmpty) return const UserCosmicState();
 
-    final gadgetsRaw = (json['active_gadgets'] as List?)?.map((e) => e.toString()).toSet() ?? {};
-    final likedRaw = (json['liked_user_ids'] as List?)?.map((e) => e.toString()).toSet() ?? {};
-    final claimedRaw = (json['claimed_daily_missions'] as List?)?.map((e) => e.toString()).toSet() ?? {};
-    final progressRaw = <String, int>{};
-    if (json['daily_mission_progress'] is Map) {
-      (json['daily_mission_progress'] as Map).forEach((k, v) {
-        progressRaw[k.toString()] = (v as num?)?.toInt() ?? 0;
-      });
+    List<String> parseStringList(dynamic raw, List<String> fallback) {
+      if (raw is List) {
+        return raw.map((e) => e.toString()).toList();
+      }
+      return fallback;
+    }
+
+    final owned = parseStringList(json['ownedItems'], List<String>.from(starterItemIds));
+    for (final starter in starterItemIds) {
+      if (!owned.contains(starter)) owned.add(starter);
     }
 
     return UserCosmicState(
-      spentXp: (json['spent_xp'] as num?)?.toInt() ?? 0,
-      bonusEarnedXp: (json['bonus_earned_xp'] as num?)?.toInt() ?? 0,
-      unlockedIds: unlockedRaw,
-      equippedHat: json['equipped_hat'] as String? ?? 'hat_none',
-      equippedVisor: json['equipped_visor'] as String? ?? 'visor_cyan',
-      equippedWindow: json['equipped_window'] as String? ?? 'win_deep_space',
-      activeGadgets: gadgetsRaw,
-      equippedFrame: json['equipped_frame'] as String? ?? 'frame_default',
-      equippedTitle: json['equipped_title'] as String? ?? 'title_none',
-      byteEnergy: ((json['byte_energy'] as num?)?.toInt() ?? 75).clamp(0, 100),
-      byteBondXp: (json['byte_bond_xp'] as num?)?.toInt() ?? 0,
-      lastFreeFeedDate: json['last_free_feed_date'] as String?,
-      roomLikes: (json['room_likes'] as num?)?.toInt() ?? 0,
-      likedUserIds: likedRaw,
-      dailyMissionProgress: progressRaw,
-      claimedDailyMissions: claimedRaw,
-      missionDate: json['mission_date'] as String?,
+      spentXp: (json['spentXp'] as num?)?.toInt() ?? 0,
+      bonusXpEarned: (json['bonusXpEarned'] as num?)?.toInt() ?? 0,
+      ownedItems: owned,
+      equippedCostume: json['equippedCostume'] as String? ?? 'costume_none',
+      equippedBody: json['equippedBody'] as String? ?? 'body_classic',
+      equippedEye: json['equippedEye'] as String? ?? 'eye_cyan',
+      equippedStage: json['equippedStage'] as String? ?? 'stage_nebula',
     );
   }
 }
 
-class DailyMissionSpec {
-  final String id;
-  final String title;
-  final String subtitle;
-  final String emoji;
-  final int targetCount;
-  final int rewardXp;
-
-  const DailyMissionSpec({
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.emoji,
-    required this.targetCount,
-    required this.rewardXp,
-  });
-}
-
-class MysteryPodResult {
-  final CosmicShopItem item;
-  final bool wasDuplicate;
-  final int duplicateBonusXp;
-
-  const MysteryPodResult({
-    required this.item,
-    required this.wasDuplicate,
-    this.duplicateBonusXp = 0,
-  });
-}
-
 class GamificationService extends ChangeNotifier {
-  GamificationService._internal();
   static final GamificationService instance = GamificationService._internal();
+  GamificationService._internal();
 
-  static const int mysteryPodCostXp = 60;
-  static const int energizeByteCostXp = 15;
+  UserCosmicState _state = const UserCosmicState();
+  int _lifetimeXp = 0;
+  bool _isLoaded = false;
 
-  static const List<DailyMissionSpec> dailyMissions = [
-    DailyMissionSpec(
-      id: 'study_complete',
-      title: 'Cosmic Explorer',
-      subtitle: 'Complete 1 Quiz or Lesson today',
-      emoji: '🚀',
-      targetCount: 1,
-      rewardXp: 30,
-    ),
-    DailyMissionSpec(
-      id: 'care_byte',
-      title: 'Byte Caretaker',
-      subtitle: 'Energize or play with Byte in the Space Cabin',
-      emoji: '🔋',
-      targetCount: 1,
-      rewardXp: 25,
-    ),
-    DailyMissionSpec(
-      id: 'social_or_style',
-      title: 'Galactic Stylist',
-      subtitle: 'Equip an item or High-Five a friend\'s Byte',
-      emoji: '✨',
-      targetCount: 1,
-      rewardXp: 25,
-    ),
-  ];
+  UserCosmicState get state => _state;
+  int get lifetimeXp => _lifetimeXp;
+  bool get isLoaded => _isLoaded;
 
+  /// Spendable XP = Lifetime XP + any legacy Bonus XP - Spent XP.
+  /// Spending XP in the Byte Studio NEVER lowers Leaderboard XP!
+  int get spendableXp =>
+      max(0, _lifetimeXp + _state.bonusXpEarned - _state.spentXp);
+
+  double get xpMultiplier => _state.quizXpMultiplier;
+
+  // ===========================================================================
+  // FULL VECTOR AVATAR & STAGE SHOP CATALOG
+  // ===========================================================================
   static const List<CosmicShopItem> catalog = [
-    // ---------------- HATS ----------------
+    // --- 1. FITTED COSTUMES ---
     CosmicShopItem(
-      id: 'hat_none',
-      name: 'Classic Antenna',
-      description: 'Byte\'s standard starlight signal antenna.',
-      emoji: '📡',
+      id: 'costume_none',
+      name: 'Astro-Bot',
+      description: 'Byte\'s classic deep-space explorer chassis.',
+      category: CosmicItemCategory.costume,
+      rarity: CosmicItemRarity.common,
       costXp: 0,
-      category: CosmicItemCategory.hat,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFF64748B), Color(0xFF334155)],
+      primaryColor: Color(0xFF7E57C2),
+      secondaryColor: Color(0xFFD1C4E9),
     ),
     CosmicShopItem(
-      id: 'hat_astro',
-      name: 'Orbit Halo Ring',
-      description: 'A levitating golden planetary halo above Byte.',
-      emoji: '🪐',
-      costXp: 50,
-      category: CosmicItemCategory.hat,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFF38BDF8), Color(0xFF0284C7)],
-    ),
-    CosmicShopItem(
-      id: 'hat_grad',
-      name: 'Scholar Mortarboard',
-      description: 'Official graduation cap of the Stellar Academy.',
-      emoji: '🎓',
-      costXp: 70,
-      category: CosmicItemCategory.hat,
+      id: 'costume_astronaut',
+      name: 'Commander Suit',
+      description: 'Gold visor seal, chest telemetry box & dual flame jetpack!',
+      category: CosmicItemCategory.costume,
       rarity: CosmicItemRarity.rare,
-      previewColors: [Color(0xFF6366F1), Color(0xFF312E81)],
+      costXp: 50,
+      primaryColor: Color(0xFF38BDF8),
+      secondaryColor: Color(0xFFF59E0B),
     ),
     CosmicShopItem(
-      id: 'hat_crown',
-      name: 'Starlight Crown',
-      description: 'Forged from pure supernova gold for top scholars.',
-      emoji: '👑',
-      costXp: 90,
-      category: CosmicItemCategory.hat,
+      id: 'costume_alien',
+      name: 'Martian Disguise',
+      description: 'Three glowing alien eyes, dual feelers & UFO saucer belt!',
+      category: CosmicItemCategory.costume,
+      rarity: CosmicItemRarity.rare,
+      costXp: 70,
+      primaryColor: Color(0xFF00E676),
+      secondaryColor: Color(0xFF76FF03),
+    ),
+    CosmicShopItem(
+      id: 'costume_planet',
+      name: 'Saturn Planet',
+      description: '3D orbiting planetary rings & an icy moon around Byte!',
+      category: CosmicItemCategory.costume,
       rarity: CosmicItemRarity.epic,
-      previewColors: [Color(0xFFFBBF24), Color(0xFFB45309)],
-    ),
-    CosmicShopItem(
-      id: 'hat_headphones',
-      name: 'Cyber DJ Headset',
-      description: 'Glowing neon stereo headphones pulsing with beats.',
-      emoji: '🎧',
       costXp: 95,
-      category: CosmicItemCategory.hat,
-      rarity: CosmicItemRarity.epic,
-      previewColors: [Color(0xFFEC4899), Color(0xFF7E22CE)],
+      primaryColor: Color(0xFFF59E0B),
+      secondaryColor: Color(0xFF38BDF8),
     ),
     CosmicShopItem(
-      id: 'hat_wizard',
-      name: 'Nebula Mage Hat',
-      description: 'Mystical cosmic spire hat embroidered with stars.',
-      emoji: '🧙',
+      id: 'costume_wizard',
+      name: 'Starlight Wizard',
+      description: 'Pointed star hat, flowing mystic cape & glowing star wand!',
+      category: CosmicItemCategory.costume,
+      rarity: CosmicItemRarity.epic,
+      costXp: 110,
+      primaryColor: Color(0xFF8B5CF6),
+      secondaryColor: Color(0xFFFBBF24),
+    ),
+    CosmicShopItem(
+      id: 'costume_cyber_ninja',
+      name: 'Cyber-Shinobi',
+      description: 'Fluttering headband, dual plasma katanas & neon shuriken!',
+      category: CosmicItemCategory.costume,
+      rarity: CosmicItemRarity.epic,
       costXp: 130,
-      category: CosmicItemCategory.hat,
+      primaryColor: Color(0xFFF43F5E),
+      secondaryColor: Color(0xFF00E5FF),
+    ),
+    CosmicShopItem(
+      id: 'costume_royalty',
+      name: 'Galactic Royalty',
+      description: 'Jewelled gold crown, crimson ermine cape & royal scepter!',
+      category: CosmicItemCategory.costume,
       rarity: CosmicItemRarity.legendary,
-      previewColors: [Color(0xFF8B5CF6), Color(0xFF4C1D95)],
-    ),
-
-    // ---------------- VISORS ----------------
-    CosmicShopItem(
-      id: 'visor_cyan',
-      name: 'Aqua Core Visor',
-      description: 'Default friendly cyan LED eyes & starlight core.',
-      emoji: '🩵',
-      costXp: 0,
-      category: CosmicItemCategory.visor,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFF00E5FF), Color(0xFF0284C7)],
-    ),
-    CosmicShopItem(
-      id: 'visor_gold',
-      name: 'Solar Gold Visor',
-      description: 'Radiant golden eyes powered by solar flares.',
-      emoji: '💛',
-      costXp: 45,
-      category: CosmicItemCategory.visor,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFFFFD54F), Color(0xFFF59E0B)],
-    ),
-    CosmicShopItem(
-      id: 'visor_magenta',
-      name: 'Pink Nebula Visor',
-      description: 'Vibrant neon rose-pink cybernetic expression.',
-      emoji: '🩷',
-      costXp: 65,
-      category: CosmicItemCategory.visor,
-      rarity: CosmicItemRarity.rare,
-      previewColors: [Color(0xFFF472B6), Color(0xFFDB2777)],
-    ),
-    CosmicShopItem(
-      id: 'visor_emerald',
-      name: 'Emerald Matrix Visor',
-      description: 'High-tech hacker green digital visor glow.',
-      emoji: '💚',
-      costXp: 65,
-      category: CosmicItemCategory.visor,
-      rarity: CosmicItemRarity.rare,
-      previewColors: [Color(0xFF34D399), Color(0xFF059669)],
-    ),
-    CosmicShopItem(
-      id: 'visor_rainbow',
-      name: 'Hypernova Prism Core',
-      description: 'Legendary dual-tone violet & cyan plasma core.',
-      emoji: '🌈',
-      costXp: 120,
-      category: CosmicItemCategory.visor,
-      rarity: CosmicItemRarity.legendary,
-      previewColors: [Color(0xFFE879F9), Color(0xFF38BDF8)],
-    ),
-
-    // ---------------- CABIN WINDOWS ----------------
-    CosmicShopItem(
-      id: 'win_deep_space',
-      name: 'Deep Nebula Orbit',
-      description: 'Serene indigo starfield outside your cabin window.',
-      emoji: '🌌',
-      costXp: 0,
-      category: CosmicItemCategory.windowTheme,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFF1E1B4B), Color(0xFF0F172A)],
-    ),
-    CosmicShopItem(
-      id: 'win_mars',
-      name: 'Crimson Mars Colony',
-      description: 'Warm red Martian horizon with twin moons.',
-      emoji: '🔴',
-      costXp: 70,
-      category: CosmicItemCategory.windowTheme,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFF991B1B), Color(0xFF450A0A)],
-    ),
-    CosmicShopItem(
-      id: 'win_saturn',
-      name: 'Saturn Ring Vista',
-      description: 'Breathtaking golden gas giant rings outside.',
-      emoji: '🪐',
-      costXp: 100,
-      category: CosmicItemCategory.windowTheme,
-      rarity: CosmicItemRarity.rare,
-      previewColors: [Color(0xFF78350F), Color(0xFF1E1B4B)],
-    ),
-    CosmicShopItem(
-      id: 'win_cyber',
-      name: 'Synthwave Grid Sector',
-      description: 'Neon magenta & cyan cyber-grid horizon.',
-      emoji: '🌆',
-      costXp: 125,
-      category: CosmicItemCategory.windowTheme,
-      rarity: CosmicItemRarity.epic,
-      previewColors: [Color(0xFF701A75), Color(0xFF0F172A)],
-    ),
-    CosmicShopItem(
-      id: 'win_supernova',
-      name: 'Supernova Aurora',
-      description: 'Dazzling emerald & violet galactic aurora borealis.',
-      emoji: '✨',
-      costXp: 155,
-      category: CosmicItemCategory.windowTheme,
-      rarity: CosmicItemRarity.legendary,
-      previewColors: [Color(0xFF065F46), Color(0xFF3B0764)],
-    ),
-
-    // ---------------- INTERACTIVE GADGETS ----------------
-    CosmicShopItem(
-      id: 'gad_lava_lamp',
-      name: 'Zero-G Plasma Lamp',
-      description: 'Floating glowing plasma bubbles—tap to bubble!',
-      emoji: '🧪',
-      costXp: 50,
-      category: CosmicItemCategory.gadget,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
-    ),
-    CosmicShopItem(
-      id: 'gad_hologram',
-      name: '3D Star Hologram',
-      description: 'Interactive rotating holographic galaxy projector.',
-      emoji: '🌐',
-      costXp: 80,
-      category: CosmicItemCategory.gadget,
-      rarity: CosmicItemRarity.rare,
-      previewColors: [Color(0xFF00E5FF), Color(0xFF1D4ED8)],
-    ),
-    CosmicShopItem(
-      id: 'gad_arcade',
-      name: 'Retro Cosmic Arcade',
-      description: 'Mini chiptune arcade cabinet—tap to play a tune!',
-      emoji: '🕹️',
-      costXp: 110,
-      category: CosmicItemCategory.gadget,
-      rarity: CosmicItemRarity.epic,
-      previewColors: [Color(0xFFF59E0B), Color(0xFF7C3AED)],
-    ),
-    CosmicShopItem(
-      id: 'gad_robopet',
-      name: 'Astro-Pup Companion',
-      description: 'A tiny floating robo-puppy friend for Byte!',
-      emoji: '🐾',
-      costXp: 145,
-      category: CosmicItemCategory.gadget,
-      rarity: CosmicItemRarity.legendary,
-      previewColors: [Color(0xFFF43F5E), Color(0xFFFBBF24)],
-    ),
-
-    // ---------------- AVATAR FRAMES ----------------
-    CosmicShopItem(
-      id: 'frame_default',
-      name: 'Classic Starlight',
-      description: 'Standard golden starlight profile ring.',
-      emoji: '⭕',
-      costXp: 0,
-      category: CosmicItemCategory.avatarFrame,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFFFFD54F), Color(0xFF5E35B1)],
-    ),
-    CosmicShopItem(
-      id: 'frame_orbit',
-      name: 'Cyan Pulsar Ring',
-      description: 'Dual electric-cyan orbital rings around your avatar.',
-      emoji: '💠',
-      costXp: 65,
-      category: CosmicItemCategory.avatarFrame,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFF00E5FF), Color(0xFF0284C7)],
-    ),
-    CosmicShopItem(
-      id: 'frame_neon',
-      name: 'Magenta Cyber Halo',
-      description: 'Glowing neon pink-violet synthwave avatar border.',
-      emoji: '🔮',
-      costXp: 90,
-      category: CosmicItemCategory.avatarFrame,
-      rarity: CosmicItemRarity.rare,
-      previewColors: [Color(0xFFF472B6), Color(0xFF9333EA)],
-    ),
-    CosmicShopItem(
-      id: 'frame_plasma',
-      name: 'Emerald Nova Aura',
-      description: 'Radiant aurora-green energy shield border.',
-      emoji: '❇️',
-      costXp: 115,
-      category: CosmicItemCategory.avatarFrame,
-      rarity: CosmicItemRarity.epic,
-      previewColors: [Color(0xFF34D399), Color(0xFF059669)],
-    ),
-    CosmicShopItem(
-      id: 'frame_supernova',
-      name: 'Supernova Sovereign',
-      description: 'Legendary rainbow-gold cosmic crown avatar border.',
-      emoji: '👑',
       costXp: 160,
-      category: CosmicItemCategory.avatarFrame,
-      rarity: CosmicItemRarity.legendary,
-      previewColors: [Color(0xFFFBBF24), Color(0xFFEC4899)],
+      primaryColor: Color(0xFFFACC15),
+      secondaryColor: Color(0xFFE11D48),
     ),
 
-    // ---------------- COSMIC TITLES ----------------
+    // --- 2. BODY PAINTS ---
     CosmicShopItem(
-      id: 'title_none',
-      name: 'No Title Badge',
-      description: 'Display your name without a title badge.',
-      emoji: '➖',
+      id: 'body_classic',
+      name: 'Starlight White',
+      description: 'Crisp ceramic white with lavender trim.',
+      category: CosmicItemCategory.body,
+      rarity: CosmicItemRarity.common,
       costXp: 0,
-      category: CosmicItemCategory.titleBadge,
-      rarity: CosmicItemRarity.common,
+      primaryColor: Color(0xFFEDE7F6),
+      secondaryColor: Color(0xFF7E57C2),
     ),
     CosmicShopItem(
-      id: 'title_pioneer',
-      name: '🚀 Galactic Pioneer',
-      description: 'Displayed under your name on Profile & Leaderboards.',
-      emoji: '🚀',
+      id: 'body_rose',
+      name: 'Rose Quartz',
+      description: 'Pastel nebula pink metallic finish.',
+      category: CosmicItemCategory.body,
+      rarity: CosmicItemRarity.common,
+      costXp: 35,
+      primaryColor: Color(0xFFF472B6),
+      secondaryColor: Color(0xFFDB2777),
+    ),
+    CosmicShopItem(
+      id: 'body_emerald',
+      name: 'Bio-Plasma Mint',
+      description: 'Luminous emerald-mint alloy coat.',
+      category: CosmicItemCategory.body,
+      rarity: CosmicItemRarity.common,
       costXp: 40,
-      category: CosmicItemCategory.titleBadge,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFF38BDF8), Color(0xFF1D4ED8)],
+      primaryColor: Color(0xFF34D399),
+      secondaryColor: Color(0xFF059669),
     ),
     CosmicShopItem(
-      id: 'title_quiz_whiz',
-      name: '⚡ Quiz Whiz',
-      description: 'Show off your lightning-fast quiz reflexes.',
-      emoji: '⚡',
-      costXp: 60,
-      category: CosmicItemCategory.titleBadge,
-      rarity: CosmicItemRarity.common,
-      previewColors: [Color(0xFFFBBF24), Color(0xFFD97706)],
-    ),
-    CosmicShopItem(
-      id: 'title_scholar',
-      name: '🧠 Stellar Genius',
-      description: 'A badge of honor for dedicated knowledge seekers.',
-      emoji: '🧠',
-      costXp: 85,
-      category: CosmicItemCategory.titleBadge,
+      id: 'body_obsidian',
+      name: 'Stealth Obsidian',
+      description: 'Matte carbon-black armor with neon cyan trim.',
+      category: CosmicItemCategory.body,
       rarity: CosmicItemRarity.rare,
-      previewColors: [Color(0xFFA855F7), Color(0xFF6D28D9)],
+      costXp: 55,
+      primaryColor: Color(0xFF1E293B),
+      secondaryColor: Color(0xFF00E5FF),
     ),
     CosmicShopItem(
-      id: 'title_voyager',
-      name: '🛸 Nebula Commander',
-      description: 'Command respect across every discussion & lobby.',
-      emoji: '🛸',
-      costXp: 110,
-      category: CosmicItemCategory.titleBadge,
+      id: 'body_galaxy',
+      name: 'Cosmic Indigo',
+      description: 'Deep space violet with electric magenta edges.',
+      category: CosmicItemCategory.body,
       rarity: CosmicItemRarity.epic,
-      previewColors: [Color(0xFFEC4899), Color(0xFFBE185D)],
+      costXp: 75,
+      primaryColor: Color(0xFF6D28D9),
+      secondaryColor: Color(0xFFE879F9),
     ),
     CosmicShopItem(
-      id: 'title_legend',
-      name: '👑 Cosmic Overlord',
-      description: 'The ultimate title for masters of the universe.',
-      emoji: '👑',
-      costXp: 150,
-      category: CosmicItemCategory.titleBadge,
+      id: 'body_gold',
+      name: 'Solar Gold',
+      description: '24K Championship gold-plated cosmic armor!',
+      category: CosmicItemCategory.body,
       rarity: CosmicItemRarity.legendary,
-      previewColors: [Color(0xFFF59E0B), Color(0xFFDC2626)],
+      costXp: 120,
+      primaryColor: Color(0xFFFACC15),
+      secondaryColor: Color(0xFFB45309),
+    ),
+
+    // --- 3. VISOR EYES ---
+    CosmicShopItem(
+      id: 'eye_cyan',
+      name: 'Cyber Cyan',
+      description: 'Classic glowing cyan LED visor eyes.',
+      category: CosmicItemCategory.eye,
+      rarity: CosmicItemRarity.common,
+      costXp: 0,
+      primaryColor: Color(0xFF64FFDA),
+      secondaryColor: Color(0xFF00BFA5),
+    ),
+    CosmicShopItem(
+      id: 'eye_fire_amber',
+      name: 'Blazing Hero',
+      description: 'Determined fiery orange mecha eyes!',
+      category: CosmicItemCategory.eye,
+      rarity: CosmicItemRarity.common,
+      costXp: 35,
+      primaryColor: Color(0xFFFF9100),
+      secondaryColor: Color(0xFFFF3D00),
+    ),
+    CosmicShopItem(
+      id: 'eye_emerald_pixel',
+      name: '8-Bit Pixel',
+      description: 'Retro arcade blocky matrix green eyes.',
+      category: CosmicItemCategory.eye,
+      rarity: CosmicItemRarity.rare,
+      costXp: 45,
+      primaryColor: Color(0xFF00E676),
+      secondaryColor: Color(0xFF00C853),
+    ),
+    CosmicShopItem(
+      id: 'eye_heart_pink',
+      name: 'Neon Hearts',
+      description: 'Adorable glowing pink heart eyes!',
+      category: CosmicItemCategory.eye,
+      rarity: CosmicItemRarity.rare,
+      costXp: 60,
+      primaryColor: Color(0xFFFF4081),
+      secondaryColor: Color(0xFFF50057),
+    ),
+    CosmicShopItem(
+      id: 'eye_cyber_visor',
+      name: 'Laser Shades',
+      description: 'Sleek wrap-around neon cyclops laser visor bar!',
+      category: CosmicItemCategory.eye,
+      rarity: CosmicItemRarity.epic,
+      costXp: 85,
+      primaryColor: Color(0xFF00E5FF),
+      secondaryColor: Color(0xFFF43F5E),
+    ),
+    CosmicShopItem(
+      id: 'eye_star_gold',
+      name: 'Starlight Gold',
+      description: 'Dazzling golden 4-point star eyes!',
+      category: CosmicItemCategory.eye,
+      rarity: CosmicItemRarity.legendary,
+      costXp: 100,
+      primaryColor: Color(0xFFFFD54F),
+      secondaryColor: Color(0xFFFFAB00),
+    ),
+
+    // --- 4. STAGE BACKDROP WORLDS ---
+    CosmicShopItem(
+      id: 'stage_nebula',
+      name: 'Starlight Dock',
+      description: 'Deep purple cosmic command pedestal.',
+      category: CosmicItemCategory.stage,
+      rarity: CosmicItemRarity.common,
+      costXp: 0,
+      primaryColor: Color(0xFF651FFF),
+      secondaryColor: Color(0xFF12082B),
+    ),
+    CosmicShopItem(
+      id: 'stage_mars',
+      name: 'Mars Base',
+      description: 'Crimson Martian craters & twin moons horizon.',
+      category: CosmicItemCategory.stage,
+      rarity: CosmicItemRarity.common,
+      costXp: 45,
+      primaryColor: Color(0xFFEA580C),
+      secondaryColor: Color(0xFF450A0A),
+    ),
+    CosmicShopItem(
+      id: 'stage_saturn',
+      name: 'Saturn Orbit',
+      description: 'Icy cyan rings of Saturn & floating asteroids.',
+      category: CosmicItemCategory.stage,
+      rarity: CosmicItemRarity.rare,
+      costXp: 65,
+      primaryColor: Color(0xFF38BDF8),
+      secondaryColor: Color(0xFF082F49),
+    ),
+    CosmicShopItem(
+      id: 'stage_cyber',
+      name: 'Synthwave Grid',
+      description: '80s retro neon laser grid & magenta cyber sun!',
+      category: CosmicItemCategory.stage,
+      rarity: CosmicItemRarity.epic,
+      costXp: 90,
+      primaryColor: Color(0xFFF43F5E),
+      secondaryColor: Color(0xFF701A75),
+    ),
+    CosmicShopItem(
+      id: 'stage_supernova',
+      name: 'Supernova Core',
+      description: 'Radiant golden starlight sanctuary of legends!',
+      category: CosmicItemCategory.stage,
+      rarity: CosmicItemRarity.legendary,
+      costXp: 125,
+      primaryColor: Color(0xFFFACC15),
+      secondaryColor: Color(0xFF422006),
     ),
   ];
 
-  static CosmicShopItem? itemById(String id) {
+  static CosmicShopItem? getItemById(String id) {
     for (final item in catalog) {
       if (item.id == id) return item;
     }
     return null;
   }
 
-  UserCosmicState _state = const UserCosmicState();
-  UserCosmicState get state => _state;
-
-  int _lifetimeXp = 0;
-  int get lifetimeXp => _lifetimeXp;
-
-  /// Spendable XP = Lifetime XP + Bonus Mission/Pod XP - Spent XP
-  int get spendableXp =>
-      max(0, _lifetimeXp + _state.bonusEarnedXp - _state.spentXp);
-
-  /// 1.5x XP multiplier when Byte's energy is >= 80%
-  double get xpMultiplier => _state.isSupercharged ? 1.5 : 1.0;
-
-  String? _loadedUserId;
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
-
-  String get _todayKey {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  void _syncGlobalAppearanceNotifier() {
+    CurrentByteAppearanceNotifier.notifier.value = _state.appearance;
   }
 
-  Future<void> loadForCurrentUser({int? knownLifetimeXp}) async {
+  Future<void> loadForCurrentUser() async {
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
-    if (user == null) return;
-
-    if (knownLifetimeXp != null) {
-      _lifetimeXp = knownLifetimeXp;
+    if (user == null) {
+      _state = const UserCosmicState();
+      _lifetimeXp = 0;
+      _isLoaded = true;
+      _syncGlobalAppearanceNotifier();
+      notifyListeners();
+      return;
     }
 
-    _isLoading = true;
-    _loadedUserId = user.id;
+    int fetchedXp = 0;
+    Map<String, dynamic>? loadedCustomization;
+    String? profileAvatarStr;
 
-    Map<String, dynamic>? loadedJson;
+    final prefs = await SharedPreferences.getInstance();
+    final localRaw = prefs.getString('cosmic_state_v2_${user.id}');
+    if (localRaw != null && localRaw.isNotEmpty) {
+      try {
+        loadedCustomization = jsonDecode(localRaw) as Map<String, dynamic>;
+      } catch (_) {}
+    }
 
-    // 1. Try reading from SharedPreferences cache first for instant UI
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('cosmic_state_${user.id}');
-      if (raw != null && raw.isNotEmpty) {
-        loadedJson = jsonDecode(raw) as Map<String, dynamic>;
-      }
-    } catch (_) {}
-
-    // 2. Try reading from public.profiles (xp + optional customization column)
-    try {
-      final profileRow = await client
+      final res = await client
           .from('profiles')
-          .select('*')
+          .select()
           .eq('id', user.id)
           .maybeSingle();
-      if (profileRow != null) {
-        _lifetimeXp = (profileRow['xp'] as num?)?.toInt() ?? _lifetimeXp;
-        if (profileRow['customization'] is Map) {
-          loadedJson = Map<String, dynamic>.from(
-            profileRow['customization'] as Map,
-          );
+      if (res != null) {
+        fetchedXp = (res['xp'] as num? ?? 0).toInt();
+        profileAvatarStr = res['avatar_url'] as String?;
+        if (res['customization'] is Map) {
+          final dbMap = Map<String, dynamic>.from(res['customization'] as Map);
+          if (dbMap.isNotEmpty) {
+            loadedCustomization = dbMap;
+          }
         }
       }
-    } catch (_) {}
-
-    // 3. Fallback to auth.users userMetadata['cosmic_customization']
-    if (loadedJson == null) {
+    } catch (_) {
       final meta = user.userMetadata;
       if (meta != null) {
-        if (_lifetimeXp == 0 && meta['xp'] != null) {
-          _lifetimeXp = int.tryParse(meta['xp'].toString()) ?? 0;
-        }
+        fetchedXp = int.tryParse(meta['xp']?.toString() ?? '0') ?? 0;
+        profileAvatarStr = meta['avatar_url'] as String?;
         if (meta['cosmic_customization'] is Map) {
-          loadedJson = Map<String, dynamic>.from(
-            meta['cosmic_customization'] as Map,
-          );
+          loadedCustomization ??=
+              Map<String, dynamic>.from(meta['cosmic_customization'] as Map);
         }
       }
     }
 
-    var parsed = UserCosmicState.fromJson(loadedJson);
-    // Reset daily mission progress if date changed
-    if (parsed.missionDate != _todayKey) {
-      parsed = parsed.copyWith(
-        dailyMissionProgress: {},
-        missionDate: _todayKey,
+    _lifetimeXp = fetchedXp;
+    _state = UserCosmicState.fromJson(loadedCustomization);
+
+    // If profile avatar_url already has a byte:// URI and loadedCustomization was empty, sync from it
+    if (loadedCustomization == null &&
+        profileAvatarStr != null &&
+        profileAvatarStr.startsWith('byte://')) {
+      final parsed = ByteAppearance.fromAvatarUrlString(profileAvatarStr);
+      _state = _state.copyWith(
+        equippedBody: parsed.bodyId,
+        equippedEye: parsed.eyeId,
+        equippedCostume: parsed.costumeId,
+        equippedStage: parsed.stageId,
       );
     }
 
-    _state = parsed;
-    _isLoading = false;
+    // Ensure the user's `profiles.avatar_url` is populated with their `byte://...` URI
+    // so every screen in the app shows their Byte avatar instead of a blank or photo icon
+    if (profileAvatarStr == null || !profileAvatarStr.startsWith('byte://')) {
+      await _persistState(syncAvatarUrl: true);
+    }
+
+    _isLoaded = true;
+    _syncGlobalAppearanceNotifier();
     notifyListeners();
   }
 
-  void syncLifetimeXp(int xp) {
-    if (_lifetimeXp != xp) {
-      _lifetimeXp = xp;
-      notifyListeners();
+  Future<UserCosmicState> fetchOtherUserCosmicState(
+    String userId, {
+    String? fallbackAvatarUrl,
+  }) async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == currentUserId && _isLoaded) {
+      return _state;
     }
+    try {
+      final res = await Supabase.instance.client
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (res != null) {
+        if (res['customization'] is Map) {
+          final map = Map<String, dynamic>.from(res['customization'] as Map);
+          if (map.isNotEmpty) {
+            return UserCosmicState.fromJson(map);
+          }
+        }
+        final av = (res['avatar_url'] as String?) ?? fallbackAvatarUrl;
+        if (av != null && av.startsWith('byte://')) {
+          final app = ByteAppearance.fromAvatarUrlString(av);
+          return UserCosmicState(
+            equippedBody: app.bodyId,
+            equippedEye: app.eyeId,
+            equippedCostume: app.costumeId,
+            equippedStage: app.stageId,
+          );
+        }
+      }
+    } catch (_) {}
+
+    if (fallbackAvatarUrl != null && fallbackAvatarUrl.startsWith('byte://')) {
+      final app = ByteAppearance.fromAvatarUrlString(fallbackAvatarUrl);
+      return UserCosmicState(
+        equippedBody: app.bodyId,
+        equippedEye: app.eyeId,
+        equippedCostume: app.costumeId,
+        equippedStage: app.stageId,
+      );
+    }
+    return const UserCosmicState();
   }
 
-  Future<void> _persistState() async {
+  Future<void> _persistState({bool syncAvatarUrl = true}) async {
+    _syncGlobalAppearanceNotifier();
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
     if (user == null) return;
 
     final jsonMap = _state.toJson();
+    final avatarUri = _state.appearance.toAvatarUrlString();
 
-    // 1. Save to SharedPreferences immediately
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cosmic_state_${user.id}', jsonEncode(jsonMap));
+      await prefs.setString('cosmic_state_v2_${user.id}', jsonEncode(jsonMap));
     } catch (_) {}
 
-    // 2. Save to public.profiles.customization (if column exists)
+    // 1. Update `profiles.avatar_url` (always exists!) so Leaderboard, Discussions,
+    // Friends, and Multiplayer automatically show the user's custom Byte everywhere.
+    if (syncAvatarUrl) {
+      try {
+        await client
+            .from('profiles')
+            .update({'avatar_url': avatarUri})
+            .eq('id', user.id);
+      } catch (_) {}
+    }
+
+    // 2. Also update `profiles.customization` if the optional JSONB column exists.
     try {
       await client
           .from('profiles')
           .update({'customization': jsonMap})
           .eq('id', user.id);
-    } catch (_) {
-      // Gracefully ignore if user hasn't run the 1-line SQL migration yet
-    }
+    } catch (_) {}
 
-    // 3. Also save to userMetadata so it persists in cloud even without SQL migration
+    // 3. Also store in auth userMetadata for instant session persistence.
     try {
       final currentMeta = user.userMetadata ?? {};
       await client.auth.updateUser(
         UserAttributes(
           data: {
             ...currentMeta,
+            'avatar_url': avatarUri,
             'cosmic_customization': jsonMap,
           },
         ),
@@ -770,30 +667,30 @@ class GamificationService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Fetch another user's Cosmic State for Social Room Visiting & Profile Flair.
-  Future<UserCosmicState> fetchUserCosmicState(String targetUserId) async {
-    final currentUid = Supabase.instance.client.auth.currentUser?.id;
-    if (targetUserId == currentUid && _loadedUserId == currentUid) {
-      return _state;
+  void syncLifetimeXp(int newLifetimeXp) {
+    if (newLifetimeXp != _lifetimeXp) {
+      _lifetimeXp = newLifetimeXp;
+      notifyListeners();
     }
-    try {
-      final row = await Supabase.instance.client
-          .from('profiles')
-          .select('*')
-          .eq('id', targetUserId)
-          .maybeSingle();
-      if (row != null && row['customization'] is Map) {
-        return UserCosmicState.fromJson(
-          Map<String, dynamic>.from(row['customization'] as Map),
-        );
-      }
-    } catch (_) {}
-    return const UserCosmicState();
   }
 
-  /// Purchase and immediately equip an item from the Cosmic Shop.
-  Future<bool> purchaseItem(CosmicShopItem item) async {
-    if (_state.unlockedIds.contains(item.id)) {
+  bool isOwned(String itemId) => _state.ownedItems.contains(itemId);
+
+  bool isEquipped(CosmicShopItem item) {
+    switch (item.category) {
+      case CosmicItemCategory.costume:
+        return _state.equippedCostume == item.id;
+      case CosmicItemCategory.body:
+        return _state.equippedBody == item.id;
+      case CosmicItemCategory.eye:
+        return _state.equippedEye == item.id;
+      case CosmicItemCategory.stage:
+        return _state.equippedStage == item.id;
+    }
+  }
+
+  Future<bool> purchaseAndEquip(CosmicShopItem item) async {
+    if (isOwned(item.id)) {
       await equipItem(item);
       return true;
     }
@@ -801,263 +698,46 @@ class GamificationService extends ChangeNotifier {
       return false;
     }
 
-    final newUnlocked = Set<String>.from(_state.unlockedIds)..add(item.id);
+    final updatedOwned = List<String>.from(_state.ownedItems)..add(item.id);
     _state = _state.copyWith(
       spentXp: _state.spentXp + item.costXp,
-      unlockedIds: newUnlocked,
+      ownedItems: updatedOwned,
     );
-    await equipItem(item, persist: false);
-    _incrementMissionProgress('social_or_style');
-    SoundService.instance.playCorrectAnswer();
+    await equipItem(item, persistImmediately: false);
+    await _persistState(syncAvatarUrl: true);
     notifyListeners();
-    await _persistState();
     return true;
   }
 
-  /// Equip an already-unlocked item (or toggle a room gadget).
-  Future<void> equipItem(CosmicShopItem item, {bool persist = true}) async {
-    if (!_state.unlockedIds.contains(item.id)) return;
+  Future<void> equipItem(
+    CosmicShopItem item, {
+    bool persistImmediately = true,
+  }) async {
+    if (!isOwned(item.id)) return;
 
     switch (item.category) {
-      case CosmicItemCategory.hat:
-        _state = _state.copyWith(equippedHat: item.id);
+      case CosmicItemCategory.costume:
+        _state = _state.copyWith(equippedCostume: item.id);
         break;
-      case CosmicItemCategory.visor:
-        _state = _state.copyWith(equippedVisor: item.id);
+      case CosmicItemCategory.body:
+        _state = _state.copyWith(equippedBody: item.id);
         break;
-      case CosmicItemCategory.windowTheme:
-        _state = _state.copyWith(equippedWindow: item.id);
+      case CosmicItemCategory.eye:
+        _state = _state.copyWith(equippedEye: item.id);
         break;
-      case CosmicItemCategory.gadget:
-        final nextGadgets = Set<String>.from(_state.activeGadgets);
-        if (nextGadgets.contains(item.id)) {
-          nextGadgets.remove(item.id);
-        } else {
-          nextGadgets.add(item.id);
-        }
-        _state = _state.copyWith(activeGadgets: nextGadgets);
-        break;
-      case CosmicItemCategory.avatarFrame:
-        _state = _state.copyWith(equippedFrame: item.id);
-        break;
-      case CosmicItemCategory.titleBadge:
-        _state = _state.copyWith(equippedTitle: item.id);
+      case CosmicItemCategory.stage:
+        _state = _state.copyWith(equippedStage: item.id);
         break;
     }
 
-    _incrementMissionProgress('social_or_style');
-    if (persist) {
-      SoundService.instance.playOptionSelect();
-      notifyListeners();
-      await _persistState();
-    }
-  }
-
-  /// Spin the Mystery Star-Pod (Gacha mini-game).
-  Future<MysteryPodResult?> spinMysteryPod() async {
-    if (spendableXp < mysteryPodCostXp) return null;
-
-    final rng = Random();
-    final paidItems = catalog.where((i) => i.costXp > 0).toList();
-    final unownedItems =
-        paidItems.where((i) => !_state.unlockedIds.contains(i.id)).toList();
-
-    // 85% chance to prioritize an unowned item if any remain
-    final pool = (unownedItems.isNotEmpty && rng.nextDouble() < 0.85)
-        ? unownedItems
-        : paidItems;
-
-    // Weight by rarity
-    final weighted = <CosmicShopItem>[];
-    for (final item in pool) {
-      final weight = switch (item.rarity) {
-        CosmicItemRarity.common => 4,
-        CosmicItemRarity.rare => 3,
-        CosmicItemRarity.epic => 2,
-        CosmicItemRarity.legendary => 1,
-      };
-      for (int k = 0; k < weight; k++) {
-        weighted.add(item);
-      }
-    }
-
-    final chosen = weighted[rng.nextInt(weighted.length)];
-    final alreadyOwned = _state.unlockedIds.contains(chosen.id);
-
-    if (alreadyOwned) {
-      // Duplicate protection: refund 75 Bonus XP (+15 net gain!)
-      const jackpotXp = 75;
-      _state = _state.copyWith(
-        spentXp: _state.spentXp + mysteryPodCostXp,
-        bonusEarnedXp: _state.bonusEarnedXp + jackpotXp,
-      );
-      SoundService.instance.playQuizComplete();
-      notifyListeners();
-      await _persistState();
-      return MysteryPodResult(
-        item: chosen,
-        wasDuplicate: true,
-        duplicateBonusXp: jackpotXp,
-      );
+    if (persistImmediately) {
+      await _persistState(syncAvatarUrl: true);
     } else {
-      final nextUnlocked = Set<String>.from(_state.unlockedIds)..add(chosen.id);
-      _state = _state.copyWith(
-        spentXp: _state.spentXp + mysteryPodCostXp,
-        unlockedIds: nextUnlocked,
-      );
-      await equipItem(chosen, persist: false);
-      SoundService.instance.playQuizComplete();
-      notifyListeners();
-      await _persistState();
-      return MysteryPodResult(
-        item: chosen,
-        wasDuplicate: false,
-      );
+      _syncGlobalAppearanceNotifier();
     }
-  }
-
-  bool get canFreeFeedToday => _state.lastFreeFeedDate != _todayKey;
-
-  /// Feed / Energize Byte in the Space Cabin.
-  /// Free once per day, or costs 15 Spendable XP for extra Super-Charge cells.
-  Future<({bool success, String message})> energizeByte() async {
-    final isFree = canFreeFeedToday;
-    if (!isFree && spendableXp < energizeByteCostXp) {
-      return (
-        success: false,
-        message: 'Need $energizeByteCostXp Spendable XP for a Super-Charge Cell!',
-      );
-    }
-
-    final newEnergy = (_state.byteEnergy + 25).clamp(0, 100);
-    final newBond = _state.byteBondXp + 15;
-
-    _state = _state.copyWith(
-      spentXp: isFree ? _state.spentXp : _state.spentXp + energizeByteCostXp,
-      byteEnergy: newEnergy,
-      byteBondXp: newBond,
-      lastFreeFeedDate: _todayKey,
-    );
-    _incrementMissionProgress('care_byte');
-    SoundService.instance.playCorrectAnswer();
     notifyListeners();
-    await _persistState();
-
-    final boostNote = newEnergy >= 80
-        ? ' ⚡ Byte is SUPERCHARGED (1.5x XP Boost Active)!'
-        : '';
-    return (
-      success: true,
-      message: isFree
-          ? 'Fed Byte a free Daily Starlight Snack! (+25% Energy, +15 Bond)$boostNote'
-          : 'Charged Byte with a Super-Cell! (+25% Energy, +15 Bond)$boostNote',
-    );
   }
 
-  /// Free interactive play action inside Byte's Space Cabin.
-  Future<String> playWithByte() async {
-    final newEnergy = (_state.byteEnergy + 10).clamp(0, 100);
-    final newBond = _state.byteBondXp + 5;
-    _state = _state.copyWith(
-      byteEnergy: newEnergy,
-      byteBondXp: newBond,
-    );
-    _incrementMissionProgress('care_byte');
-    SoundService.instance.playMascotChirp();
-    notifyListeners();
-    await _persistState();
-    return newEnergy >= 80
-        ? 'Byte loved the cosmic tune! ⚡ 1.5x XP Boost is active!'
-        : 'Byte danced to the cosmic tune! (+10% Energy, +5 Bond)';
-  }
-
-  /// Record that the user completed a Quiz or Lesson today (for Daily Mission).
-  Future<void> recordStudyCompletion() async {
-    _incrementMissionProgress('study_complete');
-    notifyListeners();
-    await _persistState();
-  }
-
-  void _incrementMissionProgress(String missionId) {
-    final currentDate = _todayKey;
-    final baseMap = _state.missionDate == currentDate
-        ? Map<String, int>.from(_state.dailyMissionProgress)
-        : <String, int>{};
-    baseMap[missionId] = (baseMap[missionId] ?? 0) + 1;
-    _state = _state.copyWith(
-      dailyMissionProgress: baseMap,
-      missionDate: currentDate,
-    );
-  }
-
-  int getMissionProgress(String missionId) {
-    if (_state.missionDate != _todayKey) return 0;
-    return _state.dailyMissionProgress[missionId] ?? 0;
-  }
-
-  bool isMissionClaimedToday(String missionId) {
-    return _state.claimedDailyMissions.contains('${missionId}_$_todayKey');
-  }
-
-  Future<bool> claimDailyMission(DailyMissionSpec spec) async {
-    final progress = getMissionProgress(spec.id);
-    final claimKey = '${spec.id}_$_todayKey';
-    if (progress < spec.targetCount ||
-        _state.claimedDailyMissions.contains(claimKey)) {
-      return false;
-    }
-
-    final nextClaimed = Set<String>.from(_state.claimedDailyMissions)
-      ..add(claimKey);
-    _state = _state.copyWith(
-      bonusEarnedXp: _state.bonusEarnedXp + spec.rewardXp,
-      byteBondXp: _state.byteBondXp + 10,
-      claimedDailyMissions: nextClaimed,
-    );
-    SoundService.instance.playQuizComplete();
-    notifyListeners();
-    await _persistState();
-    return true;
-  }
-
-  /// High-Five another user's Byte when visiting their Space Cabin!
-  Future<({bool success, int newLikes, String message})> highFiveUserRoom({
-    required String targetUserId,
-    required UserCosmicState currentTargetState,
-  }) async {
-    if (_state.likedUserIds.contains(targetUserId)) {
-      return (
-        success: false,
-        newLikes: currentTargetState.roomLikes,
-        message: 'You already sent a High-Five to this Space Cabin!',
-      );
-    }
-
-    final updatedTargetLikes = currentTargetState.roomLikes + 1;
-    final updatedTargetState =
-        currentTargetState.copyWith(roomLikes: updatedTargetLikes);
-
-    try {
-      await Supabase.instance.client
-          .from('profiles')
-          .update({'customization': updatedTargetState.toJson()})
-          .eq('id', targetUserId);
-    } catch (_) {}
-
-    final nextLiked = Set<String>.from(_state.likedUserIds)..add(targetUserId);
-    _state = _state.copyWith(
-      likedUserIds: nextLiked,
-      bonusEarnedXp: _state.bonusEarnedXp + 10,
-    );
-    _incrementMissionProgress('social_or_style');
-    SoundService.instance.playCorrectAnswer();
-    notifyListeners();
-    await _persistState();
-
-    return (
-      success: true,
-      newLikes: updatedTargetLikes,
-      message: '👋 High-Five sent! You also earned +10 Bonus Spendable XP!',
-    );
-  }
+  /// Kept as a lightweight hook for study completion callers.
+  Future<void> recordStudyCompletion() async {}
 }

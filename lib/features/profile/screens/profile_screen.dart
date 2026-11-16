@@ -5,6 +5,7 @@ import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/friendship_repository.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/notification_badge.dart';
 import '../../gamification/gamification_service.dart';
 import '../../gamification/widgets/space_cabin_widget.dart';
@@ -345,16 +346,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     showPlanet: true,
                     child: Column(
                       children: [
-                        CosmicAvatarFrame(
-                          avatarUrl: user?.userMetadata?['avatar_url'] as String?,
-                          frameId: cosmicState.equippedFrame,
-                          radius: 46,
-                          onEditTap: () async {
-                            final result = await context.push('/me/edit');
-                            if (result == true) {
-                              setState(() {});
-                            }
-                          },
+                        UserByteAvatar(
+                          appearanceOverride: cosmicState.appearance,
+                          isCurrentUser: true,
+                          radius: 52,
+                          onTap: () => context.push('/space-cabin'),
                         ),
                         const SizedBox(height: 14),
                         Text(
@@ -365,10 +361,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: Colors.white,
                               ),
                         ),
-                        if (cosmicState.equippedTitle != 'title_none') ...[
-                          const SizedBox(height: 8),
-                          CosmicTitleBadgeWidget(
-                            titleId: cosmicState.equippedTitle,
+                        if (!context.watch<AuthRepository>().isAdmin) ...[
+                          const SizedBox(height: 12),
+                          GameBevelButton(
+                            topColor: const Color(0xFF8B5CF6),
+                            bottomColor: const Color(0xFF6D28D9),
+                            bevelColor: const Color(0xFF4C1D95),
+                            borderColor: const Color(0xFFC4B5FD),
+                            borderRadius: 18,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 9,
+                            ),
+                            onTap: () => context.push('/space-cabin'),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('🎮', style: TextStyle(fontSize: 16)),
+                                const SizedBox(width: 8),
+                                const Flexible(
+                                  child: Text(
+                                    'CUSTOMIZE BYTE',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1E1B4B),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFFACC15),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '⚡ ${gamification.spendableXp} XP',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFACC15),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ],
@@ -551,110 +598,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                  if (!context.watch<AuthRepository>().isAdmin) ...[
-                    const SizedBox(height: 16),
-                    InkWell(
-                      onTap: () => context.push('/space-cabin'),
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF311B92),
-                              Color(0xFF5E35B1),
-                              Color(0xFF7C4DFF),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF7C4DFF)
-                                  .withValues(alpha: 0.32),
-                              blurRadius: 12,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.16),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Text(
-                                '🛸',
-                                style: TextStyle(fontSize: 26),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Flexible(
-                                        child: Text(
-                                          'Byte\'s Space Cabin & Shop',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 7,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFD54F),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          '⚡ ${gamification.spendableXp} XP',
-                                          style: const TextStyle(
-                                            color: Color(0xFF1A103C),
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 10.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    cosmicState.isSupercharged
-                                        ? '⚡ 1.5x XP Boost Active • Customize Byte, Cabin & Avatar!'
-                                        : 'Spend XP on Byte outfits, cabin gadgets, Mystery Pods & frames!',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 32),
                   const Divider(),
                   const SizedBox(height: 24),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../data/models/friendship_models.dart';
 import '../../../data/repositories/friendship_repository.dart';
 import 'package:provider/provider.dart';
@@ -399,18 +400,9 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
                 children: _availableFriends.map((friend) {
                   final isSelected = _selectedFriends.contains(friend);
                   return CheckboxListTile(
-                    secondary: CircleAvatar(
+                    secondary: UserByteAvatar(
+                      avatarUrl: friend.avatarUrl,
                       radius: 18,
-                      backgroundColor: Colors.deepPurple.shade100,
-                      backgroundImage: friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty
-                          ? NetworkImage(friend.avatarUrl!)
-                          : null,
-                      child: friend.avatarUrl == null || friend.avatarUrl!.isEmpty
-                          ? Text(
-                              friend.name.isNotEmpty ? friend.name[0].toUpperCase() : '?',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple),
-                            )
-                          : null,
                     ),
                     title: Text(friend.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(friend.email, style: const TextStyle(fontSize: 12)),
@@ -486,18 +478,9 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
                   contentPadding: EdgeInsets.zero,
                   leading: Stack(
                     children: [
-                      CircleAvatar(
+                      UserByteAvatar(
+                        avatarUrl: p['avatarUrl'] as String?,
                         radius: 18,
-                        backgroundColor: Colors.deepPurple.shade100,
-                        backgroundImage: p['avatarUrl'] != null && (p['avatarUrl'] as String).isNotEmpty
-                            ? NetworkImage(p['avatarUrl'] as String)
-                            : null,
-                        child: p['avatarUrl'] == null || (p['avatarUrl'] as String).isEmpty
-                            ? Text(
-                                (p['name'] as String).isNotEmpty ? (p['name'] as String)[0].toUpperCase() : '?',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple, fontSize: 12),
-                              )
-                            : null,
                       ),
                       Positioned(
                         right: 0,

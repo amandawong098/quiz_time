@@ -8,6 +8,7 @@ import '../../learn/models/lesson_models.dart';
 import '../../learn/models/flashcard_models.dart';
 import '../../../data/models/friendship_models.dart';
 import '../../../data/repositories/friendship_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../gamification/gamification_service.dart';
 import '../../gamification/widgets/space_cabin_widget.dart';
 
@@ -32,7 +33,9 @@ class UserDetailBottomSheet extends StatefulWidget {
     String? avatarUrl,
     String? role,
   }) {
-    if (userId.isEmpty || name == 'Deleted User' || userId.toLowerCase() == 'deleted') {
+    if (userId.isEmpty ||
+        name == 'Deleted User' ||
+        userId.toLowerCase() == 'deleted') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Cannot access deleted account's profile"),
@@ -66,7 +69,8 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
   List<LessonCourse> _courses = [];
   List<Quiz> _quizzes = [];
   List<FlashcardDeck> _decks = [];
-  String? _friendshipStatus; // 'none', 'friends', 'sent_pending', 'received_pending'
+  String?
+  _friendshipStatus; // 'none', 'friends', 'sent_pending', 'received_pending'
   bool _isFriendshipActionLoading = false;
 
   @override
@@ -87,8 +91,11 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
           .eq('id', widget.userId)
           .single();
       final profile = UserProfile.fromJson(profileRes);
-      final cosmicState =
-          await GamificationService.instance.fetchUserCosmicState(widget.userId);
+      final cosmicState = await GamificationService.instance
+          .fetchOtherUserCosmicState(
+            widget.userId,
+            fallbackAvatarUrl: profile.avatarUrl ?? widget.initialAvatarUrl,
+          );
 
       List<LessonCourse> courses = [];
       List<Quiz> quizzes = [];
@@ -136,7 +143,9 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
         final friendshipResult = await supabase
             .from('friendships')
             .select('*')
-            .or('and(sender_id.eq.$currentUserId,receiver_id.eq.${widget.userId}),and(sender_id.eq.${widget.userId},receiver_id.eq.$currentUserId)')
+            .or(
+              'and(sender_id.eq.$currentUserId,receiver_id.eq.${widget.userId}),and(sender_id.eq.${widget.userId},receiver_id.eq.$currentUserId)',
+            )
             .maybeSingle();
 
         if (friendshipResult == null) {
@@ -191,7 +200,11 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontStyle: FontStyle.italic),
+            style: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ],
       ),
@@ -214,11 +227,23 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
               color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.menu_book_rounded, color: Colors.blue, size: 20),
+            child: const Icon(
+              Icons.menu_book_rounded,
+              color: Colors.blue,
+              size: 20,
+            ),
           ),
-          title: Text(course.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          title: Text(
+            course.title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
           subtitle: course.description != null
-              ? Text(course.description!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11))
+              ? Text(
+                  course.description!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11),
+                )
               : null,
           trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 12),
           onTap: () {
@@ -232,7 +257,10 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
 
   Widget _buildQuizzesList() {
     if (_quizzes.isEmpty) {
-      return _buildEmptyState('No created quizzes', Icons.assignment_turned_in_rounded);
+      return _buildEmptyState(
+        'No created quizzes',
+        Icons.assignment_turned_in_rounded,
+      );
     }
     return ListView.builder(
       itemCount: _quizzes.length,
@@ -246,10 +274,20 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
               color: Colors.amber.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.assignment_turned_in_rounded, color: Colors.amber.shade900, size: 20),
+            child: Icon(
+              Icons.assignment_turned_in_rounded,
+              color: Colors.amber.shade900,
+              size: 20,
+            ),
           ),
-          title: Text(quiz.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          subtitle: Text('${quiz.questionCount} Questions', style: const TextStyle(fontSize: 11)),
+          title: Text(
+            quiz.title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          subtitle: Text(
+            '${quiz.questionCount} Questions',
+            style: const TextStyle(fontSize: 11),
+          ),
           trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 12),
           onTap: () {
             Navigator.pop(context); // Close bottom sheet
@@ -262,7 +300,10 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
 
   Widget _buildDecksList() {
     if (_decks.isEmpty) {
-      return _buildEmptyState('No created flashcard decks', Icons.style_rounded);
+      return _buildEmptyState(
+        'No created flashcard decks',
+        Icons.style_rounded,
+      );
     }
     return ListView.builder(
       itemCount: _decks.length,
@@ -276,10 +317,20 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
               color: Colors.deepPurple.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.style_rounded, color: Colors.deepPurple, size: 20),
+            child: const Icon(
+              Icons.style_rounded,
+              color: Colors.deepPurple,
+              size: 20,
+            ),
           ),
-          title: Text(deck.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          subtitle: Text('${deck.cardCount} Cards', style: const TextStyle(fontSize: 11)),
+          title: Text(
+            deck.title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          subtitle: Text(
+            '${deck.cardCount} Cards',
+            style: const TextStyle(fontSize: 11),
+          ),
           trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 12),
           onTap: () {
             Navigator.pop(context); // Close bottom sheet
@@ -291,7 +342,8 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
   }
 
   Widget _buildFriendshipSection() {
-    if (_profile?.isAdmin == true || widget.initialRole?.toLowerCase() == 'admin') {
+    if (_profile?.isAdmin == true ||
+        widget.initialRole?.toLowerCase() == 'admin') {
       return const SizedBox.shrink(); // Admins do not have friend requests
     }
 
@@ -314,23 +366,26 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
 
     final repo = context.read<FriendshipRepository>();
 
-    Future<void> handleAction(Future<void> Function() action, String successMsg) async {
+    Future<void> handleAction(
+      Future<void> Function() action,
+      String successMsg,
+    ) async {
       setState(() {
         _isFriendshipActionLoading = true;
       });
       try {
         await action();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(successMsg)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(successMsg)));
         // Reload data to reflect state
         await _loadUserData();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       } finally {
         if (mounted) {
           setState(() {
@@ -382,7 +437,10 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
               icon: const Icon(Icons.close_rounded, color: Colors.grey),
               label: const Text(
                 'Cancel Request',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
               ),
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: Colors.grey.shade300),
@@ -406,10 +464,16 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                       () => repo.declineFriendRequest(widget.userId),
                       'Friend request declined.',
                     ),
-                    icon: const Icon(Icons.close_rounded, color: Colors.redAccent),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.redAccent,
+                    ),
                     label: const Text(
                       'Decline',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.redAccent,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: Colors.redAccent.shade100),
@@ -460,7 +524,9 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: const Text('Unfriend User?'),
-                    content: Text('Are you sure you want to remove ${_profile?.name ?? widget.initialName} from your friends?'),
+                    content: Text(
+                      'Are you sure you want to remove ${_profile?.name ?? widget.initialName} from your friends?',
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
@@ -468,7 +534,10 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Unfriend', style: TextStyle(color: Colors.redAccent)),
+                        child: const Text(
+                          'Unfriend',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
                       ),
                     ],
                   ),
@@ -480,10 +549,16 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                   );
                 }
               },
-              icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent),
+              icon: const Icon(
+                Icons.person_remove_rounded,
+                color: Colors.redAccent,
+              ),
               label: const Text(
                 'Unfriend',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.redAccent,
+                ),
               ),
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: Colors.redAccent.shade100),
@@ -545,7 +620,8 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
   Widget build(BuildContext context) {
     final avatarUrl = _profile?.avatarUrl ?? widget.initialAvatarUrl;
     final name = _profile?.name ?? widget.initialName;
-    final bool isAdmin = _profile?.isAdmin ?? (widget.initialRole?.toLowerCase() == 'admin');
+    final bool isAdmin =
+        _profile?.isAdmin ?? (widget.initialRole?.toLowerCase() == 'admin');
     final league = _profile?.league ?? 'Stargazer';
     final weeklyXp = _profile?.weeklyXp ?? 0;
     final lifetimeXp = _profile?.xp ?? 0;
@@ -575,26 +651,99 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
             ),
           ),
           const SizedBox(height: 8),
-          // User Avatar with Cosmic Frame
-          CosmicAvatarFrame(
-            avatarUrl: avatarUrl,
-            frameId: isAdmin ? 'frame_default' : _cosmicState.equippedFrame,
-            radius: 36,
-          ),
-          const SizedBox(height: 12),
+          // For Learners: show their full Byte World showcase directly!
+          // For Admins: keep compact circular Byte avatar.
+          if (!isAdmin) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                height: 185,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.deepPurple.shade200,
+                    width: 1.5,
+                  ),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    GameStageWorldCanvas(
+                      stageId: (_isLoading
+                              ? ByteAppearance.fromAvatarUrlString(avatarUrl)
+                              : _cosmicState.appearance)
+                          .stageId,
+                      pedestalCenterFraction: const Offset(0.5, 0.78),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 12,
+                      child: Center(
+                        child: ByteMascot(
+                          size: 128,
+                          mood: ByteMascotMood.happy,
+                          darkThemeContext: true,
+                          appearance: _isLoading
+                              ? ByteAppearance.fromAvatarUrlString(avatarUrl)
+                              : _cosmicState.appearance,
+                          useCurrentUserAppearance: false,
+                          onTapOverride: () {},
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Text(
+                          GamificationService.getItemById(
+                                (_isLoading
+                                        ? ByteAppearance.fromAvatarUrlString(
+                                            avatarUrl)
+                                        : _cosmicState.appearance)
+                                    .stageId,
+                              )?.name ??
+                              'Starlight Dock',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            UserByteAvatar(
+              avatarUrl: avatarUrl,
+              appearanceOverride: _isLoading ? null : _cosmicState.appearance,
+              radius: 42,
+            ),
+            const SizedBox(height: 12),
+          ],
           // User Name
           Text(
             name,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             textAlign: TextAlign.center,
           ),
-          if (!isAdmin && _cosmicState.equippedTitle != 'title_none') ...[
-            const SizedBox(height: 6),
-            CosmicTitleBadgeWidget(
-              titleId: _cosmicState.equippedTitle,
-              compact: true,
-            ),
-          ],
           const SizedBox(height: 8),
 
           if (_isLoading) ...[
@@ -659,7 +808,10 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                       labelColor: Colors.deepPurple,
                       unselectedLabelColor: Colors.grey,
                       indicatorColor: Colors.deepPurple,
-                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
                       padding: EdgeInsets.zero,
                     ),
                     Expanded(
@@ -712,10 +864,16 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                 // Lifetime XP (Left)
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.deepPurple.shade700, Colors.indigo.shade600],
+                        colors: [
+                          Colors.deepPurple.shade700,
+                          Colors.indigo.shade600,
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -725,7 +883,7 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                           color: Colors.deepPurple.withValues(alpha: 0.15),
                           blurRadius: 6,
                           offset: const Offset(0, 3),
-                        )
+                        ),
                       ],
                     ),
                     child: Column(
@@ -756,11 +914,17 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                 // Weekly XP (Right)
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.deepPurple.shade50.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.deepPurple.shade100, width: 1.5),
+                      border: Border.all(
+                        color: Colors.deepPurple.shade100,
+                        width: 1.5,
+                      ),
                     ),
                     child: Column(
                       children: [
@@ -787,31 +951,6 @@ class _UserDetailBottomSheetState extends State<UserDetailBottomSheet> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF5E35B1),
-                  side: const BorderSide(color: Color(0xFF7C4DFF), width: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Text('🛸', style: TextStyle(fontSize: 18)),
-                label: Text(
-                  'Visit $name\'s Space Cabin (👋 ${_cosmicState.roomLikes})',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.push(
-                    '/space-cabin?userId=${Uri.encodeComponent(widget.userId)}&userName=${Uri.encodeComponent(name)}',
-                  );
-                },
-              ),
             ),
             // 3. Learner: NO CONTRIBUTIONS PART!
             // 4. Send Friend Request / Friendship Section

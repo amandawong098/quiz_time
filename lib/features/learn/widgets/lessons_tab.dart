@@ -923,17 +923,11 @@ class LessonsTabState extends State<LessonsTab> {
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                CircleAvatar(
+                                                UserByteAvatar(
                                                   radius: 9,
-                                                  backgroundColor: Colors.deepPurple.shade100,
-                                                  backgroundImage: (course.creatorAvatarUrl != null &&
-                                                          course.creatorAvatarUrl!.isNotEmpty)
-                                                      ? NetworkImage(course.creatorAvatarUrl!)
-                                                      : null,
-                                                  child: (course.creatorAvatarUrl == null ||
-                                                          course.creatorAvatarUrl!.isEmpty)
-                                                      ? const Icon(Icons.person, size: 10, color: Colors.deepPurple)
-                                                      : null,
+                                                  userId: course.creatorId,
+                                                  name: course.creatorName,
+                                                  avatarData: course.creatorAvatarUrl,
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
@@ -1223,18 +1217,11 @@ class LessonsTabState extends State<LessonsTab> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  CircleAvatar(
+                                  UserByteAvatar(
                                     radius: 10,
-                                    backgroundColor: Colors.deepPurple.shade100,
-                                    backgroundImage: (course.creatorAvatarUrl != null &&
-                                            course.creatorAvatarUrl!.isNotEmpty)
-                                        ? NetworkImage(course.creatorAvatarUrl!)
-                                        : null,
-                                    child: (course.creatorAvatarUrl == null ||
-                                            course.creatorAvatarUrl!.isEmpty)
-                                        ? const Icon(Icons.person,
-                                            size: 11, color: Colors.deepPurple)
-                                        : null,
+                                    userId: course.creatorId,
+                                    name: course.creatorName,
+                                    avatarData: course.creatorAvatarUrl,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(

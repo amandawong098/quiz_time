@@ -1073,15 +1073,9 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                                     name: _topic!.authorName,
                                     avatarUrl: _topic!.authorAvatarUrl,
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: Colors.deepPurple.shade100,
-                                    backgroundImage: _topic!.authorAvatarUrl != null
-                                        ? NetworkImage(_topic!.authorAvatarUrl!)
-                                        : null,
-                                    child: _topic!.authorAvatarUrl == null
-                                        ? const Icon(Icons.person, size: 12)
-                                        : null,
+                                  child: UserByteAvatar(
+                                    avatarUrl: _topic!.authorAvatarUrl,
+                                    radius: 13,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -1420,15 +1414,9 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
                     name: reply.authorName,
                     avatarUrl: reply.authorAvatarUrl,
                   ),
-                  child: CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.deepPurple.shade100,
-                    backgroundImage: reply.authorAvatarUrl != null
-                        ? NetworkImage(reply.authorAvatarUrl!)
-                        : null,
-                    child: reply.authorAvatarUrl == null
-                        ? const Icon(Icons.person, size: 12)
-                        : null,
+                  child: UserByteAvatar(
+                    avatarUrl: reply.authorAvatarUrl,
+                    radius: 13,
                   ),
                 ),
                 const SizedBox(width: 8),

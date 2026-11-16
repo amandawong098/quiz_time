@@ -713,15 +713,9 @@ class _DiscussionsDummyScreenState extends State<DiscussionsDummyScreen> {
                                                 child: Row(
                                                   mainAxisSize: MainAxisSize.min,
                                                   children: [
-                                                    CircleAvatar(
-                                                      radius: 9,
-                                                      backgroundColor: Colors.deepPurple.shade100,
-                                                      backgroundImage: topic.authorAvatarUrl != null
-                                                          ? NetworkImage(topic.authorAvatarUrl!)
-                                                          : null,
-                                                      child: topic.authorAvatarUrl == null
-                                                          ? const Icon(Icons.person, size: 9)
-                                                          : null,
+                                                    UserByteAvatar(
+                                                      avatarUrl: topic.authorAvatarUrl,
+                                                      radius: 10,
                                                     ),
                                                     const SizedBox(width: 6),
                                                     Text(

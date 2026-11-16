@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/sound_service.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../core/widgets/cosmic_background.dart';
 import '../../../data/models/quiz_models.dart';
 import '../../../data/repositories/quiz_repository.dart';
@@ -1539,26 +1540,10 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
                             dense: true,
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 4, vertical: 2),
-                            leading: CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Colors.deepPurple.shade100,
-                              backgroundImage: p.avatarUrl != null &&
-                                      p.avatarUrl!.isNotEmpty
-                                  ? NetworkImage(p.avatarUrl!)
-                                  : null,
-                              child: p.avatarUrl == null ||
-                                      p.avatarUrl!.isEmpty
-                                  ? Text(
-                                      p.name.isNotEmpty
-                                          ? p.name[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        color: Colors.deepPurple,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    )
-                                  : null,
+                            leading: UserByteAvatar(
+                              avatarUrl: p.avatarUrl,
+                              isCurrentUser: isMe,
+                              radius: 17,
                             ),
                             title: Row(
                               children: [

@@ -134,9 +134,12 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final userId = state.uri.queryParameters['userId'];
         final userName = state.uri.queryParameters['userName'];
+        final extra = state.extra as Map<String, dynamic>?;
+        final avatarUrl = extra?['avatarUrl'] as String?;
         return SpaceCabinScreen(
           visitedUserId: userId,
           visitedUserName: userName,
+          visitedUserAvatarUrl: avatarUrl,
         );
       },
     ),

@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/byte_mascot.dart';
 import '../../../data/repositories/auth_repository.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -17,7 +17,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isSaving = false;
-  String? _avatarUrl;
   String? _errorMessage;
 
   @override
@@ -26,7 +25,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = context.read<AuthRepository>().currentUser;
     _nameController.text = user?.userMetadata?['name'] ?? '';
     _emailController.text = user?.email ?? '';
-    _avatarUrl = user?.userMetadata?['avatar_url'];
   }
 
   @override
@@ -43,22 +41,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (msg.contains('invalid') || error.code == 'email_address_invalid') {
         return 'Please enter a valid email address.';
       }
-      if (msg.contains('already registered') || error.code == 'user_already_exists') {
+      if (msg.contains('already registered') ||
+          error.code == 'user_already_exists') {
         return 'This email address is already in use by another account.';
       }
-      if (msg.contains('password') && (msg.contains('6') || msg.contains('short'))) {
+      if (msg.contains('password') &&
+          (msg.contains('6') || msg.contains('short'))) {
         return 'Password must be at least 6 characters long.';
       }
       return error.message;
     }
     final errorStr = error.toString();
-    if (errorStr.contains('email_address_invalid') || errorStr.toLowerCase().contains('is invalid')) {
+    if (errorStr.contains('email_address_invalid') ||
+        errorStr.toLowerCase().contains('is invalid')) {
       return 'Please enter a valid email address.';
     }
-    if (errorStr.contains('user_already_exists') || errorStr.toLowerCase().contains('already registered')) {
+    if (errorStr.contains('user_already_exists') ||
+        errorStr.toLowerCase().contains('already registered')) {
       return 'This email address is already in use by another account.';
     }
-    if (errorStr.toLowerCase().contains('password') && (errorStr.contains('6') || errorStr.toLowerCase().contains('short'))) {
+    if (errorStr.toLowerCase().contains('password') &&
+        (errorStr.contains('6') || errorStr.toLowerCase().contains('short'))) {
       return 'Password must be at least 6 characters long.';
     }
     final match = RegExp(r'message:\s*([^,]+)').firstMatch(errorStr);
@@ -66,72 +69,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return match.group(1)!.trim();
     }
     return errorStr.replaceAll(RegExp(r'AuthApiException\(|\)'), '').trim();
-  }
-
-  Future<void> _showImagePickerOptions() async {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickAndUploadAvatar(ImageSource.gallery);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickAndUploadAvatar(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickAndUploadAvatar(ImageSource source) async {
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: source);
-      if (pickedFile != null) {
-        setState(() {
-          _isSaving = true;
-          _errorMessage = null;
-        });
-        final file = File(pickedFile.path);
-        final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-        await Supabase.instance.client.storage
-            .from('profile_pictures')
-            .upload(fileName, file);
-
-        final url = Supabase.instance.client.storage
-            .from('profile_pictures')
-            .getPublicUrl(fileName);
-
-        setState(() {
-          _avatarUrl = url;
-          _isSaving = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _isSaving = false;
-        _errorMessage = _formatErrorMessage(e);
-      });
-    }
-  }
-
-  Future<void> _removeAvatar() async {
-    setState(() => _avatarUrl = null);
   }
 
   Future<void> _saveChanges() async {
@@ -166,12 +103,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       await context.read<AuthRepository>().updateProfile(
-        name: _nameController.text.trim(),
-        email: emailChanged ? newEmail : null,
-        password: newPassword.isEmpty ? null : newPassword,
-        avatarUrl: _avatarUrl,
-        updateAvatar: true,
-      );
+            name: _nameController.text.trim(),
+            email: emailChanged ? newEmail : null,
+            password: newPassword.isEmpty ? null : newPassword,
+            updateAvatar: false,
+          );
 
       if (mounted) {
         if (emailChanged) {
@@ -203,6 +139,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = context.watch<AuthRepository>().isAdmin;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Profile'),
@@ -234,42 +172,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: Column(
           children: [
             Center(
-              child: Stack(
+              child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundImage: _avatarUrl != null
-                        ? NetworkImage(_avatarUrl!)
-                        : null,
-                    child: _avatarUrl == null
-                        ? const Icon(Icons.person, size: 60)
-                        : null,
+                  UserByteAvatar(
+                    isCurrentUser: true,
+                    radius: 56,
+                    onTap: isAdmin ? null : () => context.push('/space-cabin'),
                   ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: _avatarUrl == null ? Colors.deepPurple : Colors.red,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          _avatarUrl == null ? Icons.camera_alt : Icons.delete,
-                          size: 20,
-                          color: Colors.white,
-                        ),
-                        onPressed: _avatarUrl == null
-                            ? _showImagePickerOptions
-                            : _removeAvatar,
+                  if (!isAdmin) ...[
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      onPressed: () => context.push('/space-cabin'),
+                      icon: const Icon(Icons.videogame_asset_rounded, size: 18),
+                      label: const Text(
+                        'Customize Byte Avatar',
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
             TextField(
               controller: _nameController,
               onChanged: (_) {
