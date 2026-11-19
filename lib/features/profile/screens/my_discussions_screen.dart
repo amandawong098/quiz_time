@@ -18,12 +18,20 @@ class MyDiscussionsScreen extends StatefulWidget {
 class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
   bool _isLoading = true;
   List<DiscussionTopic> _myTopics = [];
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _selectedTypeFilter = 'All'; // All, Lessons, Flashcards, Quizzes, General
 
   @override
   void initState() {
     super.initState();
     _loadMyTopics();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadMyTopics() async {
@@ -36,9 +44,21 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
           query: _searchQuery,
           authorId: currentUserId,
         );
+        List<DiscussionTopic> filtered = topics;
+        if (_selectedTypeFilter == 'Lessons') {
+          filtered = topics.where((t) => t.courseId != null).toList();
+        } else if (_selectedTypeFilter == 'Quizzes') {
+          filtered = topics.where((t) => t.quizId != null).toList();
+        } else if (_selectedTypeFilter == 'Flashcards') {
+          filtered = topics.where((t) => t.deckId != null).toList();
+        } else if (_selectedTypeFilter == 'General') {
+          filtered = topics
+              .where((t) => t.courseId == null && t.quizId == null && t.deckId == null)
+              .toList();
+        }
         if (mounted) {
           setState(() {
-            _myTopics = topics;
+            _myTopics = filtered;
             _isLoading = false;
           });
         }
@@ -53,6 +73,73 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
         );
       }
     }
+  }
+
+  void _showFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        Widget buildFilterTile(
+          String value,
+          String label,
+          IconData icon,
+          Color activeColor,
+        ) {
+          final isSelected = _selectedTypeFilter == value;
+          return ListTile(
+            leading: Icon(icon, color: isSelected ? activeColor : Colors.grey),
+            title: Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? activeColor : null,
+              ),
+            ),
+            trailing: isSelected
+                ? Icon(Icons.check_circle_rounded, color: activeColor)
+                : null,
+            onTap: () {
+              setState(() {
+                _selectedTypeFilter = value;
+              });
+              _loadMyTopics();
+              Navigator.pop(context);
+            },
+          );
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                  child: Text(
+                    'Filter My Discussions',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const Divider(),
+                buildFilterTile('All', 'All Discussions', Icons.forum_rounded, Colors.deepPurple),
+                buildFilterTile('Lessons', 'Lessons', Icons.menu_book_rounded, Colors.blue),
+                buildFilterTile('Flashcards', 'Flashcards', Icons.style_rounded, Colors.purple),
+                buildFilterTile('Quizzes', 'Quizzes', Icons.assignment_turned_in_rounded, Colors.amber.shade800),
+                buildFilterTile('General', 'General (No Context)', Icons.chat_bubble_rounded, Colors.grey.shade700),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _deleteTopic(String topicId) async {
@@ -122,6 +209,7 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        controller: _searchController,
                         decoration: const InputDecoration(
                           hintText: 'Search my threads...',
                           border: InputBorder.none,
@@ -133,10 +221,74 @@ class _MyDiscussionsScreenState extends State<MyDiscussionsScreen> {
                         },
                       ),
                     ),
+                    if (_searchQuery.isNotEmpty)
+                      IconButton(
+                        icon: Icon(Icons.clear, color: Colors.grey.shade500),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                          _loadMyTopics();
+                        },
+                        tooltip: 'Clear search',
+                      ),
+                    IconButton(
+                      icon: Icon(
+                        _selectedTypeFilter == 'All'
+                            ? Icons.filter_list_rounded
+                            : Icons.filter_list_alt,
+                        color: _selectedTypeFilter == 'All'
+                            ? Colors.grey.shade500
+                            : Colors.deepPurple,
+                      ),
+                      onPressed: _showFilterBottomSheet,
+                      tooltip: 'Filter by category',
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              if (_selectedTypeFilter != 'All') ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: InputChip(
+                    avatar: Icon(
+                      _selectedTypeFilter == 'Lessons'
+                          ? Icons.menu_book_rounded
+                          : _selectedTypeFilter == 'Quizzes'
+                              ? Icons.assignment_turned_in_rounded
+                              : _selectedTypeFilter == 'Flashcards'
+                                  ? Icons.style_rounded
+                                  : Icons.chat_bubble_rounded,
+                      size: 14,
+                      color: _selectedTypeFilter == 'Lessons'
+                          ? Colors.blue
+                          : _selectedTypeFilter == 'Quizzes'
+                              ? Colors.amber.shade900
+                              : _selectedTypeFilter == 'Flashcards'
+                                  ? Colors.purple
+                                  : Colors.grey.shade700,
+                    ),
+                    label: Text(_selectedTypeFilter),
+                    onDeleted: () {
+                      setState(() {
+                        _selectedTypeFilter = 'All';
+                      });
+                      _loadMyTopics();
+                    },
+                    deleteIconColor: Colors.deepPurple,
+                    backgroundColor: Colors.deepPurple.shade50,
+                    side: BorderSide(color: Colors.deepPurple.shade100),
+                    labelStyle: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
               // Topics list
               Expanded(
                 child: _isLoading

@@ -500,8 +500,6 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
                   _loadDecks();
                 }
               },
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
               child: const Icon(Icons.add),
             )
           : null,

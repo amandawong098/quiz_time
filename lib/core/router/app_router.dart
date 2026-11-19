@@ -100,6 +100,10 @@ final GoRouter appRouter = GoRouter(
           path: '/my-lessons',
           builder: (context, state) => const MyLessonsScreen(),
         ),
+        GoRoute(
+          path: '/my-flashcards',
+          builder: (context, state) => const MyFlashcardsScreen(),
+        ),
 
         GoRoute(
           path: '/discussions',
@@ -282,10 +286,6 @@ final GoRouter appRouter = GoRouter(
           pageTitle: extra?['pageTitle'] as String? ?? '',
         );
       },
-    ),
-    GoRoute(
-      path: '/my-flashcards',
-      builder: (context, state) => const MyFlashcardsScreen(),
     ),
     GoRoute(
       path: '/create-flashcard-deck',

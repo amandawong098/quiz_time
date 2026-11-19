@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
@@ -89,54 +88,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     super.dispose();
   }
 
-  Future<void> _saveProgressStep(int pageIndex) async {
-    final isAdmin = context.read<AuthRepository>().isAdmin;
-    if (widget.isPreview || isAdmin) return;
-    if (widget.subChapterId != null) {
-      await _progressTracker.saveSlideIndex(widget.subChapterId!, pageIndex);
-    } else if (widget.courseId != null) {
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user == null) return;
-
-        final prefs = await SharedPreferences.getInstance();
-        final key = _getProgressKey(user.id);
-        if (key != null) {
-          final currentSaved = prefs.getInt(key) ?? 0;
-          if (pageIndex > currentSaved) {
-            await prefs.setInt(key, pageIndex);
-          }
-        }
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _clearProgressStep() async {
-    if (widget.subChapterId != null) {
-      await _progressTracker.clearSlideIndex(widget.subChapterId!);
-    } else if (widget.courseId != null) {
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user == null) return;
-
-        final prefs = await SharedPreferences.getInstance();
-        final key = _getProgressKey(user.id);
-        if (key != null) {
-          await prefs.remove(key);
-        }
-      } catch (_) {}
-    }
-  }
-
-  String? _getProgressKey(String userId) {
-    if (widget.subChapterId != null) {
-      return 'lesson_slide_index_${userId}_sub_${widget.subChapterId}';
-    } else if (widget.courseId != null) {
-      return 'lesson_slide_index_${userId}_course_${widget.courseId}';
-    }
-    return null;
-  }
-
   Future<void> _loadDynamicLesson() async {
     setState(() => _isLoading = true);
     try {
@@ -171,28 +122,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         final matchIdx = pages.indexWhere((p) => p.id == widget.initialPageId);
         if (matchIdx != -1) {
           initialPage = matchIdx;
-        }
-      } else if (!widget.isPreview && !context.read<AuthRepository>().isAdmin) {
-        if (widget.subChapterId != null) {
-          await _progressTracker.loadFromSupabase();
-          initialPage = _progressTracker.getSavedSlideIndex(widget.subChapterId!);
-          if (initialPage >= pages.length) {
-            initialPage = 0;
-          }
-        } else if (widget.courseId != null) {
-          try {
-            final user = Supabase.instance.client.auth.currentUser;
-            if (user != null) {
-              final prefs = await SharedPreferences.getInstance();
-              final key = _getProgressKey(user.id);
-              if (key != null) {
-                final saved = prefs.getInt(key);
-                if (saved != null && saved >= 0 && saved < pages.length) {
-                  initialPage = saved;
-                }
-              }
-            }
-          } catch (_) {}
         }
       }
 
@@ -284,7 +213,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       final repo = context.read<LessonRepository>();
       final Map<String, int> allCounts = {};
       if (widget.subChapterId != null) {
-        final subCounts = await discRepo.getPageDiscussionsCount(widget.subChapterId!);
+        final subCounts = await discRepo.getPageDiscussionsCount(
+          widget.subChapterId!,
+        );
         allCounts.addAll(subCounts);
       } else if (widget.courseId != null) {
         final chapters = await repo.getChapters(widget.courseId!);
@@ -306,7 +237,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     if (_dynamicPages.isEmpty || _currentSlide >= _dynamicPages.length) return;
     final page = _dynamicPages[_currentSlide];
     final subChapterId = _pageSubChapterMap[page.id] ?? widget.subChapterId;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -324,45 +255,171 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     );
   }
 
-  Future<void> _handleBackPress() async {
-    if (widget.isPreview) {
-      if (mounted) {
-        context.pop();
-      }
-      return;
-    }
-
-    final shouldExit =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Exit Lesson?'),
-            content: Text(
-              widget.isPreview
-                  ? 'Are you sure you want to quit this lesson? Your preview progress will not be saved.'
-                  : 'Are you sure you want to quit this lesson? Your progress will be saved so you can continue from this page next time.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Exit'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (shouldExit && mounted) {
+  void _handleBackPress() {
+    if (mounted) {
       context.pop();
     }
   }
 
+  void _showPageJumpSheet(int totalSlides) {
+    SoundService.instance.playOptionSelect();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.65,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Jump to Page',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    '$totalSlides Pages',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.deepPurple.shade600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: totalSlides,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final isCurrent = index == _currentSlide;
+                    final page = _dynamicPages[index];
+                    final blocks = _dynamicPageBlocks[page.id] ?? [];
+                    String pageTitle = 'Page ${index + 1}';
+                    for (final b in blocks) {
+                      final candidate =
+                          (b.content['text'] ??
+                                  b.content['question'] ??
+                                  b.content['file_name'] ??
+                                  '')
+                              .toString()
+                              .replaceAll(RegExp(r'\s+'), ' ')
+                              .trim();
+                      if (candidate.isNotEmpty) {
+                        pageTitle = candidate;
+                        break;
+                      }
+                    }
 
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        if (_pageController.hasClients) {
+                          _pageController.jumpToPage(index);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isCurrent
+                              ? Colors.deepPurple.shade50
+                              : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isCurrent
+                                ? Colors.deepPurple
+                                : Colors.grey.shade200,
+                            width: isCurrent ? 1.6 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isCurrent
+                                    ? Colors.deepPurple
+                                    : Colors.deepPurple.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${index + 1}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: isCurrent
+                                      ? Colors.white
+                                      : Colors.deepPurple.shade800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                pageTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: isCurrent
+                                      ? FontWeight.bold
+                                      : FontWeight.w600,
+                                  fontSize: 14,
+                                  color: isCurrent
+                                      ? Colors.deepPurple.shade900
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            if (isCurrent)
+                              const Icon(
+                                Icons.my_location_rounded,
+                                size: 18,
+                                color: Colors.deepPurple,
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   void _handleContinue(int totalSlides) {
     if (_currentSlide < totalSlides - 1) {
@@ -392,7 +449,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Future<void> _saveCompletionState() async {
     final isAdmin = context.read<AuthRepository>().isAdmin;
     if (!widget.isPreview && !isAdmin) {
-      await _clearProgressStep();
       if (widget.subChapterId != null) {
         await _progressTracker.complete(widget.subChapterId!);
       } else if (widget.courseId != null && _dynamicPages.isNotEmpty) {
@@ -407,11 +463,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
   void _completeLesson() {
     String? targetSubChapterId = widget.subChapterId;
-    if (targetSubChapterId == null && widget.courseId != null && _dynamicPages.isNotEmpty) {
+    if (targetSubChapterId == null &&
+        widget.courseId != null &&
+        _dynamicPages.isNotEmpty) {
       final currentPageObj = _dynamicPages[_currentSlide];
       targetSubChapterId = _pageSubChapterMap[currentPageObj.id];
     }
-    final bool wasAlreadyCompleted = targetSubChapterId != null && _progressTracker.isCompleted(targetSubChapterId);
+    final bool wasAlreadyCompleted =
+        targetSubChapterId != null &&
+        _progressTracker.isCompleted(targetSubChapterId);
 
     final completionFuture = _saveCompletionState();
 
@@ -422,7 +482,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           title: const Text('Lesson Finished'),
-          content: const Text('You have completed reviewing this lesson sub-chapter.'),
+          content: const Text(
+            'You have completed reviewing this lesson sub-chapter.',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -443,7 +505,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           title: const Text('Preview Complete'),
-          content: const Text('You have successfully previewed this lesson sub-chapter!'),
+          content: const Text(
+            'You have successfully previewed this lesson sub-chapter!',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -466,36 +530,56 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 32.0,
+                  horizontal: 24.0,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: wasAlreadyCompleted ? Colors.orange.shade100 : Colors.amber.shade100,
+                        color: wasAlreadyCompleted
+                            ? Colors.orange.shade100
+                            : Colors.amber.shade100,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        wasAlreadyCompleted ? Icons.auto_stories_rounded : Icons.emoji_events,
-                        color: wasAlreadyCompleted ? Colors.orange.shade800 : Colors.amber,
+                        wasAlreadyCompleted
+                            ? Icons.auto_stories_rounded
+                            : Icons.emoji_events,
+                        color: wasAlreadyCompleted
+                            ? Colors.orange.shade800
+                            : Colors.amber,
                         size: 72,
                       ),
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      wasAlreadyCompleted ? 'Oops! No XP for you...' : 'Lesson Complete!',
+                      wasAlreadyCompleted
+                          ? 'Oops! No XP for you...'
+                          : 'Lesson Complete!',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      wasAlreadyCompleted ? '+0 XP (Already Learnt)' : 'XP +10 Earned',
+                      wasAlreadyCompleted
+                          ? '+0 XP (Already Learnt)'
+                          : 'XP +10 Earned',
                       style: TextStyle(
                         fontSize: 16,
-                        color: wasAlreadyCompleted ? Colors.orange.shade800 : Colors.deepPurple.shade800,
+                        color: wasAlreadyCompleted
+                            ? Colors.orange.shade800
+                            : Colors.deepPurple.shade800,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -505,7 +589,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                           ? 'You\'ve already learnt this sub-chapter previously! Re-reading completed lessons is great for revision, but XP is only rewarded when completing it for the first time or after resetting your lesson progress.'
                           : 'You have successfully completed this lesson. You can now proceed to the next lesson sub-chapter!',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.4),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 28),
                     SizedBox(
@@ -544,7 +632,10 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                               )
                             : const Text(
                                 'Back to Lessons',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                       ),
                     ),
@@ -595,7 +686,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                       child: type == 'video'
                           ? VideoPreviewWidget(
                               videoUrl: url,
-                              title: caption.isNotEmpty ? caption : 'Embedded Video',
+                              title: caption.isNotEmpty
+                                  ? caption
+                                  : 'Embedded Video',
                             )
                           : Image.network(url, fit: BoxFit.cover),
                     ),
@@ -803,7 +896,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           }),
         ),
         // Directly reveal explanation if present (for both correct and wrong answers)
-        if (state.checked && block.content['explanation'] != null && (block.content['explanation'] as String).trim().isNotEmpty) ...[
+        if (state.checked &&
+            block.content['explanation'] != null &&
+            (block.content['explanation'] as String).trim().isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -817,7 +912,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.info_outline_rounded, size: 14, color: Colors.orange.shade800),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 14,
+                      color: Colors.orange.shade800,
+                    ),
                     const SizedBox(width: 6),
                     const Text(
                       'Explanation',
@@ -832,10 +931,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                 const SizedBox(height: 6),
                 Text(
                   block.content['explanation'] as String,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange.shade900,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
                 ),
               ],
             ),
@@ -860,95 +956,123 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
     // Ensure state exists for each test block
     for (var b in testBlocks) {
-      _questionStates.putIfAbsent(
-        b.id,
-        () => SlideQuestionState(),
+      _questionStates.putIfAbsent(b.id, () => SlideQuestionState());
+    }
+
+    // Find unchecked checkbox tests (optional self-check; Continue is always enabled!)
+    final uncheckedCheckboxes = testBlocks
+        .where(
+          (b) =>
+              (b.content['is_multiple_choice'] as bool? ?? false) &&
+              _questionStates[b.id]?.checked != true,
+        )
+        .toList();
+
+    final canSubmit =
+        uncheckedCheckboxes.isNotEmpty &&
+        uncheckedCheckboxes.every(
+          (b) => (_questionStates[b.id]?.selectedIndices.isNotEmpty) == true,
+        );
+
+    if (canSubmit) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: 24.0,
+            right: 24.0,
+            top: 16.0,
+            bottom: 56.0,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.deepPurple,
+                    side: const BorderSide(
+                      color: Colors.deepPurple,
+                      width: 1.5,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    bool allSubmittedCorrect = true;
+                    setState(() {
+                      for (var b in uncheckedCheckboxes) {
+                        final state = _questionStates[b.id]!;
+                        state.checked = true;
+                        final options =
+                            b.content['options'] as List<dynamic>? ?? [];
+                        final correctIndices = <int>{};
+                        for (int k = 0; k < options.length; k++) {
+                          if ((options[k] as Map)['is_correct'] == true) {
+                            correctIndices.add(k);
+                          }
+                        }
+                        state.isCorrect =
+                            state.selectedIndices.length ==
+                                correctIndices.length &&
+                            state.selectedIndices.every(
+                              (i) => correctIndices.contains(i),
+                            );
+                        if (state.isCorrect != true) {
+                          allSubmittedCorrect = false;
+                        }
+                      }
+                    });
+                    if (allSubmittedCorrect) {
+                      SoundService.instance.playCorrectAnswer();
+                    } else {
+                      SoundService.instance.playWrongAnswer();
+                    }
+                  },
+                  child: const Text(
+                    'Submit',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => _handleContinue(totalSlides),
+                  child: const Text(
+                    'Continue',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
-    final allChecked = testBlocks.every((b) => _questionStates[b.id]?.checked == true);
-
-    if (allChecked) {
-      return _buildContinueButton(() {
-        _handleContinue(totalSlides);
-      });
-    } else {
-      // Find unchecked checkbox tests
-      final uncheckedCheckboxes = testBlocks
-          .where((b) =>
-              (b.content['is_multiple_choice'] as bool? ?? false) &&
-              _questionStates[b.id]?.checked != true)
-          .toList();
-
-      if (uncheckedCheckboxes.isNotEmpty) {
-        // Can submit only when all unchecked checkbox tests have at least one choice selected
-        final canSubmit = uncheckedCheckboxes.every((b) =>
-            (_questionStates[b.id]?.selectedIndices.isNotEmpty) == true);
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 56.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: canSubmit
-                    ? () {
-                        bool allSubmittedCorrect = true;
-                        setState(() {
-                          for (var b in uncheckedCheckboxes) {
-                            final state = _questionStates[b.id]!;
-                            state.checked = true;
-                            final options = b.content['options'] as List<dynamic>? ?? [];
-                            final correctIndices = <int>{};
-                            for (int k = 0; k < options.length; k++) {
-                              if ((options[k] as Map)['is_correct'] == true) {
-                                correctIndices.add(k);
-                              }
-                            }
-                            state.isCorrect =
-                                state.selectedIndices.length == correctIndices.length &&
-                                state.selectedIndices.every((i) => correctIndices.contains(i));
-                            if (state.isCorrect != true) {
-                              allSubmittedCorrect = false;
-                            }
-                          }
-                        });
-                        if (allSubmittedCorrect) {
-                          SoundService.instance.playCorrectAnswer();
-                        } else {
-                          SoundService.instance.playWrongAnswer();
-                        }
-                      }
-                    : null,
-                child: const Text(
-                  'Submit Answer',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ),
-            ),
-          ),
-        );
-      } else {
-        // Only radio tests left to answer (which auto-submit upon tapping), so just show empty space
-        return const SafeArea(
-          child: SizedBox(height: 56),
-        );
-      }
-    }
+    return _buildContinueButton(() {
+      _handleContinue(totalSlides);
+    });
   }
 
   Widget _buildContinueButton(VoidCallback onPressed) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 56.0),
+        padding: const EdgeInsets.only(
+          left: 24.0,
+          right: 24.0,
+          top: 16.0,
+          bottom: 56.0,
+        ),
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -970,8 +1094,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       ),
     );
   }
-
-
 
   Widget _buildCheckStatusBanner(bool isCorrect) {
     return Container(
@@ -1052,137 +1174,123 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         ? (_currentSlide + 1) / totalSlides
         : 0.0;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handleBackPress();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.close, size: 28),
-            onPressed: _handleBackPress,
-          ),
-          actions: [
-            if (_canViewDiscussion && _dynamicPages.isNotEmpty && _currentSlide < _dynamicPages.length) ...[
-              Builder(
-                builder: (context) {
-                  final page = _dynamicPages[_currentSlide];
-                  final count = _pageDiscussionCounts[page.id] ?? 0;
-                  return TextButton.icon(
-                    onPressed: _openDiscussionsForCurrentPage,
-                    icon: const Icon(Icons.chat_bubble_outline, size: 22, color: Colors.deepPurple),
-                    label: Text(
-                      '$count',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
-                        fontSize: 14,
-                      ),
-                    ),
-                  );
-                }
-              ),
-              const SizedBox(width: 8),
-            ],
-          ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: progressRatio,
-                  minHeight: 6,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, size: 28),
+          onPressed: _handleBackPress,
+        ),
+        centerTitle: true,
+        title: GestureDetector(
+          onTap: () => _showPageJumpSheet(totalSlides),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.deepPurple.shade200),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${_currentSlide + 1} / $totalSlides',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepPurple.shade800,
+                  ),
                 ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: Colors.deepPurple.shade700,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          if (_canViewDiscussion &&
+              _dynamicPages.isNotEmpty &&
+              _currentSlide < _dynamicPages.length) ...[
+            Builder(
+              builder: (context) {
+                final page = _dynamicPages[_currentSlide];
+                final count = _pageDiscussionCounts[page.id] ?? 0;
+                return TextButton.icon(
+                  onPressed: _openDiscussionsForCurrentPage,
+                  icon: const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 22,
+                    color: Colors.deepPurple,
+                  ),
+                  label: Text(
+                    '$count',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple,
+                      fontSize: 14,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progressRatio,
+                minHeight: 6,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
               ),
             ),
           ),
         ),
-        body: Container(
-          color: Colors.white,
-          child: Column(
-            children: [
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  physics: LessonScrollPhysics(
-                    isPageUnlocked: (page) {
-                      if (widget.isPreview) return true;
-                      final pageObj = _dynamicPages[page];
-                      final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
-                      final testBlocks = blocks.where((b) => b.blockType == 'test').toList();
-                      if (testBlocks.isEmpty) return true;
-                      return testBlocks.every((b) =>
-                          _questionStates[b.id]?.checked == true &&
-                          _questionStates[b.id]?.isCorrect == true);
-                    },
-                  ),
-                  onPageChanged: (page) {
-                    setState(() {
-                      _currentSlide = page;
-                    });
-                    _saveProgressStep(page);
-                  },
-                  children: _dynamicPages.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final pageObj = entry.value;
-                    final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
-                    return _buildDynamicPage(pageObj, blocks, idx);
-                  }).toList(),
-                ),
+      ),
+      body: Container(
+        color: Colors.white,
+        child: Column(
+          children: [
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: (page) {
+                  setState(() {
+                    _currentSlide = page;
+                  });
+                },
+                children: _dynamicPages.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final pageObj = entry.value;
+                  final blocks = _dynamicPageBlocks[pageObj.id] ?? [];
+                  return _buildDynamicPage(pageObj, blocks, idx);
+                }).toList(),
               ),
-              _buildDynamicFooter(
-                _currentSlide,
-                _dynamicPages.isNotEmpty
-                    ? _dynamicPageBlocks[_dynamicPages[_currentSlide].id] ?? []
-                    : [],
-                totalSlides,
-              ),
-            ],
-          ),
+            ),
+            _buildDynamicFooter(
+              _currentSlide,
+              _dynamicPages.isNotEmpty
+                  ? _dynamicPageBlocks[_dynamicPages[_currentSlide].id] ?? []
+                  : [],
+              totalSlides,
+            ),
+          ],
         ),
       ),
     );
-  }
-}
-
-// Custom ScrollPhysics subclass to enforce lesson linear progression
-class LessonScrollPhysics extends ScrollPhysics {
-  final bool Function(int page) isPageUnlocked;
-
-  const LessonScrollPhysics({required this.isPageUnlocked, super.parent});
-
-  @override
-  LessonScrollPhysics applyTo(ScrollPhysics? ancestor) {
-    return LessonScrollPhysics(
-      isPageUnlocked: isPageUnlocked,
-      parent: buildParent(ancestor),
-    );
-  }
-
-  @override
-  double applyBoundaryConditions(ScrollMetrics position, double value) {
-    if (value > position.pixels) {
-      final double viewportWidth = position.viewportDimension;
-      if (viewportWidth > 0) {
-        final int currentPage = (position.pixels / viewportWidth).floor();
-        if (!isPageUnlocked(currentPage)) {
-          final double pageBoundary = currentPage * viewportWidth;
-          if (value > pageBoundary) {
-            return value - position.pixels;
-          }
-        }
-      }
-    }
-    return super.applyBoundaryConditions(position, value);
   }
 }
 
@@ -1207,17 +1315,29 @@ class MarkdownRenderer extends StatelessWidget {
       }
 
       if (trimmed.startsWith('# ')) {
-        children.add(_buildHeading(context, trimmed.substring(2), 24, FontWeight.bold));
+        children.add(
+          _buildHeading(context, trimmed.substring(2), 24, FontWeight.bold),
+        );
       } else if (trimmed.startsWith('## ')) {
-        children.add(_buildHeading(context, trimmed.substring(3), 22, FontWeight.bold));
+        children.add(
+          _buildHeading(context, trimmed.substring(3), 22, FontWeight.bold),
+        );
       } else if (trimmed.startsWith('### ')) {
-        children.add(_buildHeading(context, trimmed.substring(4), 20, FontWeight.bold));
+        children.add(
+          _buildHeading(context, trimmed.substring(4), 20, FontWeight.bold),
+        );
       } else if (trimmed.startsWith('#### ')) {
-        children.add(_buildHeading(context, trimmed.substring(5), 18, FontWeight.bold));
+        children.add(
+          _buildHeading(context, trimmed.substring(5), 18, FontWeight.bold),
+        );
       } else if (trimmed.startsWith('##### ')) {
-        children.add(_buildHeading(context, trimmed.substring(6), 16, FontWeight.bold));
+        children.add(
+          _buildHeading(context, trimmed.substring(6), 16, FontWeight.bold),
+        );
       } else if (trimmed.startsWith('###### ')) {
-        children.add(_buildHeading(context, trimmed.substring(7), 14, FontWeight.bold));
+        children.add(
+          _buildHeading(context, trimmed.substring(7), 14, FontWeight.bold),
+        );
       } else if (trimmed.startsWith('• ')) {
         children.add(
           Padding(
@@ -1226,7 +1346,10 @@ class MarkdownRenderer extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(width: 8),
-                Text('• ', style: GoogleFonts.poppins(fontSize: 16, height: 1.4)),
+                Text(
+                  '• ',
+                  style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+                ),
                 Expanded(
                   child: Text.rich(
                     _parseInlineStyles(context, trimmed.substring(2)),
@@ -1244,7 +1367,10 @@ class MarkdownRenderer extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(width: 8),
-                Text('• ', style: GoogleFonts.poppins(fontSize: 16, height: 1.4)),
+                Text(
+                  '• ',
+                  style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+                ),
                 Expanded(
                   child: Text.rich(
                     _parseInlineStyles(context, trimmed.substring(2)),
@@ -1270,7 +1396,12 @@ class MarkdownRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildHeading(BuildContext context, String content, double fontSize, FontWeight weight) {
+  Widget _buildHeading(
+    BuildContext context,
+    String content,
+    double fontSize,
+    FontWeight weight,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(top: 12.0, bottom: 6.0),
       child: Text.rich(
@@ -1287,7 +1418,11 @@ class MarkdownRenderer extends StatelessWidget {
     );
   }
 
-  TextSpan _parseInlineStyles(BuildContext context, String line, {TextStyle? baseStyle}) {
+  TextSpan _parseInlineStyles(
+    BuildContext context,
+    String line, {
+    TextStyle? baseStyle,
+  }) {
     final defaultStyle =
         baseStyle ??
         GoogleFonts.poppins(fontSize: 15, height: 1.5, color: Colors.black87);
@@ -1492,9 +1627,13 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
     var list = List<DiscussionTopic>.from(_topics);
 
     if (query.isNotEmpty) {
-      list = list.where((t) =>
-          t.title.toLowerCase().contains(query) ||
-          t.content.toLowerCase().contains(query)).toList();
+      list = list
+          .where(
+            (t) =>
+                t.title.toLowerCase().contains(query) ||
+                t.content.toLowerCase().contains(query),
+          )
+          .toList();
     }
 
     if (_sortBy == 'Latest') {
@@ -1521,9 +1660,7 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
           topRight: Radius.circular(24),
         ),
       ),
-      padding: EdgeInsets.only(
-        bottom: mediaQuery.viewInsets.bottom,
-      ),
+      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
       height: mediaQuery.size.height * 0.75,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1568,13 +1705,19 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                           try {
                             if (widget.subChapterId != null) {
                               if (widget.courseId != null) {
-                                final chapters = await lessonRepo.getChapters(widget.courseId!);
+                                final chapters = await lessonRepo.getChapters(
+                                  widget.courseId!,
+                                );
                                 for (var ch in chapters) {
-                                   final subs = await lessonRepo.getSubChapters(ch.id);
-                                   if (subs.any((s) => s.id == widget.subChapterId)) {
-                                     chapterId = ch.id;
-                                     break;
-                                   }
+                                  final subs = await lessonRepo.getSubChapters(
+                                    ch.id,
+                                  );
+                                  if (subs.any(
+                                    (s) => s.id == widget.subChapterId,
+                                  )) {
+                                    chapterId = ch.id;
+                                    break;
+                                  }
                                 }
                               }
                             }
@@ -1598,17 +1741,25 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                         },
                         icon: const Icon(Icons.add_comment_outlined, size: 18),
                         label: const Text('Post Topic'),
-                        style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.deepPurple,
+                        ),
                       ),
                   ],
                 ),
-                if (_checkedPermission && !_canPost && _postDisabledReason != null) ...[
+                if (_checkedPermission &&
+                    !_canPost &&
+                    _postDisabledReason != null) ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
                       _postDisabledReason!,
-                      style: TextStyle(color: Colors.red.shade400, fontSize: 11, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        color: Colors.red.shade400,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ],
@@ -1630,8 +1781,13 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                             },
                           )
                         : null,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   onChanged: (_) => _applyFilters(),
                 ),
@@ -1643,8 +1799,13 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                       child: InputDecorator(
                         decoration: InputDecoration(
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           labelText: 'Sort By',
                           labelStyle: const TextStyle(fontSize: 12),
                         ),
@@ -1653,10 +1814,19 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                             isExpanded: true,
                             value: _sortBy,
                             isDense: true,
-                            style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.black87,
+                            ),
                             items: const [
-                              DropdownMenuItem(value: 'Latest', child: Text('Latest')),
-                              DropdownMenuItem(value: 'Top Upvotes', child: Text('Top Upvotes')),
+                              DropdownMenuItem(
+                                value: 'Latest',
+                                child: Text('Latest'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Top Upvotes',
+                                child: Text('Top Upvotes'),
+                              ),
                             ],
                             onChanged: (val) {
                               if (val != null) {
@@ -1670,7 +1840,10 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
                     ),
                     const SizedBox(width: 6),
                     IconButton(
-                      icon: const Icon(Icons.refresh_rounded, color: Colors.deepPurple),
+                      icon: const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.deepPurple,
+                      ),
                       tooltip: 'Reset',
                       visualDensity: VisualDensity.compact,
                       onPressed: () {
@@ -1691,117 +1864,146 @@ class _PageDiscussionsSheetState extends State<_PageDiscussionsSheet> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredTopics.isEmpty
-                    ? SingleChildScrollView(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const SizedBox(height: 32),
-                            Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No discussions on this page yet.\nAsk a question or start a discussion!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey, fontSize: 13),
-                            ),
-                            const SizedBox(height: 32),
-                          ],
+                ? SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 32),
+                        Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 48,
+                          color: Colors.grey.shade400,
                         ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        itemCount: _filteredTopics.length,
-                        itemBuilder: (context, index) {
-                          final topic = _filteredTopics[index];
-                          final displayDate = topic.updatedAt ?? topic.createdAt;
-                          final dateStr = '${displayDate.day}/${displayDate.month}/${displayDate.year}';
-                          final editedStr = topic.updatedAt != null ? ' (edited)' : '';
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(color: Colors.grey.shade200),
-                            ),
-                            child: InkWell(
-                              onTap: () async {
-                                final result = await context.push('/discussion/${topic.id}');
-                                if (result == true || result == null) {
-                                  _loadTopics();
-                                  widget.onTopicCreated();
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No discussions on this page yet.\nAsk a question or start a discussion!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    itemCount: _filteredTopics.length,
+                    itemBuilder: (context, index) {
+                      final topic = _filteredTopics[index];
+                      final displayDate = topic.updatedAt ?? topic.createdAt;
+                      final dateStr =
+                          '${displayDate.day}/${displayDate.month}/${displayDate.year}';
+                      final editedStr = topic.updatedAt != null
+                          ? ' (edited)'
+                          : '';
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.grey.shade200),
+                        ),
+                        child: InkWell(
+                          onTap: () async {
+                            final result = await context.push(
+                              '/discussion/${topic.id}',
+                            );
+                            if (result == true || result == null) {
+                              _loadTopics();
+                              widget.onTopicCreated();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        UserByteAvatar(
-                                          radius: 9,
-                                          userId: topic.authorId,
-                                          name: topic.authorName,
-                                          avatarData: topic.authorAvatarUrl,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          topic.authorName,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black54,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Text(
-                                          '$dateStr$editedStr',
-                                          style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                                        ),
-                                      ],
+                                    UserByteAvatar(
+                                      radius: 9,
+                                      userId: topic.authorId,
+                                      name: topic.authorName,
+                                      avatarData: topic.authorAvatarUrl,
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(width: 6),
                                     Text(
-                                      topic.title,
+                                      topic.authorName,
                                       style: const TextStyle(
+                                        fontSize: 11,
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                        color: Colors.black54,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const Spacer(),
                                     Text(
-                                      topic.content,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                      '$dateStr$editedStr',
                                       style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
+                                        fontSize: 10,
+                                        color: Colors.grey.shade500,
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.arrow_upward_rounded, size: 14, color: Colors.grey.shade500),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${topic.score}',
-                                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Icon(Icons.mode_comment_outlined, size: 14, color: Colors.grey.shade500),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'View Thread',
-                                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                                        ),
-                                      ],
                                     ),
                                   ],
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  topic.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  topic.content,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.arrow_upward_rounded,
+                                      size: 14,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${topic.score}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Icon(
+                                      Icons.mode_comment_outlined,
+                                      size: 14,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'View Thread',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

@@ -61,6 +61,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     setState(() => _isLoading = true);
     final didReset = await _repository.checkAndResetWeeklyLeagues();
     if (didReset && mounted) {
+      context.read<FriendshipRepository>().refreshProfileAndNotifications();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Weekly leaderboard reset completed! Check your mailbox.'),

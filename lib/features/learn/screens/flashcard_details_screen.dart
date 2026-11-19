@@ -8,6 +8,7 @@ import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../core/widgets/byte_mascot.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../../profile/widgets/user_detail_bottom_sheet.dart';
 
 class FlashcardDetailsScreen extends StatefulWidget {
@@ -131,7 +132,7 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Deck Details'),
-        backgroundColor: Colors.deepPurple,
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 33),
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
@@ -197,39 +198,38 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Cover Image / Icon
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
+                // Cover Image / Cosmic Nebula Icon
+                if (_deck!.imageUrl != null && _deck!.imageUrl!.isNotEmpty)
+                  ClipRRect(
                     borderRadius: BorderRadius.circular(24),
-                    gradient: _deck!.imageUrl == null || _deck!.imageUrl!.isEmpty
-                        ? LinearGradient(
-                            colors: [
-                              Colors.deepPurple.shade700,
-                              Colors.indigo.shade500,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    image: _deck!.imageUrl != null && _deck!.imageUrl!.isNotEmpty
-                        ? DecorationImage(
-                            image: NetworkImage(_deck!.imageUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
+                    child: Image.network(
+                      _deck!.imageUrl!,
+                      width: 130,
+                      height: 130,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                else
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: CosmicNebulaBox(
+                      borderRadius: BorderRadius.circular(60),
+                      seed: _deck!.id.hashCode,
+                      showPlanet: true,
+                      border: Border.all(
+                        color: CosmicColors.starlightGold.withValues(alpha: 0.7),
+                        width: 2,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.style_rounded,
+                          size: 50,
+                          color: CosmicColors.starlightGold,
+                        ),
+                      ),
+                    ),
                   ),
-                  child: _deck!.imageUrl == null || _deck!.imageUrl!.isEmpty
-                      ? const Center(
-                          child: Icon(
-                            Icons.style_rounded,
-                            size: 48,
-                            color: Colors.white70,
-                          ),
-                        )
-                      : null,
-                ),
                 const SizedBox(height: 24),
                 // Title
                 Text(
@@ -315,48 +315,63 @@ class _FlashcardDetailsScreenState extends State<FlashcardDetailsScreen> {
                   Column(
                     children: [
                       // Shuffle Toggle
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Shuffle Cards',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          const SizedBox(width: 12),
-                          Switch(
-                            value: _shuffleCards,
-                            activeThumbColor: Colors.deepPurple,
-                            onChanged: (val) {
-                              setState(() {
-                                _shuffleCards = val;
-                              });
-                            },
-                          ),
-                        ],
+                      Container(
+                        width: 280,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.shade50.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.deepPurple.shade100),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.shuffle_rounded,
+                                  color: Colors.deepPurple,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Shuffle Cards',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Switch(
+                              value: _shuffleCards,
+                              activeThumbColor: Colors.deepPurple,
+                              onChanged: (val) {
+                                setState(() {
+                                  _shuffleCards = val;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 24),
-                      // Start Revision Button
-                      SizedBox(
-                        width: 280,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            context.push(
-                              '/flashcard-deck/${_deck!.id}/play?shuffle=$_shuffleCards',
-                              extra: {'deckTitle': _deck!.title},
-                            );
-                          },
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: const Text('Start Revision'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepPurple,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 2,
-                          ),
-                        ),
+                      // Start Revision Cosmic Button
+                      CosmicActionButton(
+                        label: 'Start Revision',
+                        subtitle: _deck!.cardCount == 1
+                            ? '1 Card'
+                            : '${_deck!.cardCount} Cards',
+                        icon: Icons.play_arrow_rounded,
+                        onPressed: () {
+                          context.push(
+                            '/flashcard-deck/${_deck!.id}/play?shuffle=$_shuffleCards',
+                            extra: {'deckTitle': _deck!.title},
+                          );
+                        },
                       ),
                     ],
                   ),

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/discussion_models.dart';
 import '../../../data/repositories/discussion_repository.dart';
+import '../../../core/widgets/byte_mascot.dart';
+import '../../../core/widgets/cosmic_background.dart';
 
 class DiscussionModerationScreen extends StatefulWidget {
   const DiscussionModerationScreen({super.key});
@@ -147,7 +149,7 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
       appBar: AppBar(
         title: const Row(
           children: [
-            Icon(Icons.shield_rounded, color: Colors.white),
+            Icon(Icons.shield_rounded, color: CosmicColors.starlightGold),
             SizedBox(width: 8),
             Text(
               'Moderation Hub',
@@ -155,6 +157,7 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
             ),
           ],
         ),
+        flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 77),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -163,7 +166,6 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
           ),
         ],
         elevation: 0,
-        backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
       ),
       body: _isLoading
@@ -193,19 +195,15 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.check_circle_outline_rounded,
-                size: 64,
-                color: Colors.green.shade600,
-              ),
+            const ByteMascot(
+              size: 112,
+              mood: ByteMascotMood.happy,
+              tapMessages: [
+                'All clear, Commander! Community discussions are safe! 🛡️',
+                'Byte is watching over the cosmos! ✨',
+              ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             const Text(
               'All Clear!',
               style: TextStyle(
@@ -220,14 +218,10 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
               style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.4),
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
+            CosmicActionButton(
+              label: 'Check Again',
+              icon: Icons.refresh_rounded,
               onPressed: _loadReports,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Check Again'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.deepPurple,
-                side: BorderSide(color: Colors.deepPurple.shade300),
-              ),
             ),
           ],
         ),

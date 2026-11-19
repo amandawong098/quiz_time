@@ -218,12 +218,7 @@ class _CreateFlashcardDeckScreenState extends State<CreateFlashcardDeckScreen> {
         appBar: AppBar(
           title: Text(
             isEditing ? 'Edit Deck Details' : 'Create Flashcard Deck',
-            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          backgroundColor: Colors.deepPurple,
-          foregroundColor: Colors.white,
-          iconTheme: const IconThemeData(color: Colors.white),
-          elevation: 0,
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())

@@ -507,6 +507,8 @@ class GamificationService extends ChangeNotifier {
     }
 
     int fetchedXp = 0;
+    bool isAdminUser =
+        (user.userMetadata?['role']?.toString().toLowerCase() == 'admin');
     Map<String, dynamic>? loadedCustomization;
     String? profileAvatarStr;
 
@@ -525,6 +527,9 @@ class GamificationService extends ChangeNotifier {
           .eq('id', user.id)
           .maybeSingle();
       if (res != null) {
+        if (res['role']?.toString().toLowerCase() == 'admin') {
+          isAdminUser = true;
+        }
         fetchedXp = (res['xp'] as num? ?? 0).toInt();
         profileAvatarStr = res['avatar_url'] as String?;
         if (res['customization'] is Map) {
@@ -544,6 +549,25 @@ class GamificationService extends ChangeNotifier {
               Map<String, dynamic>.from(meta['cosmic_customization'] as Map);
         }
       }
+    }
+
+    if (isAdminUser) {
+      // Admins have no XP or mini-game customization; keep constant Educator Byte
+      _lifetimeXp = 0;
+      _state = const UserCosmicState(
+        equippedBody: 'body_classic',
+        equippedEye: 'eye_cyan',
+        equippedCostume: 'costume_educator',
+        equippedStage: 'stage_nebula',
+      );
+      final adminUri = ByteAppearance.adminAppearance.toAvatarUrlString();
+      if (profileAvatarStr != adminUri) {
+        await _persistState(syncAvatarUrl: true);
+      }
+      _isLoaded = true;
+      _syncGlobalAppearanceNotifier();
+      notifyListeners();
+      return;
     }
 
     _lifetimeXp = fetchedXp;
@@ -588,6 +612,14 @@ class GamificationService extends ChangeNotifier {
           .eq('id', userId)
           .maybeSingle();
       if (res != null) {
+        if (res['role']?.toString().toLowerCase() == 'admin') {
+          return const UserCosmicState(
+            equippedBody: 'body_classic',
+            equippedEye: 'eye_cyan',
+            equippedCostume: 'costume_educator',
+            equippedStage: 'stage_nebula',
+          );
+        }
         if (res['customization'] is Map) {
           final map = Map<String, dynamic>.from(res['customization'] as Map);
           if (map.isNotEmpty) {

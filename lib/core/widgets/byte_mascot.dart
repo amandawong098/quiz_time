@@ -21,6 +21,12 @@ class ByteAppearance {
   });
 
   static const ByteAppearance defaultAppearance = ByteAppearance();
+  static const ByteAppearance adminAppearance = ByteAppearance(
+    bodyId: 'body_classic',
+    eyeId: 'eye_cyan',
+    costumeId: 'costume_educator',
+    stageId: 'stage_nebula',
+  );
 
   ByteAppearance copyWith({
     String? bodyId,
@@ -681,8 +687,10 @@ class _ByteAstroBotPainter extends CustomPainter {
           Paint()..color = Colors.white,
         );
       }
-    } else if (costume != 'costume_wizard' && costume != 'costume_royalty') {
-      // Standard single antenna (hidden under Wizard Hat & Royal Crown so they sit flush)
+    } else if (costume != 'costume_wizard' &&
+        costume != 'costume_royalty' &&
+        costume != 'costume_educator') {
+      // Standard single antenna (hidden under Wizard Hat, Royal Crown & Educator Cap so they sit flush)
       final Paint stemPaint = Paint()
         ..color = palette.border
         ..strokeWidth = w * 0.032
@@ -841,6 +849,37 @@ class _ByteAstroBotPainter extends CustomPainter {
         Offset(w * 0.05, h * 0.175),
         w * 0.016,
         Paint()..color = const Color(0xFF00E5FF),
+      );
+    } else if (costume == 'costume_educator') {
+      // Educator Blazer Collar & Crimson-Gold Tie
+      final Path leftLapel = Path()
+        ..moveTo(-w * 0.14, h * 0.08)
+        ..lineTo(-w * 0.03, h * 0.22)
+        ..lineTo(-w * 0.15, h * 0.25)
+        ..close();
+      final Path rightLapel = Path()
+        ..moveTo(w * 0.14, h * 0.08)
+        ..lineTo(w * 0.03, h * 0.22)
+        ..lineTo(w * 0.15, h * 0.25)
+        ..close();
+      final Paint lapelPaint = Paint()..color = const Color(0xFF1E1B4B);
+      canvas.drawPath(leftLapel, lapelPaint);
+      canvas.drawPath(rightLapel, lapelPaint);
+
+      // Tie
+      final Path tie = Path()
+        ..moveTo(-w * 0.025, h * 0.09)
+        ..lineTo(w * 0.025, h * 0.09)
+        ..lineTo(w * 0.032, h * 0.23)
+        ..lineTo(0, h * 0.275)
+        ..lineTo(-w * 0.032, h * 0.23)
+        ..close();
+      canvas.drawPath(tie, Paint()..color = const Color(0xFFE11D48));
+      // Gold tie pin
+      canvas.drawCircle(
+        Offset(0, h * 0.16),
+        w * 0.014,
+        Paint()..color = const Color(0xFFFACC15),
       );
     } else if (costume == 'costume_royalty') {
       // Royal Ermine Fur Collar & Golden Gem Clasp
@@ -1040,8 +1079,35 @@ class _ByteAstroBotPainter extends CustomPainter {
       costume: costume,
     );
 
+    // Educator Scholar Glasses on Visor
+    if (costume == 'costume_educator') {
+      final Paint framePaint = Paint()
+        ..color = const Color(0xFFFACC15)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.016;
+      final Paint lensTint = Paint()
+        ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14);
+      final RRect leftLens = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: leftEyeCenter, width: w * 0.13, height: h * 0.11),
+        Radius.circular(w * 0.028),
+      );
+      final RRect rightLens = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: rightEyeCenter, width: w * 0.13, height: h * 0.11),
+        Radius.circular(w * 0.028),
+      );
+      canvas.drawRRect(leftLens, lensTint);
+      canvas.drawRRect(rightLens, lensTint);
+      canvas.drawRRect(leftLens, framePaint);
+      canvas.drawRRect(rightLens, framePaint);
+      canvas.drawLine(
+        Offset(leftEyeCenter.dx + w * 0.065, leftEyeCenter.dy),
+        Offset(rightEyeCenter.dx - w * 0.065, rightEyeCenter.dy),
+        framePaint,
+      );
+    }
+
     // =========================================================================
-    // LAYER F: FITTED HEADGEAR COSTUMES (Wizard Hat, Royal Crown, Ninja Band)
+    // LAYER F: FITTED HEADGEAR COSTUMES (Wizard Hat, Royal Crown, Ninja Band, Educator Cap)
     // =========================================================================
     if (costume == 'costume_wizard') {
       _drawWizardHatOnHelmet(canvas, w, h);
@@ -1049,6 +1115,8 @@ class _ByteAstroBotPainter extends CustomPainter {
       _drawRoyalCrownOnHelmet(canvas, w, h);
     } else if (costume == 'costume_cyber_ninja') {
       _drawNinjaHeadbandOnHelmet(canvas, w, h, idlePhase);
+    } else if (costume == 'costume_educator') {
+      _drawEducatorCapOnHelmet(canvas, w, h);
     }
 
     // =========================================================================
@@ -1828,6 +1896,57 @@ class _ByteAstroBotPainter extends CustomPainter {
       Paint()
         ..color = const Color(0xFF00E5FF)
         ..strokeWidth = w * 0.012,
+    );
+  }
+
+  void _drawEducatorCapOnHelmet(Canvas canvas, double w, double h) {
+    // Scholar Cap Skull Base sitting flush on top of Byte's helmet
+    final Path capBase = Path()
+      ..moveTo(-w * 0.16, -h * 0.24)
+      ..lineTo(-w * 0.14, -h * 0.31)
+      ..lineTo(w * 0.14, -h * 0.31)
+      ..lineTo(w * 0.16, -h * 0.24)
+      ..close();
+    canvas.drawPath(capBase, Paint()..color = const Color(0xFF1E1B4B));
+
+    // Mortarboard Diamond Top
+    final Path board = Path()
+      ..moveTo(0, -h * 0.40)
+      ..lineTo(w * 0.27, -h * 0.32)
+      ..lineTo(0, -h * 0.25)
+      ..lineTo(-w * 0.27, -h * 0.32)
+      ..close();
+    canvas.drawPath(board, Paint()..color = const Color(0xFF312E81));
+    canvas.drawPath(
+      board,
+      Paint()
+        ..color = const Color(0xFFFACC15)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.012,
+    );
+
+    // Center gold button & hanging gold tassel
+    canvas.drawCircle(
+      Offset(0, -h * 0.325),
+      w * 0.018,
+      Paint()..color = const Color(0xFFFACC15),
+    );
+    final Path tassel = Path()
+      ..moveTo(0, -h * 0.325)
+      ..lineTo(w * 0.22, -h * 0.30)
+      ..lineTo(w * 0.23, -h * 0.21);
+    canvas.drawPath(
+      tassel,
+      Paint()
+        ..color = const Color(0xFFFACC15)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.015
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawCircle(
+      Offset(w * 0.23, -h * 0.205),
+      w * 0.018,
+      Paint()..color = const Color(0xFFF59E0B),
     );
   }
 

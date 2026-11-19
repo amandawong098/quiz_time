@@ -24,6 +24,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<FriendshipRepository>().refreshProfileAndNotifications();
       GamificationService.instance.loadForCurrentUser();
     });
   }
@@ -344,24 +346,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
                     seed: 505,
                     showPlanet: true,
-                    child: Column(
-                      children: [
-                        UserByteAvatar(
-                          appearanceOverride: cosmicState.appearance,
-                          isCurrentUser: true,
-                          radius: 52,
-                          onTap: () => context.push('/space-cabin'),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          user?.userMetadata?['name'] ?? 'User Name',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                        ),
-                        if (!context.watch<AuthRepository>().isAdmin) ...[
+                    child: Builder(
+                      builder: (context) {
+                        final isAdmin = context.watch<AuthRepository>().isAdmin;
+                        return Column(
+                          children: [
+                            UserByteAvatar(
+                              appearanceOverride: isAdmin
+                                  ? ByteAppearance.adminAppearance
+                                  : cosmicState.appearance,
+                              isCurrentUser: true,
+                              radius: 52,
+                              onTap: isAdmin
+                                  ? null
+                                  : () => context.push('/space-cabin'),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              user?.userMetadata?['name'] ?? 'User Name',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                            ),
+                            if (!isAdmin) ...[
                           const SizedBox(height: 12),
                           GameBevelButton(
                             topColor: const Color(0xFF8B5CF6),
@@ -417,8 +426,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ],
                             ),
                           ),
-                        ],
-                      ],
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 16),

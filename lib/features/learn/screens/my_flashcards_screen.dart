@@ -327,14 +327,7 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'My Flashcards',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
+        title: const Text('My Flashcards'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
@@ -541,8 +534,6 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
             _loadDecks();
           }
         },
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
     );

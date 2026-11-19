@@ -38,9 +38,11 @@ class SoundService extends ChangeNotifier {
   bool _isInQuizGameplay = false;
   bool? _quizSessionSoundOverride;
 
-  // Mini-game background music state (reuses quiz BGM)
+  // Mini-game background music state (chill space lo-fi synth)
   bool _miniGameMusicEnabled = true;
   bool _isInMiniGame = false;
+  String? _miniGameBgmTempFilePath;
+  Uint8List? _miniGameBgmWavCache;
 
   bool get quizMusicEnabled => _quizMusicEnabled;
   bool get miniGameMusicEnabled => _miniGameMusicEnabled;
@@ -93,6 +95,8 @@ class SoundService extends ChangeNotifier {
       _mascotChirpWavCache ??= _generateMascotChirp();
   Uint8List get _arcadeQuizBgmWav =>
       _arcadeQuizBgmWavCache ??= _generateArcadeQuizBgmLoop();
+  Uint8List get _miniGameBgmWav =>
+      _miniGameBgmWavCache ??= _generateSpaceLofiBgmLoop();
 
   Future<void> init() async {
     if (_initialized) {
@@ -254,6 +258,27 @@ class SoundService extends ChangeNotifier {
     }
   }
 
+  Future<String?> _ensureMiniGameBgmFile() async {
+    if (kIsWeb) return null;
+    if (_miniGameBgmTempFilePath != null) {
+      try {
+        if (await File(_miniGameBgmTempFilePath!).exists()) {
+          return _miniGameBgmTempFilePath;
+        }
+      } catch (_) {}
+    }
+    try {
+      final tempFile = File(
+        '${Directory.systemTemp.path}/learnbyte_space_lofi_bgm_v1.wav',
+      );
+      await tempFile.writeAsBytes(_miniGameBgmWav, flush: true);
+      _miniGameBgmTempFilePath = tempFile.path;
+      return _miniGameBgmTempFilePath;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _startMiniGameBgmPlayback() async {
     try {
       await _ensureAudioSetup();
@@ -261,14 +286,14 @@ class SoundService extends ChangeNotifier {
         return;
       }
       await _bgmPlayer!.setReleaseMode(ReleaseMode.loop);
-      await _bgmPlayer!.setVolume(0.28);
+      await _bgmPlayer!.setVolume(0.32);
 
-      final filePath = await _ensureBgmFile();
+      final filePath = await _ensureMiniGameBgmFile();
       if (filePath != null) {
         await _bgmPlayer!.play(DeviceFileSource(filePath));
       } else {
         await _bgmPlayer!.play(
-          BytesSource(_arcadeQuizBgmWav, mimeType: 'audio/wav'),
+          BytesSource(_miniGameBgmWav, mimeType: 'audio/wav'),
         );
       }
     } catch (e) {
@@ -843,6 +868,119 @@ class SoundService extends ChangeNotifier {
     }
 
     return buffer.buffer.asUint8List();
+  }
+
+  /// Generates a 12.8-second chill lo-fi space-themed loop (~75 BPM):
+  /// warm Rhodes jazz chords, deep sub-bass, soft brushed lo-fi beat,
+  /// subtle vinyl dust, and dreamy floating space chimes.
+  Uint8List _generateSpaceLofiBgmLoop() {
+    const double loopSeconds = 12.8;
+    final int numSamples = (_sampleRate * loopSeconds).round();
+    final Float64List samples = Float64List(numSamples);
+
+    // 4-bar dreamy lo-fi space progression: Fmaj9 -> Em7 -> Dm9 -> Cmaj9
+    const List<List<double>> chords = [
+      [174.61, 220.00, 261.63, 329.63, 392.00], // Fmaj9
+      [164.81, 196.00, 246.94, 293.66, 392.00], // Em7
+      [146.83, 174.61, 220.00, 261.63, 329.63], // Dm9
+      [130.81, 164.81, 196.00, 246.94, 293.66], // Cmaj9
+    ];
+    const List<double> bassRoots = [87.31, 82.41, 73.42, 65.41];
+
+    // Sparse floating cosmic chime notes (Hz, 0 = rest) over 32 steps (0.4s each)
+    const List<double> chimes = [
+      659.25, 0, 783.99, 0, 1046.50, 0, 880.00, 0,
+      783.99, 0, 659.25, 0, 587.33, 0, 0, 0,
+      659.25, 0, 880.00, 0, 783.99, 0, 659.25, 0,
+      587.33, 0, 523.25, 0, 659.25, 0, 0, 0,
+    ];
+
+    const double barDur = 3.2; // 4 beats at 0.8s/beat (75 BPM)
+    const double beatDur = 0.8;
+    const double stepDur = 0.4;
+
+    for (int i = 0; i < numSamples; i++) {
+      final double t = i / _sampleRate;
+      final int barIdx = (t / barDur).floor().clamp(0, 3);
+      final double localBarT = t - barIdx * barDur;
+
+      // Gentle wow/flutter pitch drift for authentic lo-fi tape warmth
+      final double tapeDrift = 1.0 + 0.0018 * sin(2 * pi * 0.45 * t);
+
+      // 1. Warm Rhodes Pad Chords (soft swell + gentle decay)
+      final double chordEnv =
+          (sin((localBarT / barDur) * pi).clamp(0.0, 1.0)) * 0.65 + 0.35;
+      double pad = 0.0;
+      for (final double f in chords[barIdx]) {
+        final double freq = f * tapeDrift;
+        pad += (sin(2 * pi * freq * t) + 0.14 * sin(2 * pi * freq * 2.0 * t)) *
+            0.036;
+      }
+      pad *= chordEnv;
+
+      // 2. Warm Deep Sub-Bass
+      final double bassFreq = bassRoots[barIdx] * tapeDrift;
+      final double bassEnv = exp(-localBarT * 0.65);
+      final double bass = sin(2 * pi * bassFreq * t) * 0.14 * bassEnv;
+
+      // 3. Soft Brushed Lo-Fi Drum Groove (75 BPM)
+      final double beatT = t % beatDur;
+      final int beatInBar = ((t / beatDur).floor()) % 4;
+      double drums = 0.0;
+
+      // Muffled kick on beat 0 and syncopated 2.5
+      if (beatInBar == 0 || (beatInBar == 2 && beatT >= 0.4)) {
+        final double kT = beatInBar == 0 ? beatT : (beatT - 0.4);
+        final double kEnv = exp(-kT * 11.0);
+        final double kFreq = 48.0 + 68.0 * exp(-kT * 22.0);
+        drums += sin(2 * pi * kFreq * kT) * kEnv * 0.22;
+      }
+      // Soft brushed snare/rim on beats 1 and 3
+      if (beatInBar == 1 || beatInBar == 3) {
+        final double sEnv = exp(-beatT * 18.0);
+        final double brushNoise =
+            sin(i * 1.91) * cos(i * 3.17) * sin(i * 5.03);
+        drums +=
+            (brushNoise * 0.07 + sin(2 * pi * 185.0 * beatT) * 0.05) * sEnv;
+      }
+      // Gentle eighth-note closed hi-hat
+      final double hatT = t % stepDur;
+      final double hatEnv = exp(-hatT * 32.0);
+      final double hatNoise = sin(i * 2.37) * cos(i * 4.11);
+      drums += hatNoise * hatEnv * 0.025;
+
+      // 4. Floating Cosmic Space Chime
+      final int stepIdx = (t / stepDur).floor().clamp(0, chimes.length - 1);
+      final double chimeFreq = chimes[stepIdx];
+      double chime = 0.0;
+      if (chimeFreq > 0.0) {
+        final double cT = t - stepIdx * stepDur;
+        final double cEnv = exp(-cT * 3.2) * (1.0 - exp(-cT * 45.0));
+        chime =
+            (sin(2 * pi * chimeFreq * tapeDrift * t) +
+                    0.2 * sin(2 * pi * chimeFreq * 2.0 * tapeDrift * t)) *
+                0.055 *
+                cEnv;
+      }
+
+      // 5. Very subtle lo-fi vinyl crackle warmth
+      final double vinyl = (sin(i * 12.9898) * 43758.5453) % 1.0;
+      final double dust = vinyl.abs() > 0.996 ? (vinyl * 0.018) : 0.0;
+
+      double mixed = pad + bass + drums + chime + dust;
+
+      // Smooth 10ms fade at loop edges
+      const int fadeSamples = 220;
+      if (i < fadeSamples) {
+        mixed *= i / fadeSamples;
+      } else if (i > numSamples - fadeSamples) {
+        mixed *= (numSamples - i) / fadeSamples;
+      }
+
+      samples[i] = mixed.clamp(-0.90, 0.90);
+    }
+
+    return _encodeWav(samples);
   }
 }
 

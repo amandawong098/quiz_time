@@ -5,6 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/repositories/flashcard_repository.dart';
 import '../../../data/repositories/discussion_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../core/services/sound_service.dart';
+import '../../../core/widgets/byte_mascot.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../models/flashcard_models.dart';
 import '../widgets/flashcard_discussions_sheet.dart';
 
@@ -90,8 +93,10 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
 
   void _onAnswered(bool correct) {
     if (correct) {
+      SoundService.instance.playCorrectAnswer();
       _correctCount++;
     } else {
+      SoundService.instance.playWrongAnswer();
       _wrongCount++;
     }
 
@@ -179,6 +184,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
     }
 
     if (mounted) {
+      SoundService.instance.playQuizComplete();
       setState(() {
         _isLoading = false;
         _isSessionEnded = true;
@@ -206,108 +212,128 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
 
   Widget _buildReviewScreen() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(32.0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.deepPurple.shade50.withValues(alpha: 0.4), Colors.white],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.stars_rounded,
-              size: 100,
-              color: Colors.amber,
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Revision Completed!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Great job finishing this study session.',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.deepPurple.shade50,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CosmicNebulaBox(
                 borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '+$_xpEarned XP Earned 🏆',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                seed: 707,
+                showPlanet: true,
+                child: Column(
+                  children: [
+                    const ByteMascot(
+                      size: 108,
+                      mood: ByteMascotMood.happy,
+                      darkThemeContext: true,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: [
-                          const Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 28),
-                          const SizedBox(height: 6),
-                          Text(
-                            '$_correctCount Correct',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Revision Completed!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                      Column(
-                        children: [
-                          const Icon(Icons.cancel_outlined, color: Colors.red, size: 28),
-                          const SizedBox(height: 6),
-                          Text(
-                            '$_wrongCount Wrong',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Great job finishing this cosmic study session.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.8),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 48),
-            SizedBox(
-              width: 240,
-              child: ElevatedButton.icon(
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.deepPurple.shade100),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.deepPurple.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '+$_xpEarned XP Earned 🏆',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            const Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 28),
+                            const SizedBox(height: 6),
+                            Text(
+                              '$_correctCount Correct',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                            const Icon(Icons.cancel_outlined, color: Colors.red, size: 28),
+                            const SizedBox(height: 6),
+                            Text(
+                              '$_wrongCount Wrong',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              CosmicActionButton(
+                label: 'Back to Flashcards',
+                icon: Icons.home_rounded,
                 onPressed: () {
                   context.go('/?tab=flashcards');
                 },
-                icon: const Icon(Icons.home, color: Colors.white),
-                label: const Text('Back to Flashcards', style: TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -319,7 +345,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Results'),
-          backgroundColor: Colors.deepPurple,
+          flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 44),
           foregroundColor: Colors.white,
           iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
@@ -400,7 +426,7 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
             widget.deckTitle,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          backgroundColor: Colors.deepPurple,
+          flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 44),
           foregroundColor: Colors.white,
           iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
@@ -470,25 +496,60 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Study Session',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                          CosmicNebulaBox(
+                            borderRadius: BorderRadius.circular(18),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            seed: 88,
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Row(
+                                      children: [
+                                        Icon(
+                                          Icons.rocket_launch_rounded,
+                                          color: CosmicColors.starlightGold,
+                                          size: 16,
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Cosmic Study Session',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      '${_currentIndex + 1} / ${_cards.length}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: CosmicColors.starlightGold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              Text(
-                                '${_currentIndex + 1} / ${_cards.length}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: Colors.deepPurple),
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: LinearProgressIndicator(
+                                    value: (_currentIndex + 1) / _cards.length,
+                                    minHeight: 6,
+                                    backgroundColor: Colors.white.withValues(alpha: 0.16),
+                                    valueColor: const AlwaysStoppedAnimation<Color>(
+                                      CosmicColors.starlightGold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                            const SizedBox(height: 24),
                            GestureDetector(
@@ -594,23 +655,12 @@ class _PlayFlashcardsScreenState extends State<PlayFlashcardsScreen> {
                                   ],
                                 )
                               : Center(
-                                  child: SizedBox(
-                                    width: 200,
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {
-                                        _cardKey.currentState?.flip();
-                                      },
-                                      icon: const Icon(Icons.flip_camera_android_rounded),
-                                      label: const Text('Flip Card'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.deepPurple,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(24),
-                                        ),
-                                      ),
-                                    ),
+                                  child: CosmicActionButton(
+                                    label: 'Flip Card',
+                                    icon: Icons.flip_camera_android_rounded,
+                                    onPressed: () {
+                                      _cardKey.currentState?.flip();
+                                    },
                                   ),
                                 ),
                           const SizedBox(height: 36),
@@ -728,6 +778,7 @@ class _PlayFlipCardState extends State<PlayFlipCard> with SingleTickerProviderSt
   }
 
   void flip() {
+    SoundService.instance.playOptionSelect();
     if (_isFront) {
       _controller.forward();
     } else {

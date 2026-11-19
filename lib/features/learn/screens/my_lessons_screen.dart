@@ -22,6 +22,40 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
   Map<String, List<LessonSubChapter>> _subChaptersMap = {};
   Map<String, int> _subChapterSlidesCountMap = {};
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _selectedChapterRange;
+  String _visibilityFilter = 'All'; // All, Public, Private
+
+  List<LessonCourse> get _filteredCourses {
+    final q = _searchQuery.toLowerCase();
+    return _courses.where((course) {
+      if (_visibilityFilter == 'Public' && !course.isPublic) return false;
+      if (_visibilityFilter == 'Private' && course.isPublic) return false;
+
+      if (q.isNotEmpty) {
+        final titleMatch = course.title.toLowerCase().contains(q);
+        final descMatch =
+            (course.description ?? '').toLowerCase().contains(q);
+        if (!titleMatch && !descMatch) return false;
+      }
+
+      if (_selectedChapterRange != null) {
+        final count = (_chaptersMap[course.id] ?? []).length;
+        if (_selectedChapterRange == '1-2' && (count < 1 || count > 2)) {
+          return false;
+        }
+        if (_selectedChapterRange == '3-5' && (count < 3 || count > 5)) {
+          return false;
+        }
+        if (_selectedChapterRange == '6+' && count < 6) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +65,7 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     AIGenerationManager().removeListener(_onAIManagerStateChanged);
     super.dispose();
   }
@@ -583,30 +618,171 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
 
   Widget _buildCoursesListView() {
     final warnings = _getWarnings();
+    final filtered = _filteredCourses;
+
     return Column(
       children: [
         if (warnings.isNotEmpty) ...warnings.map((w) => _buildWarningBanner(w)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Column(
+            children: [
+              // Search bar
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search lessons...',
+                  prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: Colors.deepPurple.shade100),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: Colors.deepPurple.shade100),
+                  ),
+                ),
+                onChanged: (val) => setState(() => _searchQuery = val.trim()),
+              ),
+              const SizedBox(height: 10),
+              // No. of Chapters dropdown + Reset
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String?>(
+                      initialValue: _selectedChapterRange,
+                      decoration: InputDecoration(
+                        labelText: 'No. of Chapters',
+                        isDense: true,
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: null, child: Text('Any')),
+                        DropdownMenuItem(value: '1-2', child: Text('1 - 2 Chapters')),
+                        DropdownMenuItem(value: '3-5', child: Text('3 - 5 Chapters')),
+                        DropdownMenuItem(value: '6+', child: Text('6+ Chapters')),
+                      ],
+                      onChanged: (val) =>
+                          setState(() => _selectedChapterRange = val),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, color: Colors.deepPurple),
+                    tooltip: 'Reset filters',
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                        _selectedChapterRange = null;
+                        _visibilityFilter = 'All';
+                      });
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Visibility filter chips
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('All'),
+                      selected: _visibilityFilter == 'All',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _visibilityFilter = 'All');
+                        }
+                      },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Public'),
+                      selected: _visibilityFilter == 'Public',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _visibilityFilter = 'Public');
+                        }
+                      },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Private'),
+                      selected: _visibilityFilter == 'Private',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _visibilityFilter = 'Private');
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadLessons,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: _courses.length,
-              itemBuilder: (context, courseIdx) {
-                final course = _courses[courseIdx];
-                final chapters = _chaptersMap[course.id] ?? [];
+            child: filtered.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      Padding(
+                        padding: EdgeInsets.only(top: 64),
+                        child: Center(
+                          child: Text(
+                            'No lessons match your filters.',
+                            style: TextStyle(color: Colors.grey, fontSize: 15),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16.0),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, courseIdx) {
+                      final course = filtered[courseIdx];
+                      final chapters = _chaptersMap[course.id] ?? [];
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 20),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Theme(
-                    data: Theme.of(
-                      context,
-                    ).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      initiallyExpanded: true,
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Theme(
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            initiallyExpanded: false,
                       leading: Container(
                         width: 48,
                         height: 48,
@@ -1334,8 +1510,6 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
       ),
       floatingActionButton: context.watch<AuthRepository>().isAdmin
           ? FloatingActionButton(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
               onPressed: _addCourse,
               child: const Icon(Icons.add),
             )
