@@ -398,7 +398,6 @@ class AIQuizService {
     int questionCount = 5,
     String difficulty = 'Medium',
     int durationSeconds = 0, // 0 = Auto (AI calculates per question)
-    bool generateCover = true,
     String? modelName,
     String? overrideApiKey,
   }) async {
@@ -465,18 +464,6 @@ class AIQuizService {
           durationSeconds: durationSeconds,
         );
 
-        // Generate AI cover image if enabled
-        if (generateCover) {
-          final imagePrompt =
-              result['imagePrompt'] as String? ??
-              result['title'] as String? ??
-              promptOrInstructions;
-          final imageUrl = await generateAndUploadCoverImage(imagePrompt);
-          if (imageUrl != null) {
-            result['imageUrl'] = imageUrl;
-          }
-        }
-
         await saveSelectedModel(currentModel);
         return result;
       } catch (e) {
@@ -530,24 +517,22 @@ Your task is to generate high quality, engaging educational quizzes based strict
 
 Guidelines for Quiz Generation:
 1. Generate an accurate, engaging quiz title and a concise description.
-2. Generate an "imagePrompt": a vivid description for creating a modern 3D illustration cover image for this topic.
-3. Generate EXACTLY the requested number of questions ($questionCount questions).
-4. Question styles:
+2. Generate EXACTLY the requested number of questions ($questionCount questions).
+3. Question styles:
    - Mix single-choice questions (1 correct option) and multiple-choice questions (2 or more correct options, e.g. "Which of the following are...").
    - Give each question 2 to 5 options as appropriate.
    - For single-choice questions, exactly 1 option must have "isCorrect": true.
    - For multiple-choice questions, 2 or more options must have "isCorrect": true.
    - Ensure false options (distractors) are plausible and educational.
-5. Explanations:
+4. Explanations:
    - Provide a clear, educational explanation for every question explaining why the correct answer(s) are right.
-6. Difficulty: Tailor the depth and cognitive level to the requested difficulty: $difficulty.
-7. Duration setting: $durationInstruction
+5. Difficulty: Tailor the depth and cognitive level to the requested difficulty: $difficulty.
+6. Duration setting: $durationInstruction
 
 Return STRICT JSON matching this schema:
 {
   "title": "Clear & Engaging Title",
   "description": "Short description of what this quiz covers",
-  "imagePrompt": "Vivid artistic prompt for generating cover art",
   "questions": [
     {
       "text": "Question statement?",
@@ -651,11 +636,14 @@ Return STRICT JSON matching this schema:
     // Validate and sanitize questions
     final rawQuestions = decoded['questions'] as List? ?? [];
     final List<Map<String, dynamic>> sanitizedQuestions = [];
+    final Set<String> seenQuestionTexts = {};
 
     for (var q in rawQuestions) {
       if (q is! Map) continue;
       final qText = (q['text'] ?? '').toString().trim();
       if (qText.isEmpty) continue;
+      final normalizedText = qText.toLowerCase();
+      if (seenQuestionTexts.contains(normalizedText)) continue;
 
       final rawOptions = q['options'] as List? ?? [];
       final List<Map<String, dynamic>> sanitizedOptions = [];
@@ -681,6 +669,7 @@ Return STRICT JSON matching this schema:
       }
 
       if (sanitizedOptions.length >= 2) {
+        seenQuestionTexts.add(normalizedText);
         sanitizedQuestions.add({
           'text': qText,
           'durationSeconds': parsedDuration,

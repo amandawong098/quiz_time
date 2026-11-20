@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/ai_quiz_service.dart';
 import '../../../core/services/ai_generation_manager.dart';
+import '../../../core/widgets/ai_generation_busy_view.dart';
 import '../../../core/widgets/gemini_model_selector_sheet.dart';
 
 class AILessonGeneratorScreen extends StatefulWidget {
@@ -34,7 +35,6 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
 
   // Lesson Generation options
   String _selectedAudience = 'Intermediate / College'; // Beginner, Intermediate, Advanced
-  final bool _generateCoverImage = true;
   String _selectedModel = 'gemini-1.5-flash';
 
   // File upload state (supports multi-file selection)
@@ -425,7 +425,6 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
         filesNames: _selectedFiles.map((f) => f.name).toList(),
         lessonScope: 'Auto',
         audience: _selectedAudience,
-        generateCover: _generateCoverImage,
         generateInSlideImages: hasFiles,
         modelName: _selectedModel,
       );
@@ -441,6 +440,10 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
     final currentTask = aiManager.currentTask;
     final isCurrentLessonTask =
         currentTask != null && currentTask.taskType == AITaskType.lesson;
+    final isOtherTaskGenerating =
+        currentTask != null &&
+        currentTask.taskType != AITaskType.lesson &&
+        currentTask.status == AITaskStatus.generating;
 
     return Scaffold(
       appBar: AppBar(
@@ -523,10 +526,15 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
           ),
         ],
       ),
-      body: isCurrentLessonTask &&
-              currentTask.status == AITaskStatus.generating
-          ? _buildActiveTaskView(theme, currentTask)
-          : SingleChildScrollView(
+      body: isOtherTaskGenerating
+          ? AIGenerationBusyView(
+              activeTask: currentTask,
+              requestedFeatureName: 'Lesson',
+            )
+          : isCurrentLessonTask &&
+                  currentTask.status == AITaskStatus.generating
+              ? _buildActiveTaskView(theme, currentTask)
+              : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1105,25 +1113,10 @@ class _AILessonGeneratorScreenState extends State<AILessonGeneratorScreen> {
         side: BorderSide(color: Colors.green.shade200),
       ),
       child: ListTile(
-        leading: task.generatedCoverUrl != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  task.generatedCoverUrl!,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const CircleAvatar(
-                    backgroundColor: Colors.green,
-                    child: Icon(Icons.check, color: Colors.white, size: 20),
-                  ),
-                ),
-              )
-            : const CircleAvatar(
-                backgroundColor: Colors.green,
-                child: Icon(Icons.check, color: Colors.white, size: 20),
-              ),
+        leading: const CircleAvatar(
+          backgroundColor: Colors.green,
+          child: Icon(Icons.check, color: Colors.white, size: 20),
+        ),
         title: Text(
           isChapter
               ? 'Chapter Ready: ${task.generatedTitle ?? "New Chapter"}'

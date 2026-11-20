@@ -179,12 +179,12 @@ class AIAttachmentHelper {
             } catch (_) {}
           }
 
-          // Extract authentic images and diagrams from ppt/media/
+          // Extract authentic raster images and diagrams from ppt/media/
           if (file.name.startsWith('ppt/media/')) {
             try {
               final bytes = Uint8List.fromList(file.content as List<int>);
-              if (bytes.length > 5000) {
-                // Filter out tiny 1px icons/spacers
+              if (bytes.length > 5000 &&
+                  _detectSupportedRasterImage(bytes) != null) {
                 extractedImages.add(bytes);
               }
             } catch (_) {}
@@ -232,7 +232,8 @@ class AIAttachmentHelper {
           if (file.name.startsWith('word/media/')) {
             try {
               final bytes = Uint8List.fromList(file.content as List<int>);
-              if (bytes.length > 5000) {
+              if (bytes.length > 5000 &&
+                  _detectSupportedRasterImage(bytes) != null) {
                 extractedImages.add(bytes);
               }
             } catch (_) {}
@@ -642,6 +643,48 @@ class AIAttachmentHelper {
     return bmp;
   }
 
+  /// Detects supported Flutter raster image formats (JPEG, PNG, GIF, BMP, WebP)
+  /// by inspecting magic bytes, rejecting unsupported formats like EMF/WMF/SVG.
+  static ({String ext, String contentType})? _detectSupportedRasterImage(
+    Uint8List bytes,
+  ) {
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return (ext: 'jpg', contentType: 'image/jpeg');
+    }
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return (ext: 'png', contentType: 'image/png');
+    }
+    if (bytes.length >= 4 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x38) {
+      return (ext: 'gif', contentType: 'image/gif');
+    }
+    if (bytes.length >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D) {
+      return (ext: 'bmp', contentType: 'image/bmp');
+    }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return (ext: 'webp', contentType: 'image/webp');
+    }
+    return null;
+  }
+
   /// Uploads extracted authentic images into Supabase Storage `quiz_images` bucket.
   static Future<List<String>> uploadExtractedImages(
     List<Uint8List> images,
@@ -652,27 +695,15 @@ class AIAttachmentHelper {
     for (int i = 0; i < images.length && i < 10; i++) {
       try {
         final bytes = images[i];
-        String fileExt = 'jpg';
-        String contentType = 'image/jpeg';
-
-        if (bytes.length >= 8 &&
-            bytes[0] == 0x89 &&
-            bytes[1] == 0x50 &&
-            bytes[2] == 0x4E &&
-            bytes[3] == 0x47) {
-          fileExt = 'png';
-          contentType = 'image/png';
-        } else if (bytes.length >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D) {
-          fileExt = 'bmp';
-          contentType = 'image/bmp';
-        }
+        final format = _detectSupportedRasterImage(bytes);
+        if (format == null) continue;
 
         final fileName =
-            'extracted_${DateTime.now().millisecondsSinceEpoch}_$i.$fileExt';
+            'extracted_${DateTime.now().millisecondsSinceEpoch}_$i.${format.ext}';
         await client.storage.from('quiz_images').uploadBinary(
               fileName,
               bytes,
-              fileOptions: FileOptions(contentType: contentType),
+              fileOptions: FileOptions(contentType: format.contentType),
             );
         final publicUrl =
             client.storage.from('quiz_images').getPublicUrl(fileName);

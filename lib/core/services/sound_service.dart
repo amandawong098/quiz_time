@@ -269,7 +269,7 @@ class SoundService extends ChangeNotifier {
     }
     try {
       final tempFile = File(
-        '${Directory.systemTemp.path}/learnbyte_cozy_lofi_bgm_v3.wav',
+        '${Directory.systemTemp.path}/learnbyte_cafe_lofi_bgm_v4.wav',
       );
       await tempFile.writeAsBytes(_miniGameBgmWav, flush: true);
       _miniGameBgmTempFilePath = tempFile.path;
@@ -872,111 +872,129 @@ class SoundService extends ChangeNotifier {
 
   /// Generates a 12.8-second chill lo-fi space-themed loop (~75 BPM):
   /// warm Rhodes jazz chords, deep sub-bass, soft brushed lo-fi beat,
-  /// Generates a calm, cozy, bouncy lo-fi dress-up groove loop (~12s) with
-  /// warm electric-piano chords, a cheerful kalimba melody, and a light beat.
+  /// Generates a smooth, warm Cafe Lo-Fi / Lofi Girl style loop (75 BPM, 12.8s)
+  /// using a jazzy ii-V-I-vi Rhodes progression, rolled chords, a mellow
+  /// top-line, and low-pass filtered lo-fi drums (no harsh noise or crackle).
   Uint8List _generateSpaceLofiBgmLoop() {
-    const double loopSeconds = 12.0;
+    const double loopSeconds = 12.8;
     final int numSamples = (_sampleRate * loopSeconds).round();
     final Float64List samples = Float64List(numSamples);
 
-    // 4-bar bright, cozy progression: Gmaj7 -> Em7 -> Cmaj7 -> D6
+    // Classic Cafe Lo-Fi / Lofi Girl ii-V-I-vi jazz progression:
+    // Dm9 -> G13 -> Cmaj9 -> Am9
     const List<List<double>> chords = [
-      [196.00, 246.94, 293.66, 369.99], // Gmaj7
-      [164.81, 196.00, 246.94, 293.66], // Em7
-      [261.63, 329.63, 392.00, 493.88], // Cmaj7
-      [146.83, 220.00, 246.94, 293.66], // D6
+      [293.66, 349.23, 440.00, 523.25, 659.25], // Dm9
+      [196.00, 293.66, 349.23, 440.00, 493.88], // G13
+      [261.63, 329.63, 392.00, 493.88, 587.33], // Cmaj9
+      [220.00, 261.63, 329.63, 392.00, 493.88], // Am9
     ];
-    // Phone-speaker-friendly warm mid-bass roots (164-262 Hz, no low-end rattle)
-    const List<double> bassRoots = [196.00, 164.81, 261.63, 220.00];
+    // Warm mid-bass roots (146-220 Hz, clean on phone speakers)
+    const List<double> bassRoots = [146.83, 196.00, 130.81, 220.00];
 
-    // Cheerful, relaxing kalimba/music-box melody (Hz, 0 = rest) over 32 steps
+    // Mellow soulful Rhodes/bell melody (Hz, 0 = rest) over 32 eighth-note steps
     const List<double> melody = [
-      783.99, 0, 659.25, 783.99, 987.77, 0, 880.00, 0,
-      783.99, 0, 659.25, 587.33, 659.25, 0, 493.88, 0,
-      523.25, 0, 659.25, 783.99, 880.00, 0, 783.99, 0,
-      659.25, 0, 587.33, 659.25, 783.99, 0, 587.33, 0,
+      659.25, 0, 587.33, 523.25, 440.00, 0, 0, 0,
+      493.88, 0, 587.33, 0, 659.25, 0, 587.33, 0,
+      523.25, 0, 659.25, 783.99, 659.25, 0, 523.25, 0,
+      440.00, 0, 493.88, 523.25, 392.00, 0, 0, 0,
     ];
 
-    const double barDur = 3.0; // 4 beats at 0.75s/beat (80 BPM)
-    const double beatDur = 0.75;
-    const double stepDur = 0.375;
+    const double barDur = 3.2; // 4 beats at 0.8s/beat (75 BPM)
+    const double beatDur = 0.8;
+    const double stepDur = 0.4;
+
+    // Low-pass filter state variables for warm analog lo-fi smoothness
+    double lpDrum = 0.0;
+    double lpMaster = 0.0;
+    double kickPhase = 0.0;
 
     for (int i = 0; i < numSamples; i++) {
       final double t = i / _sampleRate;
       final int barIdx = (t / barDur).floor().clamp(0, 3);
       final double localBarT = t - barIdx * barDur;
 
-      // Subtle lo-fi tape warmth
-      final double tapeDrift = 1.0 + 0.0014 * sin(2 * pi * 0.5 * t);
+      // Subtle lo-fi tape wow/flutter
+      final double tapeDrift = 1.0 + 0.0012 * sin(2 * pi * 0.4 * t);
 
-      // 1. Bouncy Electric-Piano Chords (gentle pulse on beats 0 and 2.5)
-      final double beatT = t % beatDur;
-      final int beatInBar = ((t / beatDur).floor()) % 4;
-      final double chordPulseT = (localBarT < beatDur * 2.5)
+      // 1. Rolled Jazzy Rhodes Chords (softly strummed 35ms per finger)
+      double keys = 0.0;
+      final chord = chords[barIdx];
+      for (int n = 0; n < chord.length; n++) {
+        final double noteT = localBarT - n * 0.035;
+        if (noteT > 0.0) {
+          final double env =
+              exp(-noteT * 0.85) * (1.0 - exp(-noteT * 28.0));
+          final double freq = chord[n] * tapeDrift;
+          // Warm Rhodes: pure fundamental + fast-decaying gentle 2nd harmonic
+          final double bell = exp(-noteT * 5.0) * 0.12;
+          keys += (sin(2 * pi * freq * t) + bell * sin(2 * pi * freq * 2.0 * t)) *
+              0.042 *
+              env;
+        }
+      }
+
+      // 2. Warm Mellow Bass (smooth sine sustain on beat 0 and beat 2.5)
+      final double bassTrigT = (localBarT < beatDur * 2.5)
           ? localBarT
           : (localBarT - beatDur * 2.5);
-      final double chordEnv =
-          exp(-chordPulseT * 1.6) * (1.0 - exp(-chordPulseT * 35.0));
-      double keys = 0.0;
-      for (final double f in chords[barIdx]) {
-        final double freq = f * tapeDrift;
-        keys += (sin(2 * pi * freq * t) + 0.12 * sin(2 * pi * freq * 2.0 * t)) *
-            0.038;
-      }
-      keys *= chordEnv;
-
-      // 2. Bouncy Warm Mid-Bass (gentle pluck on beat 0 and 2)
-      final double bassHitT = localBarT % (beatDur * 2.0);
       final double bassFreq = bassRoots[barIdx] * tapeDrift;
       final double bassEnv =
-          exp(-bassHitT * 2.4) * (1.0 - exp(-bassHitT * 40.0));
-      final double bass = sin(2 * pi * bassFreq * t) * 0.055 * bassEnv;
+          exp(-bassTrigT * 1.4) * (1.0 - exp(-bassTrigT * 24.0));
+      final double bass = sin(2 * pi * bassFreq * t) * 0.065 * bassEnv;
 
-      // 3. Light Cozy Drum Groove (80 BPM)
-      double drums = 0.0;
+      // 3. Soft, Muffled Cafe Lo-Fi Beat (75 BPM)
+      final double beatT = t % beatDur;
+      final int beatInBar = ((t / beatDur).floor()) % 4;
+      double kick = 0.0;
 
-      // Soft mid-punch kick on beat 0 and syncopated 2.5
-      if (beatInBar == 0 || (beatInBar == 2 && beatT >= stepDur)) {
-        final double kT = beatInBar == 0 ? beatT : (beatT - stepDur);
-        final double kEnv = exp(-kT * 16.0);
-        final double kFreq = 120.0 + 55.0 * exp(-kT * 26.0);
-        drums += sin(2 * pi * kFreq * kT) * kEnv * 0.09;
+      // Phase-continuous warm lo-fi kick on beat 0 and syncopated beat 2.5
+      final bool isKickWindow =
+          (beatInBar == 0 && beatT < 0.25) ||
+          (beatInBar == 2 && beatT >= 0.4 && beatT < 0.65);
+      if (isKickWindow) {
+        final double kT = beatInBar == 0 ? beatT : (beatT - 0.4);
+        if (kT < 0.0001) kickPhase = 0.0;
+        final double kFreq = 88.0 + 38.0 * exp(-kT * 22.0);
+        kickPhase += 2 * pi * kFreq / _sampleRate;
+        final double kEnv = exp(-kT * 15.0) * (1.0 - exp(-kT * 120.0));
+        kick = sin(kickPhase) * kEnv * 0.11;
       }
-      // Soft rim-click + brush on beats 1 and 3
+
+      // Low-passed soft brushed snare (beats 1 & 3) and gentle shaker
+      double rawPerc = 0.0;
+      final double pseudoNoise = sin(i * 1.731) * cos(i * 2.917);
       if (beatInBar == 1 || beatInBar == 3) {
-        final double sEnv = exp(-beatT * 24.0);
-        final double rim = sin(2 * pi * 420.0 * beatT) * exp(-beatT * 45.0);
-        final double brush = sin(i * 1.91) * cos(i * 3.17) * sin(i * 5.03);
-        drums += (rim * 0.045 + brush * 0.04) * sEnv;
+        final double sEnv = exp(-beatT * 20.0) * (1.0 - exp(-beatT * 100.0));
+        rawPerc += (pseudoNoise * 0.06 + sin(2 * pi * 175.0 * beatT) * 0.03) * sEnv;
       }
-      // Gentle eighth-note shaker
       final double hatT = t % stepDur;
-      final double hatEnv = exp(-hatT * 36.0);
-      final double hatNoise = sin(i * 2.37) * cos(i * 4.11);
-      drums += hatNoise * hatEnv * 0.022;
+      final double hatEnv = exp(-hatT * 34.0) * (1.0 - exp(-hatT * 140.0));
+      rawPerc += pseudoNoise * hatEnv * 0.022;
 
-      // 4. Bright Cozy Kalimba Melody
+      // Low-pass filter percussion so it sounds warm and muffled (never scratchy)
+      lpDrum += 0.16 * (rawPerc - lpDrum);
+
+      // 4. Soulful Mellow Top-Line Melody
       final int stepIdx = (t / stepDur).floor().clamp(0, melody.length - 1);
       final double noteFreq = melody[stepIdx];
       double lead = 0.0;
       if (noteFreq > 0.0) {
         final double nT = t - stepIdx * stepDur;
-        final double nEnv = exp(-nT * 4.5) * (1.0 - exp(-nT * 60.0));
+        final double nEnv = exp(-nT * 2.8) * (1.0 - exp(-nT * 28.0));
         lead =
             (sin(2 * pi * noteFreq * tapeDrift * t) +
-                    0.18 * sin(2 * pi * noteFreq * 2.0 * tapeDrift * t)) *
-                0.065 *
+                    0.08 * sin(2 * pi * noteFreq * 2.0 * tapeDrift * t)) *
+                0.055 *
                 nEnv;
       }
 
-      // 5. Very subtle lo-fi vinyl warmth
-      final double vinyl = (sin(i * 12.9898) * 43758.5453) % 1.0;
-      final double dust = vinyl.abs() > 0.997 ? (vinyl * 0.012) : 0.0;
+      // Master warm lo-fi low-pass filter for smooth Cafe Lo-Fi tone
+      final double rawMixed = keys + bass + kick + lpDrum + lead;
+      lpMaster += 0.35 * (rawMixed - lpMaster);
+      double mixed = lpMaster;
 
-      double mixed = keys + bass + drums + lead + dust;
-
-      // Smooth 10ms fade at loop edges
-      const int fadeSamples = 220;
+      // Smooth 15ms fade at loop edges
+      const int fadeSamples = 330;
       if (i < fadeSamples) {
         mixed *= i / fadeSamples;
       } else if (i > numSamples - fadeSamples) {

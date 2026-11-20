@@ -22,7 +22,6 @@ class AIGenerationTask {
   final int durationSeconds; // for quiz
   final String cardStyle; // for flashcard
   final String lessonScope; // for lesson
-  final bool generateCover;
   final bool generateInSlideImages;
   final String modelName;
   final String? targetCourseId;
@@ -31,7 +30,6 @@ class AIGenerationTask {
   String? error;
   String? generatedId; // quizId, deckId, or courseId
   String? generatedTitle;
-  String? generatedCoverUrl;
   DateTime createdAt;
 
   AIGenerationTask({
@@ -44,7 +42,6 @@ class AIGenerationTask {
     this.durationSeconds = 0,
     this.cardStyle = 'Mixed',
     this.lessonScope = 'Auto',
-    this.generateCover = true,
     this.generateInSlideImages = true,
     required this.modelName,
     this.targetCourseId,
@@ -53,7 +50,6 @@ class AIGenerationTask {
     this.error,
     this.generatedId,
     this.generatedTitle,
-    this.generatedCoverUrl,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -91,9 +87,9 @@ class AIGenerationManager extends ChangeNotifier {
     required int questionCount,
     required String difficulty,
     required int durationSeconds,
-    bool generateCover = true,
     required String modelName,
   }) async {
+    if (isGenerating) return;
     final taskId = DateTime.now().millisecondsSinceEpoch.toString();
     final task = AIGenerationTask(
       id: taskId,
@@ -103,7 +99,6 @@ class AIGenerationManager extends ChangeNotifier {
       count: questionCount,
       difficulty: difficulty,
       durationSeconds: durationSeconds,
-      generateCover: generateCover,
       modelName: modelName,
     );
 
@@ -128,9 +123,9 @@ class AIGenerationManager extends ChangeNotifier {
     required int cardCount,
     required String cardStyle,
     required String difficulty,
-    bool generateCover = true,
     required String modelName,
   }) async {
+    if (isGenerating) return;
     final taskId = DateTime.now().millisecondsSinceEpoch.toString();
     final task = AIGenerationTask(
       id: taskId,
@@ -140,7 +135,6 @@ class AIGenerationManager extends ChangeNotifier {
       count: cardCount,
       difficulty: difficulty,
       cardStyle: cardStyle,
-      generateCover: generateCover,
       modelName: modelName,
     );
 
@@ -166,10 +160,10 @@ class AIGenerationManager extends ChangeNotifier {
     String? fileMimeType,
     String lessonScope = 'Auto',
     required String audience,
-    bool generateCover = true,
     bool generateInSlideImages = true,
     required String modelName,
   }) async {
+    if (isGenerating) return;
     final effectiveNames = filesNames ?? (fileName != null ? [fileName] : <String>[]);
     final taskId = DateTime.now().millisecondsSinceEpoch.toString();
     final task = AIGenerationTask(
@@ -179,7 +173,6 @@ class AIGenerationManager extends ChangeNotifier {
       fileName: effectiveNames.isNotEmpty ? effectiveNames.join(', ') : fileName,
       lessonScope: lessonScope,
       difficulty: audience,
-      generateCover: generateCover,
       generateInSlideImages: generateInSlideImages,
       modelName: modelName,
     );
@@ -212,6 +205,7 @@ class AIGenerationManager extends ChangeNotifier {
     required String audience,
     required String modelName,
   }) async {
+    if (isGenerating) return;
     final effectiveNames = filesNames ?? (fileName != null ? [fileName] : <String>[]);
     final taskId = DateTime.now().millisecondsSinceEpoch.toString();
     final task = AIGenerationTask(
@@ -220,7 +214,6 @@ class AIGenerationManager extends ChangeNotifier {
       prompt: prompt,
       fileName: effectiveNames.isNotEmpty ? effectiveNames.join(', ') : fileName,
       difficulty: audience,
-      generateCover: false,
       modelName: modelName,
       targetCourseId: courseId,
     );
@@ -265,13 +258,6 @@ class AIGenerationManager extends ChangeNotifier {
         }
       });
 
-      Future.delayed(const Duration(milliseconds: 4000), () {
-        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating && task.generateCover) {
-          task.statusMessage = 'Generating AI 3D cover illustration...';
-          notifyListeners();
-        }
-      });
-
       final result = await AIQuizService.generateQuiz(
         promptOrInstructions: task.prompt,
         fileBytes: fileBytes,
@@ -280,13 +266,11 @@ class AIGenerationManager extends ChangeNotifier {
         questionCount: task.count,
         difficulty: task.difficulty,
         durationSeconds: task.durationSeconds,
-        generateCover: task.generateCover,
         modelName: task.modelName,
       );
 
       final title = result['title'] as String? ?? 'AI Generated Quiz';
       final desc = result['description'] as String? ?? 'Generated with AI in LearnByte';
-      final imageUrl = result['imageUrl'] as String?;
       final questionsData = result['questions'] as List<Map<String, dynamic>>? ?? [];
 
       task.statusMessage = 'Saving draft quiz to your library...';
@@ -300,48 +284,52 @@ class AIGenerationManager extends ChangeNotifier {
         creatorId: user?.id ?? '',
         title: title,
         description: desc,
-        imageUrl: imageUrl,
         isPublic: false,
         createdAt: DateTime.now(),
       );
 
       final quizId = await repo.createQuiz(newQuiz);
-
-      final List<Question> questions = [];
-      for (int i = 0; i < questionsData.length; i++) {
-        final qData = questionsData[i];
-        final rawOpts = qData['options'] as List? ?? [];
-        final List<Option> options = [];
-        for (var opt in rawOpts) {
-          options.add(
-            Option(
+      try {
+        final List<Question> questions = [];
+        for (int i = 0; i < questionsData.length; i++) {
+          final qData = questionsData[i];
+          final rawOpts = qData['options'] as List? ?? [];
+          final List<Option> options = [];
+          for (var opt in rawOpts) {
+            options.add(
+              Option(
+                id: '',
+                questionId: '',
+                optionText: opt['text'] ?? '',
+                isCorrect: opt['isCorrect'] == true,
+              ),
+            );
+          }
+          questions.add(
+            Question(
               id: '',
-              questionId: '',
-              optionText: opt['text'] ?? '',
-              isCorrect: opt['isCorrect'] == true,
+              quizId: quizId,
+              questionText: qData['text'] ?? '',
+              durationSeconds: (qData['durationSeconds'] as num?)?.toInt() ?? 30,
+              orderIndex: i,
+              explanation: qData['explanation']?.toString(),
+              options: options,
             ),
           );
         }
-        questions.add(
-          Question(
-            id: '',
-            quizId: quizId,
-            questionText: qData['text'] ?? '',
-            durationSeconds: (qData['durationSeconds'] as num?)?.toInt() ?? 30,
-            orderIndex: i,
-            explanation: qData['explanation']?.toString(),
-            options: options,
-          ),
-        );
-      }
 
-      await repo.saveQuestions(quizId, questions);
+        await repo.saveQuestions(quizId, questions);
+      } catch (e) {
+        try {
+          await repo.deleteQuiz(quizId);
+        } catch (_) {}
+        rethrow;
+      }
 
       task.status = AITaskStatus.completed;
       task.statusMessage = 'Quiz generated and saved successfully!';
       task.generatedId = quizId;
       task.generatedTitle = title;
-      task.generatedCoverUrl = imageUrl;
       _completedTasks.insert(0, task);
       notifyListeners();
     } catch (e) {
@@ -377,13 +365,6 @@ class AIGenerationManager extends ChangeNotifier {
         }
       });
 
-      Future.delayed(const Duration(milliseconds: 4000), () {
-        if (_currentTask?.id == task.id && task.status == AITaskStatus.generating && task.generateCover) {
-          task.statusMessage = 'Generating AI 3D cover illustration...';
-          notifyListeners();
-        }
-      });
-
       final result = await AIFlashcardService.generateFlashcardDeck(
         promptOrInstructions: task.prompt,
         fileBytes: fileBytes,
@@ -392,13 +373,11 @@ class AIGenerationManager extends ChangeNotifier {
         cardCount: task.count,
         cardStyle: task.cardStyle,
         difficulty: task.difficulty,
-        generateCover: task.generateCover,
         modelName: task.modelName,
       );
 
       final title = result['title'] as String? ?? 'AI Flashcard Deck';
       final desc = result['description'] as String? ?? 'Generated with AI in LearnByte';
-      final imageUrl = result['imageUrl'] as String?;
       final cardsData = result['cards'] as List<Map<String, String>>? ?? [];
 
       task.statusMessage = 'Saving flashcard deck to your library...';
@@ -409,7 +388,6 @@ class AIGenerationManager extends ChangeNotifier {
         title: title,
         description: desc,
         isPublic: false,
-        imageUrl: imageUrl,
       );
 
       for (int i = 0; i < cardsData.length; i++) {
@@ -426,7 +404,6 @@ class AIGenerationManager extends ChangeNotifier {
       task.statusMessage = 'Flashcard deck generated and saved successfully!';
       task.generatedId = deck.id;
       task.generatedTitle = title;
-      task.generatedCoverUrl = imageUrl;
       _completedTasks.insert(0, task);
       notifyListeners();
     } catch (e) {
@@ -466,7 +443,7 @@ class AIGenerationManager extends ChangeNotifier {
 
       Future.delayed(const Duration(milliseconds: 4500), () {
         if (_currentTask?.id == task.id && task.status == AITaskStatus.generating && task.generateInSlideImages) {
-          task.statusMessage = 'Rendering AI visual diagrams & cover art...';
+          task.statusMessage = 'Attaching extracted visual diagrams...';
           notifyListeners();
         }
       });
@@ -480,14 +457,12 @@ class AIGenerationManager extends ChangeNotifier {
         fileMimeType: fileMimeType,
         lessonScope: task.lessonScope,
         audience: task.difficulty,
-        generateCover: task.generateCover,
         generateInSlideImages: task.generateInSlideImages,
         modelName: task.modelName,
       );
 
       final title = result['title'] as String? ?? 'AI Generated Course';
       final desc = result['description'] as String? ?? 'Interactive AI Course in LearnByte';
-      final imageUrl = result['imageUrl'] as String?;
       final chaptersData = result['chapters'] as List? ?? [];
 
       task.statusMessage = 'Saving course, subchapters, and slides to database...';
@@ -500,7 +475,6 @@ class AIGenerationManager extends ChangeNotifier {
         title: title,
         description: desc,
         isPublic: false,
-        imageUrl: imageUrl,
       );
 
       final List<Map<String, dynamic>> allBlockPayloads = [];
@@ -570,7 +544,6 @@ class AIGenerationManager extends ChangeNotifier {
       task.statusMessage = 'Course and interactive slides created successfully!';
       task.generatedId = course.id;
       task.generatedTitle = title;
-      task.generatedCoverUrl = imageUrl;
       _completedTasks.insert(0, task);
       notifyListeners();
     } catch (e) {

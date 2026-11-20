@@ -171,7 +171,9 @@ class _TakeQuizScreenState extends State<TakeQuizScreen> {
 
       if (mounted) {
         setState(() {
-          _questions = List<Question>.from(data['questions'] as List<Question>);
+          _questions = (data['questions'] as List<Question>)
+              .where((q) => q.options.isNotEmpty)
+              .toList();
           _useTimer = useTimer;
 
           // Deterministically sort options for each question

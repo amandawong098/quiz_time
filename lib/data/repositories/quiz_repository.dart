@@ -126,6 +126,7 @@ class QuizRepository {
     Quiz quiz = Quiz.fromJson(response);
     List<Question> questions = (response['questions'] as List)
         .map((q) => Question.fromJson(q))
+        .where((q) => q.options.isNotEmpty)
         .toList();
     questions.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
@@ -250,6 +251,8 @@ class QuizRepository {
       await Future.wait(pendingTasks);
     }
 
+    final newlyInsertedQuestionIds = <String>[];
+
     if (insertQuestionsFuture != null) {
       final insertedRows = await insertQuestionsFuture;
       final idByOrderIndex = <int, String>{
@@ -260,6 +263,7 @@ class QuizRepository {
       for (final entry in newToInsert) {
         final newQuestionId = idByOrderIndex[entry.index];
         if (newQuestionId == null) continue;
+        newlyInsertedQuestionIds.add(newQuestionId);
         for (final opt in entry.question.options) {
           allOptionRows.add({
             'question_id': newQuestionId,
@@ -270,9 +274,36 @@ class QuizRepository {
       }
     }
 
-    // 3. Bulk-insert all options across all questions in one request
+    // 3. Bulk-insert all options across all questions with retry & rollback
     if (allOptionRows.isNotEmpty) {
-      await _supabase.from('options').insert(allOptionRows);
+      Object? lastOptionError;
+      bool optionsSaved = false;
+      for (int attempt = 0; attempt < 3; attempt++) {
+        try {
+          await _supabase.from('options').insert(allOptionRows);
+          optionsSaved = true;
+          break;
+        } catch (e) {
+          lastOptionError = e;
+          if (attempt < 2) {
+            await Future.delayed(const Duration(milliseconds: 300));
+          }
+        }
+      }
+
+      if (!optionsSaved) {
+        if (newlyInsertedQuestionIds.isNotEmpty) {
+          try {
+            await _supabase
+                .from('questions')
+                .delete()
+                .inFilter('id', newlyInsertedQuestionIds);
+          } catch (_) {}
+        }
+        if (lastOptionError != null) {
+          throw lastOptionError;
+        }
+      }
     }
 
     // 4. Sync question_count column in quizzes table

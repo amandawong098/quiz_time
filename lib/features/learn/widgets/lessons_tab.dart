@@ -1294,33 +1294,7 @@ class LessonsTabState extends State<LessonsTab> {
     );
   }
 
-  LessonSubChapter? _resolveContinueSubChapter(
-    String? courseId,
-    List<LessonSubChapter> allSubs,
-  ) {
-    if (allSubs.isEmpty) return null;
-    if (courseId != null) {
-      final lastOpenedId = _progressTracker.getLastOpenedSubChapter(courseId);
-      if (lastOpenedId != null) {
-        for (final sub in allSubs) {
-          if (sub.id == lastOpenedId) return sub;
-        }
-      }
-    }
-    for (final sub in allSubs) {
-      if (!_progressTracker.isCompleted(sub.id)) {
-        return sub;
-      }
-    }
-    return null;
-  }
-
   Future<void> _openSubChapter(LessonSubChapter sub) async {
-    final isAdmin = context.read<AuthRepository>().isAdmin;
-    if (!isAdmin && _selectedLessonCourseId != null) {
-      _progressTracker.setLastOpenedSubChapter(_selectedLessonCourseId!, sub.id);
-    }
-
     final result = await context.push<bool>(
       '/lesson-player?subChapterId=${sub.id}',
     );
@@ -1341,84 +1315,6 @@ class LessonsTabState extends State<LessonsTab> {
         }
       }
     }
-  }
-
-  Widget _buildContinueBanner(String courseId) {
-    final allSubs = <LessonSubChapter>[];
-    for (final ch in _dbChapters) {
-      allSubs.addAll(_dbSubChaptersMap[ch.id] ?? []);
-    }
-    final continueSub = _resolveContinueSubChapter(courseId, allSubs);
-    if (continueSub == null) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 12.0),
-      child: Material(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _openSubChapter(continueSub),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.deepPurple.shade200),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.deepPurple,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'CONTINUE',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.6,
-                          color: Colors.deepPurple.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        continueSub.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.deepPurple.shade700,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildDbChapters() {
@@ -1452,11 +1348,14 @@ class LessonsTabState extends State<LessonsTab> {
       allSubs.addAll(_dbSubChaptersMap[ch.id] ?? []);
     }
 
-    final isAdmin = context.watch<AuthRepository>().isAdmin;
-    final continueSubChapter = !isAdmin
-        ? _resolveContinueSubChapter(_selectedLessonCourseId, allSubs)
-        : null;
-    final String? activeSubChapterId = continueSubChapter?.id;
+    // Find the current sub-chapter user should continue at
+    String? activeSubChapterId;
+    for (var sub in allSubs) {
+      if (!_progressTracker.isCompleted(sub.id)) {
+        activeSubChapterId = sub.id;
+        break;
+      }
+    }
 
     String? activeChapterId;
     if (activeSubChapterId != null) {
@@ -1568,8 +1467,6 @@ class LessonsTabState extends State<LessonsTab> {
                       final bool isCompleted = _progressTracker.isCompleted(
                         sub.id,
                       );
-                      final bool isContinueTarget =
-                          !isAdmin && sub.id == activeSubChapterId;
 
                       // Visual styling for sub-chapter badge
                       Color badgeBgColor;
@@ -1595,12 +1492,10 @@ class LessonsTabState extends State<LessonsTab> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                             side: BorderSide(
-                              color: isContinueTarget
-                                  ? Colors.deepPurple
-                                  : (isCompleted
-                                      ? Colors.green.shade200
-                                      : Colors.grey.shade200),
-                              width: isContinueTarget ? 1.8 : 1,
+                              color: isCompleted
+                                  ? Colors.green.shade200
+                                  : Colors.grey.shade200,
+                              width: 1,
                             ),
                           ),
                           child: Padding(
@@ -1632,55 +1527,13 @@ class LessonsTabState extends State<LessonsTab> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Row(
-                                            children: [
-                                              Text(
-                                                'Lesson',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade500,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              if (isContinueTarget) ...[
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.deepPurple,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10),
-                                                  ),
-                                                  child: const Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        Icons
-                                                            .play_arrow_rounded,
-                                                        color: Colors.white,
-                                                        size: 12,
-                                                      ),
-                                                      SizedBox(width: 2),
-                                                      Text(
-                                                        'Continue',
-                                                        style: TextStyle(
-                                                          fontSize: 10,
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
+                                          Text(
+                                            'Lesson',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade500,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
@@ -1845,8 +1698,6 @@ class LessonsTabState extends State<LessonsTab> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (!context.watch<AuthRepository>().isAdmin)
-                _buildContinueBanner(activeCourse.id),
               _buildDbChapters(),
               const SizedBox(height: 24),
               Builder(

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/ai_quiz_service.dart';
 import '../../../core/services/ai_generation_manager.dart';
+import '../../../core/widgets/ai_generation_busy_view.dart';
 import '../../../core/widgets/gemini_model_selector_sheet.dart';
 
 class AIQuizGeneratorScreen extends StatefulWidget {
@@ -25,7 +26,6 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
   bool _isCustomCount = false;
   String _selectedDifficulty = 'Medium';
   int _selectedDurationSeconds = 0; // 0 = Auto (AI-determined)
-  final bool _generateCoverImage = true;
   String _selectedModel = 'gemini-1.5-flash';
 
   // File upload state
@@ -309,7 +309,6 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
       questionCount: questionCount,
       difficulty: _selectedDifficulty,
       durationSeconds: _selectedDurationSeconds,
-      generateCover: _generateCoverImage,
       modelName: _selectedModel,
     );
   }
@@ -321,6 +320,12 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
     final primaryColor = theme.colorScheme.primary;
     final aiManager = AIGenerationManager();
     final currentTask = aiManager.currentTask;
+    final isCurrentQuizTask =
+        currentTask != null && currentTask.taskType == AITaskType.quiz;
+    final isOtherTaskGenerating =
+        currentTask != null &&
+        currentTask.taskType != AITaskType.quiz &&
+        currentTask.status == AITaskStatus.generating;
 
     return Scaffold(
       appBar: AppBar(
@@ -363,22 +368,28 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
           ),
         ],
       ),
-      body: currentTask != null && currentTask.status == AITaskStatus.generating
-          ? _buildActiveTaskView(theme, currentTask)
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Completed task card (if any recent finished task)
-                  if (currentTask != null &&
-                      currentTask.status == AITaskStatus.completed)
-                    _buildCompletedTaskBanner(currentTask),
+      body: isOtherTaskGenerating
+          ? AIGenerationBusyView(
+              activeTask: currentTask,
+              requestedFeatureName: 'Quiz',
+            )
+          : isCurrentQuizTask &&
+                  currentTask.status == AITaskStatus.generating
+              ? _buildActiveTaskView(theme, currentTask)
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Completed task card (if any recent finished task)
+                      if (isCurrentQuizTask &&
+                          currentTask.status == AITaskStatus.completed)
+                        _buildCompletedTaskBanner(currentTask),
 
-                  // Failed task banner (if any recent failed task)
-                  if (currentTask != null &&
-                      currentTask.status == AITaskStatus.failed)
-                    _buildFailedTaskBanner(currentTask),
+                      // Failed task banner (if any recent failed task)
+                      if (isCurrentQuizTask &&
+                          currentTask.status == AITaskStatus.failed)
+                        _buildFailedTaskBanner(currentTask),
 
                   // Unified Prompt + Attachment Box (Antigravity Style)
                   _buildUnifiedPromptContainer(isDark, theme),
@@ -887,24 +898,10 @@ class _AIQuizGeneratorScreenState extends State<AIQuizGeneratorScreen> {
         side: BorderSide(color: Colors.green.shade200),
       ),
       child: ListTile(
-        leading: task.generatedCoverUrl != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  task.generatedCoverUrl!,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const CircleAvatar(
-                    backgroundColor: Colors.green,
-                    child: Icon(Icons.check, color: Colors.white, size: 20),
-                  ),
-                ),
-              )
-            : const CircleAvatar(
-                backgroundColor: Colors.green,
-                child: Icon(Icons.check, color: Colors.white, size: 20),
-              ),
+        leading: const CircleAvatar(
+          backgroundColor: Colors.green,
+          child: Icon(Icons.check, color: Colors.white, size: 20),
+        ),
         title: Text(
           'Quiz Ready: ${task.generatedQuizTitle ?? "Draft Quiz"}',
           style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),

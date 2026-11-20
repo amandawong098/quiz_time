@@ -690,7 +690,25 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                                   ? caption
                                   : 'Embedded Video',
                             )
-                          : Image.network(url, fit: BoxFit.cover),
+                          : Container(
+                              color: Colors.white,
+                              constraints: const BoxConstraints(maxHeight: 280),
+                              child: Image.network(
+                                url,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                  height: 120,
+                                  color: Colors.grey.shade100,
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    Icons.broken_image_outlined,
+                                    color: Colors.grey.shade400,
+                                    size: 36,
+                                  ),
+                                ),
+                              ),
+                            ),
                     ),
                     if (caption.isNotEmpty) ...[
                       const SizedBox(height: 8),

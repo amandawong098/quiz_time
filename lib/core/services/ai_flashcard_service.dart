@@ -92,7 +92,6 @@ class AIFlashcardService {
     int cardCount = 10,
     String cardStyle = 'Mixed',
     String difficulty = 'Intermediate',
-    bool generateCover = true,
     String? modelName,
     String? overrideApiKey,
   }) async {
@@ -158,17 +157,6 @@ class AIFlashcardService {
           difficulty: difficulty,
         );
 
-        if (generateCover) {
-          final imagePrompt = result['imagePrompt'] as String? ??
-              result['title'] as String? ??
-              promptOrInstructions;
-          final imageUrl =
-              await AIQuizService.generateAndUploadCoverImage(imagePrompt);
-          if (imageUrl != null) {
-            result['imageUrl'] = imageUrl;
-          }
-        }
-
         await AIQuizService.saveSelectedModel(currentModel);
         return result;
       } catch (e) {
@@ -215,16 +203,15 @@ Your task is to generate high-yield, structured flashcard study decks based stri
 
 Guidelines for Flashcard Generation:
 1. Generate an accurate, engaging deck title and a concise description.
-2. Generate an "imagePrompt": a vivid description for creating a modern 3D illustration cover art for this deck.
-3. Generate EXACTLY $cardCount flashcards.
-4. Card Style: $cardStyle
+2. Generate EXACTLY $cardCount flashcards.
+3. Card Style: $cardStyle
    - "Definitions & Terms": Front is Term/Concept; Back is concise, precise definition and key usage.
    - "Question & Answer": Front is a targeted conceptual question; Back is the direct answer with rationale.
    - "Concept & Breakdown": Front is a major principle/theory; Back is key components/bulleted breakdown.
    - "Formulas & Examples": Front is Formula/Rule/Function; Back is explanation and practical example.
    - "Mixed": Diverse blend of definitions, questions, and concept breakdowns.
-5. Difficulty Level: $difficulty (Tailor the depth and technical specificity accordingly).
-6. Card Formatting:
+4. Difficulty Level: $difficulty (Tailor the depth and technical specificity accordingly).
+5. Card Formatting:
    - "front": Clear, concise, easily readable at a glance (1-2 lines max).
    - "back": Educational, direct, well-structured explanation or answer (2-4 lines max).
 
@@ -232,7 +219,6 @@ Return STRICT JSON matching this schema:
 {
   "title": "Clear & Engaging Deck Title",
   "description": "Short description of what this flashcard deck covers",
-  "imagePrompt": "Vivid artistic prompt for generating 3D cover art",
   "cards": [
     {
       "front": "Front of card (Term / Concept / Question)",

@@ -16,7 +16,6 @@ class AILessonService {
     String? fileName,
     String lessonScope = 'Auto', // Auto-decided based on complexity & length
     String audience = 'Intermediate',
-    bool generateCover = true,
     bool generateInSlideImages = true,
     String? modelName,
     String? overrideApiKey,
@@ -107,25 +106,7 @@ class AILessonService {
               attachment != null && attachment.extractedImageUrls.isNotEmpty,
         );
 
-        // 1. Generate Course Cover Image
-        if (generateCover) {
-          final imagePrompt =
-              result['imagePrompt'] as String? ??
-              result['title'] as String? ??
-              promptOrInstructions;
-          try {
-            final imageUrl = await AIQuizService.generateAndUploadCoverImage(
-              imagePrompt,
-            );
-            if (imageUrl != null) {
-              result['imageUrl'] = imageUrl;
-            }
-          } catch (e) {
-            debugPrint('Cover image generation error: $e');
-          }
-        }
-
-        // 2. Embed Authentic Images Extracted From Attached File (PPTX / Images / DOCX / PDF)
+        // Embed Authentic Images Extracted From Attached File (PPTX / Images / DOCX / PDF)
         if (attachment != null && attachment.extractedImageUrls.isNotEmpty) {
           final authenticUrls = attachment.extractedImageUrls;
           int fallbackIdx = 0;
@@ -266,7 +247,7 @@ You are an expert instructional designer and interactive e-learning curriculum a
 Your task is to generate structured, bite-sized, interactive multi-page course lessons based on user prompts or uploaded study materials.
 
 Curriculum Structure Rules:
-1. Generate 1 Course with a catchy title, description, and vivid 3D cover "imagePrompt".
+1. Generate 1 Course with a catchy title and concise description.
 2. Generate 1 Chapter with title and position: 1.
 3. Autonomous Curriculum Scope & Structure:
    - Carefully analyze the breadth, technical complexity, and depth of the provided learning topic (or attached study materials).
@@ -292,7 +273,6 @@ Return STRICT JSON matching this schema:
 {
   "title": "Course Title",
   "description": "Short overview of course",
-  "imagePrompt": "Vivid artistic prompt for generating 3D course cover art",
   "chapters": [
     {
       "title": "Chapter 1: Core Fundamentals",
