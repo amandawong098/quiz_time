@@ -7,10 +7,23 @@ class LessonProgress {
 
   final Set<String> completedSubChapters = {};
   final Map<String, int> subChapterSlideProgress = {};
+  final Map<String, String> lastOpenedSubChapterByCourse = {};
 
   bool isCompleted(String id) => completedSubChapters.contains(id);
 
   int getSavedSlideIndex(String id) => subChapterSlideProgress[id] ?? 0;
+
+  String? getLastOpenedSubChapter(String courseId) =>
+      lastOpenedSubChapterByCourse[courseId];
+
+  Future<void> setLastOpenedSubChapter(
+    String courseId,
+    String subChapterId,
+  ) async {
+    if (lastOpenedSubChapterByCourse[courseId] == subChapterId) return;
+    lastOpenedSubChapterByCourse[courseId] = subChapterId;
+    await _saveToSupabase();
+  }
 
   Future<void> complete(String id) async {
     final alreadyCompleted = completedSubChapters.contains(id);
@@ -73,6 +86,7 @@ class LessonProgress {
   void clear() {
     completedSubChapters.clear();
     subChapterSlideProgress.clear();
+    lastOpenedSubChapterByCourse.clear();
   }
 
   Future<void> loadFromSupabase() async {
@@ -104,6 +118,21 @@ class LessonProgress {
                 if (parsed != null) {
                   subChapterSlideProgress[key.toString()] = parsed;
                 }
+              }
+            });
+          }
+        }
+
+        // Load last opened sub-chapter per course
+        if (metadata != null &&
+            metadata.containsKey('last_opened_sub_chapters')) {
+          final lastOpenedMap = metadata['last_opened_sub_chapters'];
+          if (lastOpenedMap is Map) {
+            lastOpenedSubChapterByCourse.clear();
+            lastOpenedMap.forEach((key, value) {
+              if (value != null) {
+                lastOpenedSubChapterByCourse[key.toString()] =
+                    value.toString();
               }
             });
           }
@@ -145,6 +174,7 @@ class LessonProgress {
             data: {
               'completed_sub_chapters': completedSubChapters.toList(),
               'lesson_slide_progress': subChapterSlideProgress,
+              'last_opened_sub_chapters': lastOpenedSubChapterByCourse,
               'xp': xpToSave,
               'weekly_xp': weeklyXpToSave,
             },

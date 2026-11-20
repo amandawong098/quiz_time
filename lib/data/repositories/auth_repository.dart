@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/services/ai_generation_manager.dart';
 import '../../features/learn/models/lesson_progress.dart';
 import 'leaderboard_repository.dart';
 
@@ -18,6 +19,7 @@ class AuthRepository extends ChangeNotifier {
       if (_currentUser == null) {
         _currentRole = 'learner';
         LessonProgress().clear();
+        AIGenerationManager().clear();
       } else {
         fetchUserRole();
         LessonProgress().loadFromSupabase();
@@ -122,6 +124,7 @@ class AuthRepository extends ChangeNotifier {
       _currentUser = null;
       _currentRole = 'learner';
       LessonProgress().clear();
+      AIGenerationManager().clear();
       notifyListeners();
     }
   }

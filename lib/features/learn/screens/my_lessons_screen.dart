@@ -74,40 +74,27 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = context.read<LessonRepository>();
-      final allCourses = await repo.getCourses();
       final currentUser = Supabase.instance.client.auth.currentUser;
-      final courses = allCourses
-          .where((c) => c.creatorId == currentUser?.id)
-          .toList();
-
-      final Map<String, List<LessonChapter>> chaptersMap = {};
-      final Map<String, List<LessonSubChapter>> subChaptersMap = {};
-      final Map<String, int> subChapterSlidesCountMap = {};
-
-      for (var course in courses) {
+      if (currentUser == null) {
         if (!mounted) return;
-        final chapters = await repo.getChapters(course.id);
-        chaptersMap[course.id] = chapters;
-
-        for (var ch in chapters) {
-          if (!mounted) return;
-          final subs = await repo.getSubChapters(ch.id);
-          subChaptersMap[ch.id] = subs;
-
-          for (var sub in subs) {
-            if (!mounted) return;
-            final pages = await repo.getPages(sub.id);
-            subChapterSlidesCountMap[sub.id] = pages.length;
-          }
-        }
+        setState(() {
+          _courses = [];
+          _chaptersMap = {};
+          _subChaptersMap = {};
+          _subChapterSlidesCountMap = {};
+          _isLoading = false;
+        });
+        return;
       }
+
+      final result = await repo.getCreatorLessonsHierarchy(currentUser.id);
 
       if (!mounted) return;
       setState(() {
-        _courses = courses;
-        _chaptersMap = chaptersMap;
-        _subChaptersMap = subChaptersMap;
-        _subChapterSlidesCountMap = subChapterSlidesCountMap;
+        _courses = result.courses;
+        _chaptersMap = result.chaptersMap;
+        _subChaptersMap = result.subChaptersMap;
+        _subChapterSlidesCountMap = result.subChapterSlidesCountMap;
         _isLoading = false;
       });
     } catch (e) {

@@ -270,6 +270,66 @@ class LessonRepository {
     }
   }
 
+  /// Fetches all courses created by `creatorId` along with their full
+  /// chapter -> sub-chapter -> page count hierarchy in ONE single Supabase query.
+  Future<({
+    List<LessonCourse> courses,
+    Map<String, List<LessonChapter>> chaptersMap,
+    Map<String, List<LessonSubChapter>> subChaptersMap,
+    Map<String, int> subChapterSlidesCountMap,
+  })> getCreatorLessonsHierarchy(String creatorId) async {
+    final response = await _supabase
+        .from('lesson_courses')
+        .select(
+          '*, lesson_chapters(*, lesson_sub_chapters(*, lesson_pages(id)))',
+        )
+        .eq('creator_id', creatorId)
+        .order('created_at', ascending: true);
+
+    final List<LessonCourse> courses = [];
+    final Map<String, List<LessonChapter>> chaptersMap = {};
+    final Map<String, List<LessonSubChapter>> subChaptersMap = {};
+    final Map<String, int> subChapterSlidesCountMap = {};
+
+    for (final rawCourse in (response as List)) {
+      final courseMap = rawCourse as Map<String, dynamic>;
+      final course = LessonCourse.fromJson(courseMap);
+      courses.add(course);
+
+      final rawChapters = (courseMap['lesson_chapters'] as List?) ?? [];
+      final chapters = rawChapters
+          .map((e) => LessonChapter.fromJson(e as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => a.position.compareTo(b.position));
+      chaptersMap[course.id] = chapters;
+
+      for (final rawCh in rawChapters) {
+        final chMap = rawCh as Map<String, dynamic>;
+        final chId = chMap['id'].toString();
+        final rawSubs = (chMap['lesson_sub_chapters'] as List?) ?? [];
+        final subs = rawSubs
+            .map((e) => LessonSubChapter.fromJson(e as Map<String, dynamic>))
+            .toList()
+          ..sort((a, b) => a.position.compareTo(b.position));
+        subChaptersMap[chId] = subs;
+
+        for (final rawSub in rawSubs) {
+          final subMap = rawSub as Map<String, dynamic>;
+          final subId = subMap['id'].toString();
+          final rawPages = (subMap['lesson_pages'] as List?) ?? [];
+          subChapterSlidesCountMap[subId] = rawPages.length;
+        }
+      }
+    }
+
+    return (
+      courses: courses,
+      chaptersMap: chaptersMap,
+      subChaptersMap: subChaptersMap,
+      subChapterSlidesCountMap: subChapterSlidesCountMap,
+    );
+  }
+
   Future<Map<String, dynamic>?> getPageMetadata(String pageId) async {
     final response = await _supabase
         .from('lesson_pages')

@@ -74,6 +74,13 @@ class AIGenerationManager extends ChangeNotifier {
   bool get isGenerating => _currentTask?.status == AITaskStatus.generating;
   List<AIGenerationTask> get completedTasks => List.unmodifiable(_completedTasks);
 
+  /// Clears all in-memory generation state (e.g. on user sign-out).
+  void clear() {
+    _currentTask = null;
+    _completedTasks.clear();
+    notifyListeners();
+  }
+
   /// Starts an asynchronous AI Quiz generation task.
   Future<void> startGeneration({
     required BuildContext context,

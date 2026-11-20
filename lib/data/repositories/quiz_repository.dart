@@ -162,55 +162,106 @@ class QuizRepository {
         .from('questions')
         .select('id')
         .eq('quiz_id', quizId);
-    final existingIds = (existingResponse as List).map((e) => e['id'] as String).toList();
+    final existingIds = (existingResponse as List)
+        .map((e) => e['id'] as String)
+        .toSet();
 
     // Identify which questions to delete
-    final newIds = questions.map((q) => q.id).where((id) => id.isNotEmpty).toSet();
-    final idsToDelete = existingIds.where((id) => !newIds.contains(id)).toList();
+    final newIds =
+        questions.map((q) => q.id).where((id) => id.isNotEmpty).toSet();
+    final idsToDelete =
+        existingIds.where((id) => !newIds.contains(id)).toList();
 
     // Delete questions that were removed
     if (idsToDelete.isNotEmpty) {
       await _supabase.from('questions').delete().inFilter('id', idsToDelete);
     }
 
-    for (int i = 0; i < questions.length; i++) {
-      var q = questions[i];
-      if (q.id.isNotEmpty && existingIds.contains(q.id)) {
-        // Update existing question
-        await _supabase.from('questions').update({
-          'question_text': q.questionText,
-          'duration_seconds': q.durationSeconds,
-          'order_index': i,
-          'explanation': q.explanation,
-        }).eq('id', q.id);
+    final existingToUpdate = <({int index, Question question})>[];
+    final newToInsert = <({int index, Question question})>[];
 
-        // Replace options for this question
-        await _supabase.from('options').delete().eq('question_id', q.id);
-        for (var opt in q.options) {
-          await _supabase.from('options').insert({
+    for (int i = 0; i < questions.length; i++) {
+      final q = questions[i];
+      if (q.id.isNotEmpty && existingIds.contains(q.id)) {
+        existingToUpdate.add((index: i, question: q));
+      } else {
+        newToInsert.add((index: i, question: q));
+      }
+    }
+
+    final allOptionRows = <Map<String, dynamic>>[];
+    final pendingTasks = <Future<dynamic>>[];
+
+    // 1. Update existing questions in parallel and bulk-delete their old options
+    if (existingToUpdate.isNotEmpty) {
+      final updatedQuestionIds =
+          existingToUpdate.map((entry) => entry.question.id).toList();
+
+      pendingTasks.add(
+        _supabase
+            .from('options')
+            .delete()
+            .inFilter('question_id', updatedQuestionIds),
+      );
+
+      for (final entry in existingToUpdate) {
+        final q = entry.question;
+        pendingTasks.add(
+          _supabase.from('questions').update({
+            'question_text': q.questionText,
+            'duration_seconds': q.durationSeconds,
+            'order_index': entry.index,
+            'explanation': q.explanation,
+          }).eq('id', q.id),
+        );
+
+        for (final opt in q.options) {
+          allOptionRows.add({
             'question_id': q.id,
             'option_text': opt.optionText,
             'is_correct': opt.isCorrect,
           });
         }
-      } else {
-        // Create new question
-        final qResponse = await _supabase
-            .from('questions')
-            .insert({
-              'quiz_id': quizId,
-              'question_text': q.questionText,
-              'duration_seconds': q.durationSeconds,
-              'order_index': i,
-              'explanation': q.explanation,
-            })
-            .select()
-            .single();
+      }
+    }
 
-        String newQuestionId = qResponse['id'];
+    // 2. Bulk-insert all new questions in one request
+    Future<List<dynamic>>? insertQuestionsFuture;
+    if (newToInsert.isNotEmpty) {
+      final newPayloads = newToInsert.map((entry) {
+        final q = entry.question;
+        return {
+          'quiz_id': quizId,
+          'question_text': q.questionText,
+          'duration_seconds': q.durationSeconds,
+          'order_index': entry.index,
+          'explanation': q.explanation,
+        };
+      }).toList();
 
-        for (var opt in q.options) {
-          await _supabase.from('options').insert({
+      insertQuestionsFuture = _supabase
+          .from('questions')
+          .insert(newPayloads)
+          .select('id, order_index');
+      pendingTasks.add(insertQuestionsFuture);
+    }
+
+    if (pendingTasks.isNotEmpty) {
+      await Future.wait(pendingTasks);
+    }
+
+    if (insertQuestionsFuture != null) {
+      final insertedRows = await insertQuestionsFuture;
+      final idByOrderIndex = <int, String>{
+        for (final row in insertedRows)
+          row['order_index'] as int: row['id'] as String,
+      };
+
+      for (final entry in newToInsert) {
+        final newQuestionId = idByOrderIndex[entry.index];
+        if (newQuestionId == null) continue;
+        for (final opt in entry.question.options) {
+          allOptionRows.add({
             'question_id': newQuestionId,
             'option_text': opt.optionText,
             'is_correct': opt.isCorrect,
@@ -219,7 +270,12 @@ class QuizRepository {
       }
     }
 
-    // Sync question_count column in quizzes table
+    // 3. Bulk-insert all options across all questions in one request
+    if (allOptionRows.isNotEmpty) {
+      await _supabase.from('options').insert(allOptionRows);
+    }
+
+    // 4. Sync question_count column in quizzes table
     await _supabase
         .from('quizzes')
         .update({'question_count': questions.length})

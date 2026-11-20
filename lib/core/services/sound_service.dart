@@ -269,7 +269,7 @@ class SoundService extends ChangeNotifier {
     }
     try {
       final tempFile = File(
-        '${Directory.systemTemp.path}/learnbyte_space_lofi_bgm_v2.wav',
+        '${Directory.systemTemp.path}/learnbyte_cozy_lofi_bgm_v3.wav',
       );
       await tempFile.writeAsBytes(_miniGameBgmWav, flush: true);
       _miniGameBgmTempFilePath = tempFile.path;
@@ -872,103 +872,108 @@ class SoundService extends ChangeNotifier {
 
   /// Generates a 12.8-second chill lo-fi space-themed loop (~75 BPM):
   /// warm Rhodes jazz chords, deep sub-bass, soft brushed lo-fi beat,
-  /// subtle vinyl dust, and dreamy floating space chimes.
+  /// Generates a calm, cozy, bouncy lo-fi dress-up groove loop (~12s) with
+  /// warm electric-piano chords, a cheerful kalimba melody, and a light beat.
   Uint8List _generateSpaceLofiBgmLoop() {
-    const double loopSeconds = 12.8;
+    const double loopSeconds = 12.0;
     final int numSamples = (_sampleRate * loopSeconds).round();
     final Float64List samples = Float64List(numSamples);
 
-    // 4-bar dreamy lo-fi space progression: Fmaj9 -> Em7 -> Dm9 -> Cmaj9
+    // 4-bar bright, cozy progression: Gmaj7 -> Em7 -> Cmaj7 -> D6
     const List<List<double>> chords = [
-      [174.61, 220.00, 261.63, 329.63, 392.00], // Fmaj9
-      [164.81, 196.00, 246.94, 293.66, 392.00], // Em7
-      [146.83, 174.61, 220.00, 261.63, 329.63], // Dm9
-      [130.81, 164.81, 196.00, 246.94, 293.66], // Cmaj9
+      [196.00, 246.94, 293.66, 369.99], // Gmaj7
+      [164.81, 196.00, 246.94, 293.66], // Em7
+      [261.63, 329.63, 392.00, 493.88], // Cmaj7
+      [146.83, 220.00, 246.94, 293.66], // D6
     ];
-    // Phone-speaker-friendly warm mid-bass roots (130-175 Hz, avoids sub-100 Hz buzz)
-    const List<double> bassRoots = [174.61, 164.81, 146.83, 130.81];
+    // Phone-speaker-friendly warm mid-bass roots (164-262 Hz, no low-end rattle)
+    const List<double> bassRoots = [196.00, 164.81, 261.63, 220.00];
 
-    // Sparse floating cosmic chime notes (Hz, 0 = rest) over 32 steps (0.4s each)
-    const List<double> chimes = [
-      659.25, 0, 783.99, 0, 1046.50, 0, 880.00, 0,
-      783.99, 0, 659.25, 0, 587.33, 0, 0, 0,
-      659.25, 0, 880.00, 0, 783.99, 0, 659.25, 0,
-      587.33, 0, 523.25, 0, 659.25, 0, 0, 0,
+    // Cheerful, relaxing kalimba/music-box melody (Hz, 0 = rest) over 32 steps
+    const List<double> melody = [
+      783.99, 0, 659.25, 783.99, 987.77, 0, 880.00, 0,
+      783.99, 0, 659.25, 587.33, 659.25, 0, 493.88, 0,
+      523.25, 0, 659.25, 783.99, 880.00, 0, 783.99, 0,
+      659.25, 0, 587.33, 659.25, 783.99, 0, 587.33, 0,
     ];
 
-    const double barDur = 3.2; // 4 beats at 0.8s/beat (75 BPM)
-    const double beatDur = 0.8;
-    const double stepDur = 0.4;
+    const double barDur = 3.0; // 4 beats at 0.75s/beat (80 BPM)
+    const double beatDur = 0.75;
+    const double stepDur = 0.375;
 
     for (int i = 0; i < numSamples; i++) {
       final double t = i / _sampleRate;
       final int barIdx = (t / barDur).floor().clamp(0, 3);
       final double localBarT = t - barIdx * barDur;
 
-      // Gentle wow/flutter pitch drift for authentic lo-fi tape warmth
-      final double tapeDrift = 1.0 + 0.0018 * sin(2 * pi * 0.45 * t);
+      // Subtle lo-fi tape warmth
+      final double tapeDrift = 1.0 + 0.0014 * sin(2 * pi * 0.5 * t);
 
-      // 1. Warm Rhodes Pad Chords (soft swell + gentle decay)
-      final double chordEnv =
-          (sin((localBarT / barDur) * pi).clamp(0.0, 1.0)) * 0.65 + 0.35;
-      double pad = 0.0;
-      for (final double f in chords[barIdx]) {
-        final double freq = f * tapeDrift;
-        pad += (sin(2 * pi * freq * t) + 0.14 * sin(2 * pi * freq * 2.0 * t)) *
-            0.036;
-      }
-      pad *= chordEnv;
-
-      // 2. Warm Mid-Bass (gentle level for clean phone-speaker playback)
-      final double bassFreq = bassRoots[barIdx] * tapeDrift;
-      final double bassEnv = exp(-localBarT * 0.65);
-      final double bass = sin(2 * pi * bassFreq * t) * 0.06 * bassEnv;
-
-      // 3. Soft Brushed Lo-Fi Drum Groove (75 BPM)
+      // 1. Bouncy Electric-Piano Chords (gentle pulse on beats 0 and 2.5)
       final double beatT = t % beatDur;
       final int beatInBar = ((t / beatDur).floor()) % 4;
+      final double chordPulseT = (localBarT < beatDur * 2.5)
+          ? localBarT
+          : (localBarT - beatDur * 2.5);
+      final double chordEnv =
+          exp(-chordPulseT * 1.6) * (1.0 - exp(-chordPulseT * 35.0));
+      double keys = 0.0;
+      for (final double f in chords[barIdx]) {
+        final double freq = f * tapeDrift;
+        keys += (sin(2 * pi * freq * t) + 0.12 * sin(2 * pi * freq * 2.0 * t)) *
+            0.038;
+      }
+      keys *= chordEnv;
+
+      // 2. Bouncy Warm Mid-Bass (gentle pluck on beat 0 and 2)
+      final double bassHitT = localBarT % (beatDur * 2.0);
+      final double bassFreq = bassRoots[barIdx] * tapeDrift;
+      final double bassEnv =
+          exp(-bassHitT * 2.4) * (1.0 - exp(-bassHitT * 40.0));
+      final double bass = sin(2 * pi * bassFreq * t) * 0.055 * bassEnv;
+
+      // 3. Light Cozy Drum Groove (80 BPM)
       double drums = 0.0;
 
-      // Gentle mid-punch kick on beat 0 and syncopated 2.5 (avoids low-end speaker rattle)
-      if (beatInBar == 0 || (beatInBar == 2 && beatT >= 0.4)) {
-        final double kT = beatInBar == 0 ? beatT : (beatT - 0.4);
-        final double kEnv = exp(-kT * 14.0);
-        final double kFreq = 110.0 + 65.0 * exp(-kT * 24.0);
-        drums += sin(2 * pi * kFreq * kT) * kEnv * 0.11;
+      // Soft mid-punch kick on beat 0 and syncopated 2.5
+      if (beatInBar == 0 || (beatInBar == 2 && beatT >= stepDur)) {
+        final double kT = beatInBar == 0 ? beatT : (beatT - stepDur);
+        final double kEnv = exp(-kT * 16.0);
+        final double kFreq = 120.0 + 55.0 * exp(-kT * 26.0);
+        drums += sin(2 * pi * kFreq * kT) * kEnv * 0.09;
       }
-      // Soft brushed snare/rim on beats 1 and 3
+      // Soft rim-click + brush on beats 1 and 3
       if (beatInBar == 1 || beatInBar == 3) {
-        final double sEnv = exp(-beatT * 18.0);
-        final double brushNoise =
-            sin(i * 1.91) * cos(i * 3.17) * sin(i * 5.03);
-        drums +=
-            (brushNoise * 0.07 + sin(2 * pi * 185.0 * beatT) * 0.05) * sEnv;
+        final double sEnv = exp(-beatT * 24.0);
+        final double rim = sin(2 * pi * 420.0 * beatT) * exp(-beatT * 45.0);
+        final double brush = sin(i * 1.91) * cos(i * 3.17) * sin(i * 5.03);
+        drums += (rim * 0.045 + brush * 0.04) * sEnv;
       }
-      // Gentle eighth-note closed hi-hat
+      // Gentle eighth-note shaker
       final double hatT = t % stepDur;
-      final double hatEnv = exp(-hatT * 32.0);
+      final double hatEnv = exp(-hatT * 36.0);
       final double hatNoise = sin(i * 2.37) * cos(i * 4.11);
-      drums += hatNoise * hatEnv * 0.025;
+      drums += hatNoise * hatEnv * 0.022;
 
-      // 4. Floating Cosmic Space Chime
-      final int stepIdx = (t / stepDur).floor().clamp(0, chimes.length - 1);
-      final double chimeFreq = chimes[stepIdx];
-      double chime = 0.0;
-      if (chimeFreq > 0.0) {
-        final double cT = t - stepIdx * stepDur;
-        final double cEnv = exp(-cT * 3.2) * (1.0 - exp(-cT * 45.0));
-        chime =
-            (sin(2 * pi * chimeFreq * tapeDrift * t) +
-                    0.2 * sin(2 * pi * chimeFreq * 2.0 * tapeDrift * t)) *
-                0.055 *
-                cEnv;
+      // 4. Bright Cozy Kalimba Melody
+      final int stepIdx = (t / stepDur).floor().clamp(0, melody.length - 1);
+      final double noteFreq = melody[stepIdx];
+      double lead = 0.0;
+      if (noteFreq > 0.0) {
+        final double nT = t - stepIdx * stepDur;
+        final double nEnv = exp(-nT * 4.5) * (1.0 - exp(-nT * 60.0));
+        lead =
+            (sin(2 * pi * noteFreq * tapeDrift * t) +
+                    0.18 * sin(2 * pi * noteFreq * 2.0 * tapeDrift * t)) *
+                0.065 *
+                nEnv;
       }
 
-      // 5. Very subtle lo-fi vinyl crackle warmth
+      // 5. Very subtle lo-fi vinyl warmth
       final double vinyl = (sin(i * 12.9898) * 43758.5453) % 1.0;
-      final double dust = vinyl.abs() > 0.996 ? (vinyl * 0.018) : 0.0;
+      final double dust = vinyl.abs() > 0.997 ? (vinyl * 0.012) : 0.0;
 
-      double mixed = pad + bass + drums + chime + dust;
+      double mixed = keys + bass + drums + lead + dust;
 
       // Smooth 10ms fade at loop edges
       const int fadeSamples = 220;
