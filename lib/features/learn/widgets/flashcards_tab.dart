@@ -280,7 +280,6 @@ class _FlashcardsTabState extends State<FlashcardsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
       body: RefreshIndicator(
         onRefresh: _loadDecks,
         color: Colors.deepPurple,

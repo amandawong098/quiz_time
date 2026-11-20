@@ -145,7 +145,6 @@ class _DiscussionModerationScreenState extends State<DiscussionModerationScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Row(
           children: [

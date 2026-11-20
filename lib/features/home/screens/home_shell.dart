@@ -67,7 +67,8 @@ class _HomeShellState extends State<HomeShell> {
       if (location.startsWith('/me') ||
           location.startsWith('/my-discussions') ||
           location.startsWith('/my-lessons') ||
-          location.startsWith('/my-quizzes')) {
+          location.startsWith('/my-quizzes') ||
+          location.startsWith('/my-flashcards')) {
         return 4;
       }
     } else {
@@ -82,7 +83,8 @@ class _HomeShellState extends State<HomeShell> {
       if (location.startsWith('/me') ||
           location.startsWith('/my-discussions') ||
           location.startsWith('/my-lessons') ||
-          location.startsWith('/my-quizzes')) {
+          location.startsWith('/my-quizzes') ||
+          location.startsWith('/my-flashcards')) {
         return 4;
       }
     }
@@ -189,6 +191,8 @@ class _HomeShellState extends State<HomeShell> {
           } else if (location.startsWith('/discussions') ||
               location.startsWith('/my-discussions')) {
             context.push('/create-topic');
+          } else if (location.startsWith('/my-flashcards')) {
+            context.push('/create-flashcard-deck');
           } else {
             // In quizzes tab: Admins can manually create or AI generate; Learners can only AI generate
             if (isAdmin) {

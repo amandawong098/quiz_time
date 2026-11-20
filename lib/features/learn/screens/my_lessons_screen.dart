@@ -6,6 +6,7 @@ import '../../../data/repositories/lesson_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../core/services/ai_generation_manager.dart';
 import '../../../core/widgets/byte_mascot.dart';
+import '../../../core/widgets/cosmic_background.dart';
 import '../models/lesson_models.dart';
 
 class MyLessonsScreen extends StatefulWidget {
@@ -24,7 +25,6 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  String? _selectedChapterRange;
   String _visibilityFilter = 'All'; // All, Public, Private
 
   List<LessonCourse> get _filteredCourses {
@@ -40,18 +40,6 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
         if (!titleMatch && !descMatch) return false;
       }
 
-      if (_selectedChapterRange != null) {
-        final count = (_chaptersMap[course.id] ?? []).length;
-        if (_selectedChapterRange == '1-2' && (count < 1 || count > 2)) {
-          return false;
-        }
-        if (_selectedChapterRange == '3-5' && (count < 3 || count > 5)) {
-          return false;
-        }
-        if (_selectedChapterRange == '6+' && count < 6) {
-          return false;
-        }
-      }
       return true;
     }).toList();
   }
@@ -627,86 +615,60 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(
             children: [
-              // Search bar
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search lessons...',
-                  prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.white,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.deepPurple.shade100),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.deepPurple.shade100),
-                  ),
-                ),
-                onChanged: (val) => setState(() => _searchQuery = val.trim()),
-              ),
-              const SizedBox(height: 10),
-              // No. of Chapters dropdown + Reset
+              // Underline-style Search bar + Refresh matching My Quizzes & My Flashcards
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String?>(
-                      initialValue: _selectedChapterRange,
+                    child: TextField(
+                      controller: _searchController,
                       decoration: InputDecoration(
-                        labelText: 'No. of Chapters',
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                        hintText: 'Search lessons',
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.deepPurple,
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        border: const UnderlineInputBorder(),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade400),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(
+                            color: Colors.deepPurple,
+                            width: 2,
+                          ),
                         ),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: null, child: Text('Any')),
-                        DropdownMenuItem(value: '1-2', child: Text('1 - 2 Chapters')),
-                        DropdownMenuItem(value: '3-5', child: Text('3 - 5 Chapters')),
-                        DropdownMenuItem(value: '6+', child: Text('6+ Chapters')),
-                      ],
                       onChanged: (val) =>
-                          setState(() => _selectedChapterRange = val),
+                          setState(() => _searchQuery = val.trim()),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.refresh_rounded, color: Colors.deepPurple),
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Colors.deepPurple,
+                    ),
                     tooltip: 'Reset filters',
                     onPressed: () {
                       _searchController.clear();
                       setState(() {
                         _searchQuery = '';
-                        _selectedChapterRange = null;
                         _visibilityFilter = 'All';
                       });
                     },
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               // Visibility filter chips
               Align(
                 alignment: Alignment.centerLeft,
@@ -1509,9 +1471,32 @@ class _MyLessonsScreenState extends State<MyLessonsScreen> {
         ],
       ),
       floatingActionButton: context.watch<AuthRepository>().isAdmin
-          ? FloatingActionButton(
-              onPressed: _addCourse,
-              child: const Icon(Icons.add),
+          ? Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF5E35B1),
+                    Color(0xFF28125A),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF7C4DFF).withValues(alpha: 0.45),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton(
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                foregroundColor: CosmicColors.starlightGold,
+                onPressed: _addCourse,
+                child: const Icon(Icons.add_rounded, size: 28),
+              ),
             )
           : null,
     );

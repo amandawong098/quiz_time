@@ -90,7 +90,7 @@ class _MyQuizzesScreenState extends State<MyQuizzesScreen> {
               onPressed: () {
                 context.push('/ai-quiz-generator').then((_) => _loadMyQuizzes());
               },
-              icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.deepPurple),
+              icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.amber),
               label: const Text('AI Generator'),
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.deepPurple.shade50,

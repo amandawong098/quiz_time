@@ -349,11 +349,9 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
           ),
         ],
       ),
-      body: Container(
-        color: Colors.grey.shade50,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
             children: [
               // Background AI Flashcard Generation Status Banner
               Builder(
@@ -526,16 +524,6 @@ class _MyFlashcardsScreenState extends State<MyFlashcardsScreen> {
             ],
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await context.push('/create-flashcard-deck');
-          if (result == true) {
-            _loadDecks();
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }
