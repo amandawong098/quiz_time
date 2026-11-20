@@ -269,7 +269,7 @@ class SoundService extends ChangeNotifier {
     }
     try {
       final tempFile = File(
-        '${Directory.systemTemp.path}/learnbyte_space_lofi_bgm_v1.wav',
+        '${Directory.systemTemp.path}/learnbyte_space_lofi_bgm_v2.wav',
       );
       await tempFile.writeAsBytes(_miniGameBgmWav, flush: true);
       _miniGameBgmTempFilePath = tempFile.path;
@@ -885,7 +885,8 @@ class SoundService extends ChangeNotifier {
       [146.83, 174.61, 220.00, 261.63, 329.63], // Dm9
       [130.81, 164.81, 196.00, 246.94, 293.66], // Cmaj9
     ];
-    const List<double> bassRoots = [87.31, 82.41, 73.42, 65.41];
+    // Phone-speaker-friendly warm mid-bass roots (130-175 Hz, avoids sub-100 Hz buzz)
+    const List<double> bassRoots = [174.61, 164.81, 146.83, 130.81];
 
     // Sparse floating cosmic chime notes (Hz, 0 = rest) over 32 steps (0.4s each)
     const List<double> chimes = [
@@ -918,22 +919,22 @@ class SoundService extends ChangeNotifier {
       }
       pad *= chordEnv;
 
-      // 2. Warm Deep Sub-Bass
+      // 2. Warm Mid-Bass (gentle level for clean phone-speaker playback)
       final double bassFreq = bassRoots[barIdx] * tapeDrift;
       final double bassEnv = exp(-localBarT * 0.65);
-      final double bass = sin(2 * pi * bassFreq * t) * 0.14 * bassEnv;
+      final double bass = sin(2 * pi * bassFreq * t) * 0.06 * bassEnv;
 
       // 3. Soft Brushed Lo-Fi Drum Groove (75 BPM)
       final double beatT = t % beatDur;
       final int beatInBar = ((t / beatDur).floor()) % 4;
       double drums = 0.0;
 
-      // Muffled kick on beat 0 and syncopated 2.5
+      // Gentle mid-punch kick on beat 0 and syncopated 2.5 (avoids low-end speaker rattle)
       if (beatInBar == 0 || (beatInBar == 2 && beatT >= 0.4)) {
         final double kT = beatInBar == 0 ? beatT : (beatT - 0.4);
-        final double kEnv = exp(-kT * 11.0);
-        final double kFreq = 48.0 + 68.0 * exp(-kT * 22.0);
-        drums += sin(2 * pi * kFreq * kT) * kEnv * 0.22;
+        final double kEnv = exp(-kT * 14.0);
+        final double kFreq = 110.0 + 65.0 * exp(-kT * 24.0);
+        drums += sin(2 * pi * kFreq * kT) * kEnv * 0.11;
       }
       // Soft brushed snare/rim on beats 1 and 3
       if (beatInBar == 1 || beatInBar == 3) {

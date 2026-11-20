@@ -177,9 +177,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirm == true) {
       try {
         setState(() => _isLoading = true);
-        await context
-            .read<AuthRepository>()
-            .deleteAccount(deleteContributions: deleteContributions);
+        await context.read<AuthRepository>().deleteAccount(
+          deleteContributions: deleteContributions,
+        );
         if (mounted) {
           context.go('/login');
         }
@@ -307,7 +307,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final user = context.watch<AuthRepository>().currentUser;
     final profile = context.watch<FriendshipRepository>().currentUserProfile;
-    final leagueStyle = _getLeagueStyle(profile?.league ?? 'Stargazer');
+    final currentLeague = profile?.league ?? 'Stargazer';
+    final leagueStyle = _getLeagueStyle(currentLeague);
 
     final soundService = context.watch<SoundService>();
     final gamification = context.watch<GamificationService>();
@@ -324,32 +325,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: const Text('Profile'),
         flexibleSpace: const CosmicAppBarFlexibleSpace(seed: 55),
-        actions: const [
-          NotificationIconBadge(),
-        ],
+        actions: const [NotificationIconBadge()],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: () async {
-                await context.read<FriendshipRepository>().refreshProfileAndNotifications();
+                await context
+                    .read<FriendshipRepository>()
+                    .refreshProfileAndNotifications();
                 await gamification.loadForCurrentUser();
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  CosmicNebulaBox(
-                    borderRadius: BorderRadius.circular(20),
-                    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-                    seed: 505,
-                    showPlanet: true,
-                    child: Builder(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Builder(
                       builder: (context) {
                         final isAdmin = context.watch<AuthRepository>().isAdmin;
-                        return Column(
+                        final bannerContent = Column(
                           children: [
                             UserByteAvatar(
                               appearanceOverride: isAdmin
@@ -365,298 +361,339 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Text(
                               user?.userMetadata?['name'] ?? 'User Name',
                               textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
                             ),
                             if (!isAdmin) ...[
-                          const SizedBox(height: 12),
-                          GameBevelButton(
-                            topColor: const Color(0xFF8B5CF6),
-                            bottomColor: const Color(0xFF6D28D9),
-                            bevelColor: const Color(0xFF4C1D95),
-                            borderColor: const Color(0xFFC4B5FD),
-                            borderRadius: 18,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 9,
-                            ),
-                            onTap: () => context.push('/space-cabin'),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('🎮', style: TextStyle(fontSize: 16)),
-                                const SizedBox(width: 8),
-                                const Flexible(
-                                  child: Text(
-                                    'CUSTOMIZE BYTE',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 12,
-                                      letterSpacing: 0.4,
-                                    ),
-                                  ),
+                              const SizedBox(height: 12),
+                              GameBevelButton(
+                                topColor: const Color(0xFF8B5CF6),
+                                bottomColor: const Color(0xFF6D28D9),
+                                bevelColor: const Color(0xFF4C1D95),
+                                borderColor: const Color(0xFFC4B5FD),
+                                borderRadius: 18,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 9,
                                 ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1B4B),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: const Color(0xFFFACC15),
-                                      width: 1.2,
+                                onTap: () => context.push('/space-cabin'),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      '🎮',
+                                      style: TextStyle(fontSize: 16),
                                     ),
-                                  ),
-                                  child: Text(
-                                    '⚡ ${gamification.spendableXp} XP',
-                                    style: const TextStyle(
-                                      color: Color(0xFFFACC15),
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 10.5,
+                                    const SizedBox(width: 8),
+                                    const Flexible(
+                                      child: Text(
+                                        'CUSTOMIZE BYTE',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 12,
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1E1B4B),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: const Color(0xFFFACC15),
+                                          width: 1.2,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '⚡ ${gamification.spendableXp} XP',
+                                        style: const TextStyle(
+                                          color: Color(0xFFFACC15),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 10.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
+                              ),
                             ],
                           ],
                         );
+
+                        if (isAdmin) {
+                          return CosmicNebulaBox(
+                            borderRadius: BorderRadius.circular(20),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 22,
+                              horizontal: 16,
+                            ),
+                            seed: 505,
+                            showPlanet: true,
+                            child: bannerContent,
+                          );
+                        }
+
+                        final leagueTheme = CosmicLeagueThemeData.forLeague(
+                          currentLeague,
+                        );
+                        return Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: leagueTheme.primaryAccent.withValues(
+                                alpha: 0.45,
+                              ),
+                              width: 1.4,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: leagueTheme.backgroundGradient.first
+                                    .withValues(alpha: 0.35),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(19),
+                            child: CosmicLeagueFullBackground(
+                              league: currentLeague,
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 22,
+                                    horizontal: 16,
+                                  ),
+                                  child: bannerContent,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (context.watch<AuthRepository>().isAdmin)
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade900],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                    const SizedBox(height: 16),
+                    if (context.watch<AuthRepository>().isAdmin)
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.deepPurple.withValues(alpha: 0.25),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.deepPurple.shade700,
+                              Colors.deepPurple.shade900,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                        ],
-                      ),
-                      child: Row(
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.deepPurple.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.admin_panel_settings_rounded,
+                                color: Colors.amber,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'System Administrator',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Full content authoring & moderation hub access',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.admin_panel_settings_rounded,
-                              color: Colors.amber,
-                              size: 24,
+                          // Lifetime XP
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.amber.shade200,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.emoji_events,
+                                    color: Colors.amber,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${profile?.xp ?? user?.userMetadata?['xp'] ?? 0}',
+                                    style: TextStyle(
+                                      color: Colors.amber.shade900,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Lifetime XP',
+                                    style: TextStyle(
+                                      color: Colors.amber.shade700,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'System Administrator',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
+                          const SizedBox(width: 8),
+                          // Weekly XP
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.deepPurple.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.deepPurple.shade200,
                                 ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Full content authoring & moderation hub access',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    color: Colors.deepPurple,
+                                    size: 14,
                                   ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${profile?.weeklyXp ?? user?.userMetadata?['weekly_xp'] ?? 0}',
+                                    style: TextStyle(
+                                      color: Colors.deepPurple.shade900,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Weekly XP',
+                                    style: TextStyle(
+                                      color: Colors.deepPurple.shade700,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Current League
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: leagueStyle['bg'],
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: leagueStyle['border'],
                                 ),
-                              ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    leagueStyle['icon'] as IconData,
+                                    color: leagueStyle['iconColor'] as Color,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    profile?.league ?? 'Stargazer',
+                                    style: TextStyle(
+                                      color: leagueStyle['text'] as Color,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Current League',
+                                    style: TextStyle(
+                                      color: leagueStyle['labelColor'] as Color,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    )
-                  else
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Lifetime XP
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.amber.shade200),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${profile?.xp ?? user?.userMetadata?['xp'] ?? 0}',
-                                  style: TextStyle(
-                                    color: Colors.amber.shade900,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                Text(
-                                  'Lifetime XP',
-                                  style: TextStyle(
-                                    color: Colors.amber.shade700,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Weekly XP
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.deepPurple.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.deepPurple.shade200),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 14),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${profile?.weeklyXp ?? user?.userMetadata?['weekly_xp'] ?? 0}',
-                                  style: TextStyle(
-                                    color: Colors.deepPurple.shade900,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                Text(
-                                  'Weekly XP',
-                                  style: TextStyle(
-                                    color: Colors.deepPurple.shade700,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Current League
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: leagueStyle['bg'],
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: leagueStyle['border']),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  leagueStyle['icon'] as IconData,
-                                  color: leagueStyle['iconColor'] as Color,
-                                  size: 16,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  profile?.league ?? 'Stargazer',
-                                  style: TextStyle(
-                                    color: leagueStyle['text'] as Color,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  'Current League',
-                                  style: TextStyle(
-                                    color: leagueStyle['labelColor'] as Color,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 32),
-                  const Divider(),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Manage Your Content',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildManageOptionItem(
-                    context: context,
-                    icon: Icons.menu_book_rounded,
-                    title: 'My Lessons',
-                    isDummy: false,
-                    onTap: () => context.push('/my-lessons'),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildManageOptionItem(
-                    context: context,
-                    icon: Icons.style_rounded,
-                    title: 'My Flashcards',
-                    isDummy: false,
-                    onTap: () => context.push('/my-flashcards'),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildManageOptionItem(
-                    context: context,
-                    icon: Icons.assignment_turned_in_rounded,
-                    title: 'My Quizzes',
-                    isDummy: false,
-                    onTap: () => context.push('/my-quizzes'),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildManageOptionItem(
-                    context: context,
-                    icon: Icons.forum_rounded,
-                    title: 'My Discussions',
-                    isDummy: false,
-                    onTap: () => context.push('/my-discussions'),
-                  ),
-                  if (!context.watch<AuthRepository>().isAdmin) ...[
                     const SizedBox(height: 32),
                     const Divider(),
                     const SizedBox(height: 24),
                     const Text(
-                      'Manage Your Network',
+                      'Manage Your Content',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -665,105 +702,148 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
                     _buildManageOptionItem(
                       context: context,
-                      icon: Icons.group_rounded,
-                      title: 'My Friends',
+                      icon: Icons.menu_book_rounded,
+                      title: 'My Lessons',
                       isDummy: false,
-                      onTap: () => context.push('/me/friends'),
+                      onTap: () => context.push('/my-lessons'),
                     ),
+                    const SizedBox(height: 12),
+                    _buildManageOptionItem(
+                      context: context,
+                      icon: Icons.style_rounded,
+                      title: 'My Flashcards',
+                      isDummy: false,
+                      onTap: () => context.push('/my-flashcards'),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildManageOptionItem(
+                      context: context,
+                      icon: Icons.assignment_turned_in_rounded,
+                      title: 'My Quizzes',
+                      isDummy: false,
+                      onTap: () => context.push('/my-quizzes'),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildManageOptionItem(
+                      context: context,
+                      icon: Icons.forum_rounded,
+                      title: 'My Discussions',
+                      isDummy: false,
+                      onTap: () => context.push('/my-discussions'),
+                    ),
+                    if (!context.watch<AuthRepository>().isAdmin) ...[
+                      const SizedBox(height: 32),
+                      const Divider(),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Manage Your Network',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildManageOptionItem(
+                        context: context,
+                        icon: Icons.group_rounded,
+                        title: 'My Friends',
+                        isDummy: false,
+                        onTap: () => context.push('/me/friends'),
+                      ),
+                    ],
+                    const SizedBox(height: 32),
+                    const Divider(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Manage Your Account',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      child: SwitchListTile(
+                        secondary: Icon(
+                          soundService.isEnabled
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_off_rounded,
+                          color: Colors.deepPurple,
+                        ),
+                        title: const Text(
+                          'Sound Effects',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                        subtitle: Text(
+                          soundService.isEnabled
+                              ? 'UI clicks, tab chimes & quiz arcade sounds on'
+                              : 'Muted',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        activeThumbColor: Colors.deepPurple,
+                        value: soundService.isEnabled,
+                        onChanged: (val) => soundService.setEnabled(val),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          await context.read<AuthRepository>().signOut();
+                        } catch (e) {
+                          debugPrint('Error during logout: $e');
+                        }
+                        if (context.mounted) {
+                          context.go('/login');
+                        }
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Logout'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _deleteAccount,
+                      icon: const Icon(
+                        Icons.delete_forever,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Delete Account',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
                   ],
-                  const SizedBox(height: 32),
-                  const Divider(),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Manage Your Account',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    child: SwitchListTile(
-                      secondary: Icon(
-                        soundService.isEnabled
-                            ? Icons.volume_up_rounded
-                            : Icons.volume_off_rounded,
-                        color: Colors.deepPurple,
-                      ),
-                      title: const Text(
-                        'Sound Effects',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                      subtitle: Text(
-                        soundService.isEnabled
-                            ? 'UI clicks, tab chimes & quiz arcade sounds on'
-                            : 'Muted',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      activeThumbColor: Colors.deepPurple,
-                      value: soundService.isEnabled,
-                      onChanged: (val) => soundService.setEnabled(val),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      try {
-                        await context.read<AuthRepository>().signOut();
-                      } catch (e) {
-                        debugPrint('Error during logout: $e');
-                      }
-                      if (context.mounted) {
-                        context.go('/login');
-                      }
-                    },
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Logout'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _deleteAccount,
-                    icon: const Icon(
-                      Icons.delete_forever,
-                      color: Colors.white,
-                    ),
-                    label: const Text(
-                      'Delete Account',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
             ),
-          ),
     );
   }
 }
