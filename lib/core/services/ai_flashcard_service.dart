@@ -244,6 +244,7 @@ Return STRICT JSON matching this schema:
       attachment = await AIAttachmentHelper.processAttachment(
         fileBytes: fileBytes,
         fileName: fileName ?? 'study_file.pdf',
+        extractImages: false,
       );
     }
 

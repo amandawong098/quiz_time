@@ -46,6 +46,7 @@ class AILessonService {
       attachment = await AIAttachmentHelper.processAttachments(
         filesBytes: allBytes,
         filesNames: allNames,
+        extractImages: generateInSlideImages,
       );
     }
 
@@ -389,7 +390,7 @@ Return STRICT JSON matching this schema:
             ),
           );
 
-          for (int i = 0; i < extractedBytes.length && i < 10; i++) {
+          for (int i = 0; i < extractedBytes.length && i < 6; i++) {
             final img = extractedBytes[i];
             final mime = _detectImageMimeType(img);
             if (mime == 'image/jpeg' || mime == 'image/png' || mime == 'image/webp') {
@@ -425,7 +426,7 @@ Return STRICT JSON matching this schema:
             ),
           );
 
-          for (int i = 0; i < extractedBytes.length && i < 10; i++) {
+          for (int i = 0; i < extractedBytes.length && i < 6; i++) {
             final img = extractedBytes[i];
             final mime = _detectImageMimeType(img);
             if (mime == 'image/jpeg' || mime == 'image/png' || mime == 'image/webp') {
@@ -815,7 +816,7 @@ Return STRICT JSON matching this schema:
             ),
           );
 
-          for (int i = 0; i < extractedBytes.length && i < 10; i++) {
+          for (int i = 0; i < extractedBytes.length && i < 6; i++) {
             final img = extractedBytes[i];
             final mime = _detectImageMimeType(img);
             if (mime == 'image/jpeg' || mime == 'image/png' || mime == 'image/webp') {
@@ -850,7 +851,7 @@ Return STRICT JSON matching this schema:
             ),
           );
 
-          for (int i = 0; i < extractedBytes.length && i < 10; i++) {
+          for (int i = 0; i < extractedBytes.length && i < 6; i++) {
             final img = extractedBytes[i];
             final mime = _detectImageMimeType(img);
             if (mime == 'image/jpeg' || mime == 'image/png' || mime == 'image/webp') {

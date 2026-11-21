@@ -148,6 +148,7 @@ class AIAttachmentHelper {
   static Future<ProcessedAttachment> processAttachment({
     required Uint8List fileBytes,
     required String fileName,
+    bool extractImages = true,
   }) async {
     final mime = resolveMimeType(fileName);
     final ext = fileName.split('.').last.toLowerCase();
@@ -180,7 +181,7 @@ class AIAttachmentHelper {
           }
 
           // Extract authentic raster images and diagrams from ppt/media/
-          if (file.name.startsWith('ppt/media/')) {
+          if (extractImages && file.name.startsWith('ppt/media/')) {
             try {
               final bytes = Uint8List.fromList(file.content as List<int>);
               if (bytes.length > 5000 &&
@@ -191,13 +192,18 @@ class AIAttachmentHelper {
           }
         }
 
-        // Upload extracted images to Supabase storage
-        final imageUrls = await uploadExtractedImages(extractedImages);
+        final selectedImages = extractImages
+            ? _selectTopImages(extractedImages)
+            : <Uint8List>[];
+        // Upload extracted images in parallel to Supabase storage
+        final imageUrls = selectedImages.isNotEmpty
+            ? await uploadExtractedImages(selectedImages)
+            : <String>[];
 
         return ProcessedAttachment(
           extractedText: slideText.isNotEmpty ? slideText.toString() : null,
           mimeType: 'text/plain',
-          extractedImageBytes: extractedImages,
+          extractedImageBytes: selectedImages,
           extractedImageUrls: imageUrls,
         );
       } catch (e) {
@@ -229,7 +235,7 @@ class AIAttachmentHelper {
             } catch (_) {}
           }
 
-          if (file.name.startsWith('word/media/')) {
+          if (extractImages && file.name.startsWith('word/media/')) {
             try {
               final bytes = Uint8List.fromList(file.content as List<int>);
               if (bytes.length > 5000 &&
@@ -240,12 +246,17 @@ class AIAttachmentHelper {
           }
         }
 
-        final imageUrls = await uploadExtractedImages(extractedImages);
+        final selectedImages = extractImages
+            ? _selectTopImages(extractedImages)
+            : <Uint8List>[];
+        final imageUrls = selectedImages.isNotEmpty
+            ? await uploadExtractedImages(selectedImages)
+            : <String>[];
 
         return ProcessedAttachment(
           extractedText: docText.isNotEmpty ? docText.toString() : null,
           mimeType: 'text/plain',
-          extractedImageBytes: extractedImages,
+          extractedImageBytes: selectedImages,
           extractedImageUrls: imageUrls,
         );
       } catch (e) {
@@ -255,14 +266,16 @@ class AIAttachmentHelper {
 
     // 3. Process Direct Image Upload
     if (isImage(fileName)) {
-      final imageUrls = await uploadExtractedImages([fileBytes]);
+      final imageUrls = extractImages
+          ? await uploadExtractedImages([fileBytes])
+          : <String>[];
       return ProcessedAttachment(
         rawBytesForGemini: fileBytes,
         mimeType: mime,
         rawMediaParts: [
           RawMediaPart(mimeType: mime, bytes: fileBytes, fileName: fileName),
         ],
-        extractedImageBytes: [fileBytes],
+        extractedImageBytes: extractImages ? [fileBytes] : const [],
         extractedImageUrls: imageUrls,
       );
     }
@@ -291,13 +304,17 @@ class AIAttachmentHelper {
     // 5. Process PDF Document (Extract authentic embedded images & provide raw PDF to Gemini)
     if (ext == 'pdf') {
       List<Uint8List> extractedImages = [];
-      try {
-        extractedImages = extractImagesFromPdf(fileBytes);
-      } catch (e) {
-        debugPrint('Error extracting images from PDF: $e');
+      if (extractImages) {
+        try {
+          extractedImages = _selectTopImages(extractImagesFromPdf(fileBytes));
+        } catch (e) {
+          debugPrint('Error extracting images from PDF: $e');
+        }
       }
 
-      final imageUrls = await uploadExtractedImages(extractedImages);
+      final imageUrls = extractedImages.isNotEmpty
+          ? await uploadExtractedImages(extractedImages)
+          : <String>[];
 
       return ProcessedAttachment(
         rawBytesForGemini: fileBytes,
@@ -324,6 +341,7 @@ class AIAttachmentHelper {
   static Future<ProcessedAttachment> processAttachments({
     required List<Uint8List> filesBytes,
     required List<String> filesNames,
+    bool extractImages = true,
   }) async {
     final StringBuffer combinedText = StringBuffer();
     final List<RawMediaPart> allRawParts = [];
@@ -333,7 +351,11 @@ class AIAttachmentHelper {
     for (int i = 0; i < filesBytes.length && i < filesNames.length; i++) {
       final bytes = filesBytes[i];
       final name = filesNames[i];
-      final processed = await processAttachment(fileBytes: bytes, fileName: name);
+      final processed = await processAttachment(
+        fileBytes: bytes,
+        fileName: name,
+        extractImages: extractImages,
+      );
 
       if (processed.extractedText != null &&
           processed.extractedText!.trim().isNotEmpty) {
@@ -685,34 +707,48 @@ class AIAttachmentHelper {
     return null;
   }
 
-  /// Uploads extracted authentic images into Supabase Storage `quiz_images` bucket.
+  /// Keeps up to [maxCount] largest images in their original order.
+  static List<Uint8List> _selectTopImages(
+    List<Uint8List> images, {
+    int maxCount = 6,
+  }) {
+    if (images.length <= maxCount) return images;
+    final indices = List<int>.generate(images.length, (i) => i);
+    indices.sort((a, b) => images[b].length.compareTo(images[a].length));
+    final topIndices = indices.take(maxCount).toList()..sort();
+    return [for (final idx in topIndices) images[idx]];
+  }
+
+  /// Uploads extracted authentic images in parallel into Supabase Storage `quiz_images` bucket.
   static Future<List<String>> uploadExtractedImages(
     List<Uint8List> images,
   ) async {
-    final List<String> urls = [];
+    if (images.isEmpty) return [];
     final client = Supabase.instance.client;
+    final selected = _selectTopImages(images);
+    final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
 
-    for (int i = 0; i < images.length && i < 10; i++) {
-      try {
-        final bytes = images[i];
-        final format = _detectSupportedRasterImage(bytes);
-        if (format == null) continue;
+    final results = await Future.wait(
+      List.generate(selected.length, (i) async {
+        try {
+          final bytes = selected[i];
+          final format = _detectSupportedRasterImage(bytes);
+          if (format == null) return null;
 
-        final fileName =
-            'extracted_${DateTime.now().millisecondsSinceEpoch}_$i.${format.ext}';
-        await client.storage.from('quiz_images').uploadBinary(
-              fileName,
-              bytes,
-              fileOptions: FileOptions(contentType: format.contentType),
-            );
-        final publicUrl =
-            client.storage.from('quiz_images').getPublicUrl(fileName);
-        urls.add(publicUrl);
-      } catch (e) {
-        debugPrint('Error uploading extracted image $i: $e');
-      }
-    }
+          final fileName = 'extracted_${baseTimestamp}_$i.${format.ext}';
+          await client.storage.from('quiz_images').uploadBinary(
+                fileName,
+                bytes,
+                fileOptions: FileOptions(contentType: format.contentType),
+              );
+          return client.storage.from('quiz_images').getPublicUrl(fileName);
+        } catch (e) {
+          debugPrint('Error uploading extracted image $i: $e');
+          return null;
+        }
+      }),
+    );
 
-    return urls;
+    return results.whereType<String>().toList();
   }
 }
