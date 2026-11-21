@@ -768,6 +768,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(color: Colors.grey.shade200),
                       ),
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.manage_accounts_rounded,
+                          color: Colors.deepPurple,
+                        ),
+                        title: const Text(
+                          'Edit Profile',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Update your name, email & password',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.grey,
+                        ),
+                        onTap: () => context.push('/me/edit'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
                       child: SwitchListTile(
                         secondary: Icon(
                           soundService.isEnabled

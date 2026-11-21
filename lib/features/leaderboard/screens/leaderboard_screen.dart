@@ -462,6 +462,35 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 6),
+                              Builder(
+                                builder: (context) {
+                                  final minXp = _getLeagueConfig(_selectedLeague).minWeeklyXp;
+                                  final label = _selectedLeague == 'Stargazer'
+                                      ? 'Min. $minXp Weekly XP to level up'
+                                      : (_selectedLeague == 'Cosmic Legend'
+                                          ? 'Min. $minXp Weekly XP to stay safe'
+                                          : 'Min. $minXp Weekly XP to level up / stay safe');
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.25),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.16),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      label,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -523,59 +552,96 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   List<Widget> _buildLeaderboardItems() {
     final List<Widget> items = [];
-    final totalCount = _users.length;
+    final globalCount = _allLeagueUsers.length;
     final config = _getLeagueConfig(_selectedLeague);
 
-    final promoCount = (totalCount * config.promotionPct).ceil();
-    final demoCount = (totalCount * config.demotionPct).ceil();
+    final promoCount = (globalCount * config.promotionPct).ceil();
+    final demoCount = (globalCount * config.demotionPct).ceil();
+    final canPromote = _selectedLeague != 'Cosmic Legend';
+    final canDemote = _selectedLeague != 'Stargazer';
+    final hasGlobalZones = globalCount >= 3;
 
-    final showDividers = totalCount >= 3;
+    final globalRankById = <String, int>{
+      for (int i = 0; i < _allLeagueUsers.length; i++)
+        _allLeagueUsers[i].id: i + 1,
+    };
 
-    for (int i = 0; i < totalCount; i++) {
+    final promotedFlags = <bool>[];
+    final demotedFlags = <bool>[];
+    int lastPromotedIdx = -1;
+    int firstDemotedIdx = -1;
+
+    for (int i = 0; i < _users.length; i++) {
       final user = _users[i];
-      final rank = i + 1;
+      final globalRank = globalRankById[user.id] ?? (i + 1);
+      final isPromoted = hasGlobalZones &&
+          canPromote &&
+          globalRank <= promoCount &&
+          user.weeklyXp >= config.minWeeklyXp;
+      final isDemoted = hasGlobalZones &&
+          canDemote &&
+          demoCount > 0 &&
+          globalRank > globalCount - demoCount &&
+          user.weeklyXp < config.minWeeklyXp;
 
-      items.add(_buildUserRow(user, rank));
+      promotedFlags.add(isPromoted);
+      demotedFlags.add(isDemoted);
 
-      if (showDividers) {
-        // Promotion (Level-up zone) divider AFTER the last promoted user row
-        if (rank == promoCount) {
-          items.add(_buildZoneDivider(
-            label: 'Level-up zone',
-            color: Colors.green,
-            icon: Icons.keyboard_double_arrow_up,
-          ));
-        }
+      if (isPromoted) lastPromotedIdx = i;
+      if (isDemoted && firstDemotedIdx == -1) firstDemotedIdx = i;
+    }
 
-        // Demotion (Level-down zone) divider BEFORE the first demoted user row
-        if (i + 1 == totalCount - demoCount && demoCount > 0 && _selectedLeague != 'Stargazer') {
-          items.add(_buildZoneDivider(
-            label: 'Level-down zone',
-            color: Colors.red,
-            icon: Icons.keyboard_double_arrow_down,
-          ));
-        }
+    for (int i = 0; i < _users.length; i++) {
+      final user = _users[i];
+      final globalRank = globalRankById[user.id] ?? (i + 1);
+
+      // Demotion (Level-down zone) divider BEFORE the first user who will demote
+      if (!_isFriendsOnly && i == firstDemotedIdx) {
+        items.add(_buildZoneDivider(
+          label: 'Level-down zone',
+          color: Colors.red,
+          icon: Icons.keyboard_double_arrow_down,
+        ));
+      }
+
+      items.add(
+        _buildUserRow(
+          user,
+          globalRank,
+          isPromoted: promotedFlags[i],
+          isDemoted: demotedFlags[i],
+          showZoneTag: _isFriendsOnly,
+        ),
+      );
+
+      // Promotion (Level-up zone) divider AFTER the last user who will promote
+      if (!_isFriendsOnly && i == lastPromotedIdx) {
+        items.add(_buildZoneDivider(
+          label: 'Level-up zone',
+          color: Colors.green,
+          icon: Icons.keyboard_double_arrow_up,
+        ));
       }
     }
 
     return items;
   }
 
-  Widget _buildUserRow(LeaderboardUser user, int rank) {
+  Widget _buildUserRow(
+    LeaderboardUser user,
+    int rank, {
+    required bool isPromoted,
+    required bool isDemoted,
+    required bool showZoneTag,
+  }) {
     final isMe = !_isAdmin && user.id == _currentUserId;
-    final totalCount = _users.length;
-    final config = _getLeagueConfig(_selectedLeague);
-    final promoCount = (totalCount * config.promotionPct).ceil();
-    final demoCount = (totalCount * config.demotionPct).ceil();
-    final leagueTheme = CosmicLeagueThemeData.forLeague(_selectedLeague);
+    final isFriend = !isMe && _friendIds.contains(user.id);
 
     Color rankColor = Colors.white.withValues(alpha: 0.75);
-    if (totalCount >= 3) {
-      if (rank <= promoCount) {
-        rankColor = const Color(0xFF69F0AE);
-      } else if (rank > totalCount - demoCount && _selectedLeague != 'Stargazer') {
-        rankColor = const Color(0xFFFF8A80);
-      }
+    if (isPromoted) {
+      rankColor = const Color(0xFF69F0AE);
+    } else if (isDemoted) {
+      rankColor = const Color(0xFFFF8A80);
     }
 
     final rankIndicator = SizedBox(
@@ -591,26 +657,53 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       ),
     );
 
+    const meAccent = Color(0xFFB388FF);
+    const friendAccent = Color(0xFF00E5FF);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: isMe ? 0.38 : 0.26),
+        color: isMe
+            ? const Color(0xFF281252).withValues(alpha: 0.65)
+            : (isFriend
+                ? const Color(0xFF082D38).withValues(alpha: 0.55)
+                : Colors.black.withValues(alpha: 0.26)),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isMe
-              ? leagueTheme.primaryAccent.withValues(alpha: 0.85)
-              : Colors.white.withValues(alpha: 0.18),
-          width: isMe ? 1.8 : 1.0,
+              ? meAccent
+              : (isFriend
+                  ? friendAccent
+                  : Colors.white.withValues(alpha: 0.18)),
+          width: isMe ? 2.2 : (isFriend ? 1.9 : 1.0),
         ),
         boxShadow: isMe
             ? [
                 BoxShadow(
-                  color: leagueTheme.primaryAccent.withValues(alpha: 0.35),
-                  blurRadius: 12,
-                  spreadRadius: 1,
+                  color: meAccent.withValues(alpha: 0.65),
+                  blurRadius: 18,
+                  spreadRadius: 2,
+                ),
+                BoxShadow(
+                  color: Colors.deepPurpleAccent.withValues(alpha: 0.35),
+                  blurRadius: 28,
+                  spreadRadius: 3,
                 ),
               ]
-            : null,
+            : (isFriend
+                ? [
+                    BoxShadow(
+                      color: friendAccent.withValues(alpha: 0.55),
+                      blurRadius: 16,
+                      spreadRadius: 1.5,
+                    ),
+                    BoxShadow(
+                      color: friendAccent.withValues(alpha: 0.25),
+                      blurRadius: 24,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -633,7 +726,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
             const SizedBox(width: 16),
-            // Name
+            // Name + Friend / Global Zone Badges
             Expanded(
               child: GestureDetector(
                 onTap: () => UserDetailBottomSheet.show(
@@ -642,13 +735,131 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   name: user.name,
                   avatarUrl: user.avatarUrl,
                 ),
-                child: Text(
-                  user.name,
-                  style: TextStyle(
-                    fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
-                    fontSize: 15,
-                    color: Colors.white,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      user.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
+                        fontSize: 15,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (isFriend ||
+                        (showZoneTag && (isPromoted || isDemoted))) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          if (isFriend)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: friendAccent.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: friendAccent.withValues(alpha: 0.6),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.people_alt_rounded,
+                                    size: 11,
+                                    color: friendAccent,
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Friend',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: friendAccent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (showZoneTag && isPromoted)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF69F0AE)
+                                      .withValues(alpha: 0.6),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.keyboard_double_arrow_up,
+                                    size: 11,
+                                    color: Color(0xFF69F0AE),
+                                  ),
+                                  SizedBox(width: 2),
+                                  Text(
+                                    'Level-up',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF69F0AE),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (showZoneTag && isDemoted)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFFFF8A80)
+                                      .withValues(alpha: 0.6),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.keyboard_double_arrow_down,
+                                    size: 11,
+                                    color: Color(0xFFFF8A80),
+                                  ),
+                                  SizedBox(width: 2),
+                                  Text(
+                                    'Level-down',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFFF8A80),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
