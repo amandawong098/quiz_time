@@ -151,7 +151,9 @@ class _DiscussionReportDialogState extends State<DiscussionReportDialog> {
           children: [
             Icon(Icons.info_outline, color: Colors.amber.shade800),
             const SizedBox(width: 8),
-            const Text('Already Reported'),
+            const Expanded(
+              child: Text('Already Reported'),
+            ),
           ],
         ),
         content: Column(
@@ -225,7 +227,9 @@ class _DiscussionReportDialogState extends State<DiscussionReportDialog> {
         children: [
           Icon(Icons.report_problem_rounded, color: Colors.amber.shade800),
           const SizedBox(width: 8),
-          Text(isReply ? 'Report Reply' : 'Report Topic'),
+          Expanded(
+            child: Text(isReply ? 'Report Reply' : 'Report Topic'),
+          ),
         ],
       ),
       content: SingleChildScrollView(

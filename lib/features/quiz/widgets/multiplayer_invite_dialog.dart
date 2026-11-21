@@ -404,8 +404,10 @@ class _MultiplayerInviteDialogState extends State<MultiplayerInviteDialog> {
                       avatarUrl: friend.avatarUrl,
                       radius: 18,
                     ),
-                    title: Text(friend.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(friend.email, style: const TextStyle(fontSize: 12)),
+                    title: Text(
+                      friend.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     value: isSelected,
                     activeColor: Colors.deepPurple,
                     onChanged: (val) {
